@@ -13,6 +13,30 @@ from .gaps import annotate_trade_gap_exposure, classify_index_gaps
 from .model import Settings
 
 
+def _marked_periods(equity: pd.Series, rule: str) -> pd.DataFrame:
+    """Observed marks only; never allocate a cross-gap change to a period.
+
+    An empty calendar period has no defensible closing mark. The first mark
+    after it is also insufficient to allocate the intervening P/L by period.
+    Keep those changes unknown and expose the cross-gap difference separately.
+    """
+    marked = equity.resample(rule).last()
+    samples = equity.resample(rule).count()
+    change = marked.diff()
+    change.iloc[0] = marked.iloc[0]  # Initial research equity is zero.
+    resumed = samples.gt(0) & samples.shift(1, fill_value=1).eq(0)
+    since_observed = marked - marked.ffill().shift(1)
+    since_observed.iloc[0] = marked.iloc[0]
+    return pd.DataFrame({
+        "period_end_equity": marked,
+        "equity_change": change,
+        "observed_m1_samples": samples,
+        "has_observations": samples.gt(0),
+        "change_spans_unobserved_period": resumed,
+        "change_since_last_observed_period": since_observed,
+    })
+
+
 def _periods(trades: pd.DataFrame, start: pd.Timestamp, end: pd.Timestamp, period: str) -> pd.DataFrame:
     first = start.tz_convert("UTC").tz_localize(None).to_period(period)
     last = end.tz_convert("UTC").tz_localize(None).to_period(period)
@@ -77,7 +101,8 @@ def report(result: Result, settings: Settings, out: str | Path, *, source: str =
             periods["uncertain_gap_trades_net_pnl"] = 0.0
     peak = equity["equity"].cummax().clip(lower=0)
     equity["drawdown"] = (peak - equity["equity"]).clip(lower=0)
-    month_end_equity = equity["equity"].resample("ME").last()
+    month_marks = _marked_periods(equity["equity"], "ME")
+    month_end_equity = month_marks["period_end_equity"]
     month_end_dd = (
         month_end_equity.cummax().clip(lower=0) - month_end_equity
     ).clip(lower=0)
@@ -85,14 +110,16 @@ def report(result: Result, settings: Settings, out: str | Path, *, source: str =
     monthly["month_end_drawdown"] = month_end_dd.to_numpy()
     # Unrealized equity must be visible separately from P/L booked at exit.
     # First period uses a starting research equity of zero.
-    monthly["month_equity_change"] = month_end_equity.diff().fillna(
-        month_end_equity.iloc[0]
-    ).to_numpy()
-    week_end_equity = equity["equity"].resample("W-SUN").last()
+    monthly["month_equity_change"] = month_marks["equity_change"].to_numpy()
+    week_marks = _marked_periods(equity["equity"], "W-SUN")
+    week_end_equity = week_marks["period_end_equity"]
     weekly["week_end_equity"] = week_end_equity.to_numpy()
-    weekly["week_equity_change"] = week_end_equity.diff().fillna(
-        week_end_equity.iloc[0]
-    ).to_numpy()
+    weekly["week_equity_change"] = week_marks["equity_change"].to_numpy()
+    for periods, marks in ((monthly, month_marks), (weekly, week_marks)):
+        for column in ("observed_m1_samples", "has_observations",
+                       "change_spans_unobserved_period",
+                       "change_since_last_observed_period"):
+            periods[column] = marks[column].to_numpy()
 
     total_profit = float(trades.loc[trades["net_pnl"] > 0, "net_pnl"].sum())
     total_loss = float(trades.loc[trades["net_pnl"] < 0, "net_pnl"].sum())
@@ -148,6 +175,14 @@ def report(result: Result, settings: Settings, out: str | Path, *, source: str =
         "positive_months": int((monthly["net_pnl"] > 0).sum()),
         "nonpositive_months": int((monthly["net_pnl"] <= 0).sum()),
         "months_observed": int(len(monthly)),
+        "months_with_m1_observations": int(month_marks["has_observations"].sum()),
+        "weeks_without_m1_observations": int((~week_marks["has_observations"]).sum()),
+        "period_coverage_note": (
+            "Period-end equity is the last observed M1 close within that period. "
+            "Empty periods and the next period's allocated equity change are unknown; "
+            "change_since_last_observed_period records the cross-gap difference "
+            "without assigning it to an unobserved period."
+        ),
         "open_equity_warning": "M1 OHLC cannot reconstruct the tick path or floating equity during missing intervals.",
         "incomplete_final_period_warning": "Final month can be partial. end_of_data exits are synthetic research liquidations.",
     }

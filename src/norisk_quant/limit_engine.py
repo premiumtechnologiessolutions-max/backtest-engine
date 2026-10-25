@@ -51,10 +51,14 @@ def run_limits(minutes: pd.DataFrame, orders: list[LimitOrder], settings: Settin
     market price is already beyond the configured stop, stop at that adverse
     first-observed OPEN. Stop-first is assumed if intrabar order ambiguous.
     """
+    if getattr(settings, "max_holding_minutes", None) is not None:
+        raise ValueError("Maximum holding time requires run_unified_portfolio")
     if minutes.empty or not isinstance(minutes.index, pd.DatetimeIndex):
         raise ValueError("Nonempty M1 DatetimeIndex required")
     if minutes.index.tz is None or minutes.index.has_duplicates or not minutes.index.is_monotonic_increasing:
         raise ValueError("Sorted timezone-aware M1 index required")
+    if (minutes.index.as_unit("ns").asi8 % 60_000_000_000 != 0).any():
+        raise ValueError("M1 candle opens must align to exact minute boundaries")
     if not {"o", "h", "l", "c"}.issubset(minutes):
         raise ValueError("Missing M1 reference OHLC")
     for order in orders:

@@ -104,6 +104,15 @@ def run(minutes: pd.DataFrame, signals: Iterable[Signal], settings: Settings) ->
             elif position.side == -1 and op <= position.target:
                 close(position, start, position.target, "open_target")
                 position = None
+            elif (
+                settings.max_holding_minutes is not None
+                and start - pd.Timestamp(position.entry_at)
+                >= pd.Timedelta(minutes=settings.max_holding_minutes)
+            ):
+                # Stops/targets already breached at the observed open take
+                # precedence. A scheduled exit precedes this candle's range.
+                close(position, start, op, "time_exit")
+                position = None
 
         # Expire stale signals, rather than acting on an old signal after a
         # market closure. Signals are confirmed at CLOSE, not earlier.

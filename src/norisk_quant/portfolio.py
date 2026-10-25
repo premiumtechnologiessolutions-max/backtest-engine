@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 import json
 import math
+from numbers import Integral
 from typing import Mapping, Sequence
 
 import numpy as np
@@ -26,6 +27,7 @@ class PortfolioSettings:
     max_entry_delay_minutes: int = 1
     close_at_end: bool = True
     all_in_cost_per_ounce: float = 0.40
+    max_holding_minutes: int | None = None
 
     def __post_init__(self) -> None:
         if not self.ounces_by_strategy or any(
@@ -33,10 +35,21 @@ class PortfolioSettings:
             for name, qty in self.ounces_by_strategy.items()
         ):
             raise ValueError("Each strategy needs a finite positive ounce allocation")
-        if self.max_open_positions < 1 or not math.isfinite(self.max_total_ounces) or self.max_total_ounces <= 0:
+        if (isinstance(self.max_open_positions, bool)
+                or not isinstance(self.max_open_positions, Integral)
+                or self.max_open_positions < 1
+                or not math.isfinite(self.max_total_ounces) or self.max_total_ounces <= 0):
             raise ValueError("Invalid shared portfolio capacity")
-        if self.max_entry_delay_minutes < 0:
-            raise ValueError("Negative signal entry delay")
+        if (isinstance(self.max_entry_delay_minutes, bool)
+                or not isinstance(self.max_entry_delay_minutes, Integral)
+                or self.max_entry_delay_minutes < 0):
+            raise ValueError("Signal entry delay must be a nonnegative integer")
+        if self.max_holding_minutes is not None and (
+            isinstance(self.max_holding_minutes, bool)
+            or not isinstance(self.max_holding_minutes, Integral)
+            or self.max_holding_minutes <= 0
+        ):
+            raise ValueError("Maximum holding minutes must be a positive integer")
         if self.all_in_cost_per_ounce != 0.40:
             raise ValueError("Research contract fixes ALL-IN fee at $0.40/oz per roundtrip")
 
@@ -76,6 +89,8 @@ def run_portfolio(
     slot until the next observed M1 bar. Ties use (confirmation, strategy,
     input order) priority, not hindsight profitability.
     """
+    if settings.max_holding_minutes is not None:
+        raise ValueError("Maximum holding time requires run_unified_portfolio")
     if minutes.empty or not isinstance(minutes.index, pd.DatetimeIndex):
         raise ValueError("Nonempty M1 DatetimeIndex required")
     if minutes.index.tz is None or minutes.index.has_duplicates or not minutes.index.is_monotonic_increasing:
@@ -212,7 +227,12 @@ def run_portfolio(
 def validate_portfolio(result: PortfolioResult, settings: PortfolioSettings, *, atol: float = 1e-7) -> dict:
     """Validate fee, shared exposure, realized P/L timeline, and per-strategy overlap."""
     eq, tr = result.equity, result.trades
-    if eq.empty or eq.index.has_duplicates or not eq.index.is_monotonic_increasing:
+    if not math.isfinite(atol) or atol <= 0:
+        raise ValueError("atol must be finite positive")
+    if (eq.empty or not isinstance(eq.index, pd.DatetimeIndex)
+            or eq.index.tz is None or eq.index.hasnans
+            or eq.index.has_duplicates or not eq.index.is_monotonic_increasing
+            or (eq.index.as_unit("ns").asi8 % 60_000_000_000 != 0).any()):
         raise ValueError("Invalid equity time axis")
     if not {"realized_pnl", "floating_pnl", "equity", "open_positions", "gross_open_ounces"}.issubset(eq):
         raise ValueError("Missing portfolio equity/exposure columns")
@@ -221,8 +241,21 @@ def validate_portfolio(result: PortfolioResult, settings: PortfolioSettings, *, 
         raise ValueError("Invalid portfolio equity arithmetic")
     if (vals[:,3] < 0).any() or (vals[:,3] > settings.max_open_positions).any() or (vals[:,4] < 0).any() or (vals[:,4] > settings.max_total_ounces + atol).any():
         raise ValueError("Portfolio capacity exceeded")
+    if not np.equal(vals[:, 3], np.floor(vals[:, 3])).all():
+        raise ValueError("Portfolio open-position counts must be integers")
+    if ((vals[:, 3] == 0) & ((np.abs(vals[:, 1]) > atol) | (vals[:, 4] > atol))).any():
+        raise ValueError("Floating P/L or ounces without an open position")
+    if ((vals[:, 3] > 0) & (vals[:, 4] <= 0)).any():
+        raise ValueError("Open positions require positive ounce exposure")
+    required = {"strategy", "entry_at", "closed_at", "signal_at", "side",
+                "entry_price", "exit_price", "stop", "target", "ounces",
+                "gross_pnl", "cost", "net_pnl", "exit_reason", "gap_minutes"}
+    if not required.issubset(tr):
+        raise ValueError(f"Portfolio ledger missing {sorted(required - set(tr.columns))}")
     if tr.empty:
         booked = pd.Series(0.0, index=eq.index)
+        known_count = pd.Series(0.0, index=eq.index)
+        known_ounces = pd.Series(0.0, index=eq.index)
     else:
         if not tr["strategy"].isin(settings.ounces_by_strategy).all():
             raise ValueError("Unknown strategy in portfolio trade ledger")
@@ -231,6 +264,24 @@ def validate_portfolio(result: PortfolioResult, settings: PortfolioSettings, *, 
         fees = tr["cost"].to_numpy(dtype=float)
         gross = tr["gross_pnl"].to_numpy(dtype=float)
         net = tr["net_pnl"].to_numpy(dtype=float)
+        prices = tr[["entry_price", "exit_price", "stop", "target"]].to_numpy(dtype=float)
+        if not np.isfinite(prices).all() or (prices <= 0).any():
+            raise ValueError("Portfolio prices must be finite positive")
+        if not tr["side"].isin((1, -1)).all():
+            raise ValueError("Illegal portfolio trade side")
+        allowed_reasons = {"gap_stop", "open_stop", "open_target", "stop", "target",
+                           "ambiguous_stop_first", "end_of_data",
+                           "entry_open_beyond_stop", "time_exit"}
+        if not tr["exit_reason"].isin(allowed_reasons).all():
+            raise ValueError("Unknown portfolio trade exit reason")
+        gap_minutes = tr["gap_minutes"].to_numpy(dtype=float)
+        if (not np.isfinite(gap_minutes).all() or (gap_minutes < 0).any()
+                or not np.equal(gap_minutes, np.floor(gap_minutes)).all()):
+            raise ValueError("Invalid portfolio trade gap minutes")
+        side = tr["side"].to_numpy(dtype=float)
+        if ((side * (tr["entry_price"].to_numpy() - tr["stop"].to_numpy()) <= 0)
+                | (side * (tr["target"].to_numpy() - tr["entry_price"].to_numpy()) <= 0)).any():
+            raise ValueError("Portfolio stop/target bracket is invalid")
         expected_gross = tr["side"].to_numpy(dtype=float) * (
             tr["exit_price"].to_numpy(dtype=float) - tr["entry_price"].to_numpy(dtype=float)
         ) * quantities
@@ -242,27 +293,74 @@ def validate_portfolio(result: PortfolioResult, settings: PortfolioSettings, *, 
             raise ValueError("Double counted fee or variable fee")
         if not np.allclose(gross, expected_gross, rtol=0, atol=atol) or not np.allclose(net, gross - fees, rtol=0, atol=atol):
             raise ValueError("Portfolio P/L mismatch")
+        for column in ("entry_at", "closed_at", "signal_at"):
+            if tr[column].map(lambda value: pd.Timestamp(value).tzinfo is None).any():
+                raise ValueError("Portfolio time causality requires explicit timezone")
         entry = pd.to_datetime(tr["entry_at"], utc=True)
         closed = pd.to_datetime(tr["closed_at"], utc=True)
         confirmed = pd.to_datetime(tr["signal_at"], utc=True)
-        if (entry < confirmed).any() or (closed < entry).any() or not closed.isin(eq.index).all():
+        if (entry.isna().any() or closed.isna().any() or confirmed.isna().any()
+                or (entry < confirmed).any() or (closed < entry).any()
+                or not entry.isin(eq.index).all() or not closed.isin(eq.index).all()):
             raise ValueError("Portfolio time causality mismatch")
+        reasons = tr["exit_reason"]
+        stopped = reasons.isin(("stop", "ambiguous_stop_first"))
+        targeted = reasons.isin(("target", "open_target"))
+        if (not np.allclose(tr.loc[stopped, "exit_price"], tr.loc[stopped, "stop"], rtol=0, atol=atol)
+                or not np.allclose(tr.loc[targeted, "exit_price"], tr.loc[targeted, "target"], rtol=0, atol=atol)):
+            raise ValueError("Portfolio exit price disagrees with stop/target reason")
+        adverse = reasons.isin(("gap_stop", "open_stop", "entry_open_beyond_stop"))
+        if (tr.loc[adverse, "side"] * (tr.loc[adverse, "exit_price"] - tr.loc[adverse, "stop"]) > atol).any():
+            raise ValueError("Portfolio gap-through exit is not beyond its stop")
+        if (closed.loc[reasons == "end_of_data"] != eq.index[-1]).any():
+            raise ValueError("End-of-data closure precedes the final observed quote")
+        timed = reasons == "time_exit"
+        if timed.any() and (settings.max_holding_minutes is None or (
+            (closed.loc[timed] - entry.loc[timed]).dt.total_seconds()
+            < settings.max_holding_minutes * 60
+        ).any()):
+            raise ValueError("Portfolio time exit precedes its configured holding cap")
         for _, group in tr.assign(_entry=entry, _exit=closed).groupby("strategy"):
             group = group.sort_values("_entry")
             if (group["_entry"].iloc[1:].to_numpy() <= group["_exit"].iloc[:-1].to_numpy()).any():
                 raise ValueError("Same-strategy overlap or same-minute reentry")
         booked = tr.groupby(closed)["net_pnl"].sum().reindex(eq.index, fill_value=0.0)
+        entries = tr.groupby(entry)["ounces"].agg(["size", "sum"])
+        exits = tr.groupby(closed)["ounces"].agg(["size", "sum"])
+        events = entries.reindex(eq.index, fill_value=0.0) - exits.reindex(eq.index, fill_value=0.0)
+        known_count = events["size"].cumsum()
+        known_ounces = events["sum"].cumsum()
     if not np.allclose(eq["realized_pnl"].to_numpy(), booked.cumsum().to_numpy(), rtol=0, atol=atol):
         raise ValueError("Portfolio realized P/L chronology mismatch")
+    if settings.close_at_end:
+        if not np.allclose(vals[:, 3], known_count.to_numpy(), rtol=0, atol=atol) or not np.allclose(
+            vals[:, 4], known_ounces.to_numpy(), rtol=0, atol=atol
+        ):
+            raise ValueError("Portfolio exposure chronology disagrees with closed trades")
+        if abs(vals[-1, 1]) > atol or vals[-1, 3] != 0 or abs(vals[-1, 4]) > atol:
+            raise ValueError("Closed-at-end portfolio must finish flat")
+    elif ((vals[:, 3] + atol < known_count.to_numpy()).any()
+          or (vals[:, 4] + atol < known_ounces.to_numpy()).any()):
+        raise ValueError("Portfolio exposure below known trade chronology")
+    for count in (result.pending_at_end, result.expired_signals, result.capacity_rejected,
+                  result.duplicate_strategy_rejected, result.open_positions_at_end):
+        if isinstance(count, bool) or not isinstance(count, Integral) or count < 0:
+            raise ValueError("Invalid portfolio result counters")
     return {"status": "PASSED", "trades": int(len(tr)),
             "net_pnl_closed": float(tr["net_pnl"].sum()) if len(tr) else 0.0,
             "max_observed_open_positions": int(eq["open_positions"].max()),
             "max_observed_open_ounces": float(eq["gross_open_ounces"].max()),
+            "floating_price_reconciliation": (
+                "Arithmetic/exposure checked; independent floating-price verification "
+                "requires source M1 closes and any remaining open-position ledger."
+            ),
             "cost_model": "FIXED_ALL_IN_0.40_PER_OUNCE_PER_ROUNDTRIP"}
 
 
 def write_portfolio_report(result: PortfolioResult, settings: PortfolioSettings, out: str | Path) -> dict:
     """Write shared realized and marked-to-market weekly/monthly research ledgers."""
+    from .report import _marked_periods
+
     audit = validate_portfolio(result, settings)
     dest = Path(out)
     dest.mkdir(parents=True, exist_ok=True)
@@ -281,9 +379,11 @@ def write_portfolio_report(result: PortfolioResult, settings: PortfolioSettings,
         realized = realized.reindex(periods, fill_value=0.0)
         for col in ("trades", "net_pnl", "cost"):
             if col not in realized: realized[col] = 0.0
-        marked = eq["equity"].resample(rule).last()
-        realized["period_end_equity"] = marked.to_numpy()
-        realized["equity_change"] = marked.diff().fillna(marked.iloc[0]).to_numpy()
+        marked = _marked_periods(eq["equity"], rule)
+        for column in marked.columns:
+            realized[column] = marked[column].to_numpy()
+        realized["period_end_realized_pnl"] = eq["realized_pnl"].resample(rule).last().to_numpy()
+        realized["period_end_floating_pnl"] = eq["floating_pnl"].resample(rule).last().to_numpy()
         realized.index.name = "period"
         realized.to_csv(dest / f"{label}.csv")
     eq.to_csv(dest / "equity_m1.csv")
@@ -299,6 +399,11 @@ def write_portfolio_report(result: PortfolioResult, settings: PortfolioSettings,
         "capacity_rejected": result.capacity_rejected,
         "duplicate_strategy_rejected": result.duplicate_strategy_rejected,
         "open_positions_before_optional_end_close": result.open_positions_at_end,
+        "period_coverage_note": (
+            "Period-end values use the last observed M1 close in the period. "
+            "An empty period and the allocated equity change on resumption remain "
+            "unknown; change_since_last_observed_period is a cross-gap difference."
+        ),
         "caveat": "Synthetic M1 OHLC with stop-first; not broker ticks or a broker margin model. Open equity unobserved during gaps; month-end is observed only.",
     }
     (dest / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")

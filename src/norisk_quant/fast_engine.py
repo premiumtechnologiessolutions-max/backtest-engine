@@ -54,7 +54,11 @@ def run_fast(minutes: pd.DataFrame, signals: list[Signal], settings: Settings) -
     fee = settings.roundtrip_cost_per_ounce * settings.ounces
     realized = 0.0
     ledger: list[dict] = []
-    equity: list[dict] = []
+    # Preserve every observed M1 mark without millions of Python dicts and
+    # Timestamp objects. Continuous multi-year design runs need bounded
+    # per-bar storage, not an annual reset that force-closes real positions.
+    realized_samples = np.empty(len(minutes), dtype=np.float64)
+    floating_samples = np.empty(len(minutes), dtype=np.float64)
     previous: int | None = None
 
     def close(trade: Position, when: int, price: float, reason: str) -> None:
@@ -94,6 +98,13 @@ def run_fast(minutes: pd.DataFrame, signals: list[Signal], settings: Settings) -
             elif (pos.side == 1 and op >= pos.target) or (pos.side == -1 and op <= pos.target):
                 close(pos, now, pos.target, "open_target")
                 pos = None
+            elif (
+                settings.max_holding_minutes is not None
+                and now - int(pd.Timestamp(pos.entry_at).timestamp())
+                >= settings.max_holding_minutes * 60
+            ):
+                close(pos, now, op, "time_exit")
+                pos = None
         while pointer < len(ordered) and (
             int(stamps_ns[i]) - sig_times_ns[pointer]
         ) > settings.max_entry_delay_minutes * 60_000_000_000:
@@ -127,18 +138,13 @@ def run_fast(minutes: pd.DataFrame, signals: list[Signal], settings: Settings) -
             pos.side * (cl - pos.entry_price) * settings.ounces - fee
             if pos is not None else 0.0
         )
-        equity.append({
-            "at": pd.Timestamp(now, unit="s", tz="UTC"),
-            "realized_pnl": realized,
-            "floating_pnl": floating,
-            "equity": realized + floating,
-        })
+        realized_samples[i] = realized
+        floating_samples[i] = floating
 
     if pos is not None and settings.close_at_end:
         close(pos, int(stamps[-1]), float(closes[-1]), "end_of_data")
-        equity[-1]["realized_pnl"] = realized
-        equity[-1]["floating_pnl"] = 0.0
-        equity[-1]["equity"] = realized
+        realized_samples[-1] = realized
+        floating_samples[-1] = 0.0
 
     columns = [
         "strategy", "signal_at", "entry_at", "closed_at", "side",
@@ -147,7 +153,13 @@ def run_fast(minutes: pd.DataFrame, signals: list[Signal], settings: Settings) -
     ]
     return Result(
         trades=pd.DataFrame.from_records(ledger, columns=columns),
-        equity=pd.DataFrame.from_records(equity).set_index("at"),
+        equity=pd.DataFrame({
+            "realized_pnl": realized_samples,
+            "floating_pnl": floating_samples,
+            "equity": realized_samples + floating_samples,
+        }, index=pd.DatetimeIndex(
+            pd.to_datetime(stamps_ns, unit="ns", utc=True), name="at",
+        )),
         pending_at_end=len(ordered) - pointer,
         expired_signals=expired,
     )

@@ -50,6 +50,8 @@ def run_limit_portfolio(
     strategy are cancelled. Ties: placed_at, strategy, original input order.
     This policy is intentionally distinct from independently summing P/L.
     """
+    if settings.max_holding_minutes is not None:
+        raise ValueError("Maximum holding time requires run_unified_portfolio")
     if minutes.empty or not isinstance(minutes.index, pd.DatetimeIndex):
         raise ValueError("Nonempty M1 DatetimeIndex required")
     if minutes.index.tz is None or minutes.index.has_duplicates or not minutes.index.is_monotonic_increasing:

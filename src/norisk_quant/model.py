@@ -14,6 +14,9 @@ class Settings:
     roundtrip_cost_per_ounce: float = 0.40
     max_entry_delay_minutes: int = 1
     close_at_end: bool = True
+    # Elapsed UTC minutes from entry; execute at first observed open at/after
+    # the deadline. None preserves the existing unlimited holding contract.
+    max_holding_minutes: int | None = None
 
     def __post_init__(self) -> None:
         if not math.isfinite(self.ounces) or self.ounces <= 0:
@@ -22,6 +25,12 @@ class Settings:
             raise ValueError("roundtrip cost must be finite nonnegative")
         if self.max_entry_delay_minutes < 0:
             raise ValueError("max entry delay cannot be negative")
+        if self.max_holding_minutes is not None and (
+            isinstance(self.max_holding_minutes, bool)
+            or not isinstance(self.max_holding_minutes, int)
+            or self.max_holding_minutes <= 0
+        ):
+            raise ValueError("max holding minutes must be a positive integer or None")
 
 
 @dataclass(frozen=True)

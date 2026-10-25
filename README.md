@@ -369,3 +369,43 @@ GitHub is the code and report registry, NOT itself a live backtesting compute se
   exact GitHub module SHA verification and 3,800 historical BOS/H1 trades
   matching independent archived ledgers. **Both BOS/H1 variants remain rejected**.
   Full GitHub Actions CI is still blocked and PR #1 remains Draft.
+
+## Unified Market + Limit execution and frozen QS01 design screen
+
+`norisk_quant.portfolio_unified.run_unified_portfolio(minutes, signals, orders,
+settings)` runs both instruction types against one `PortfolioSettings` allocation
+and one realized/floating equity ledger. `write_unified_portfolio_report` writes
+trade, minute equity, weekly and monthly ledgers. Every closed trade pays exactly
+$0.40 per ounce once; open marks reserve that full roundtrip fee.
+
+Opening Market instructions compete with already marketable Limits by
+confirmation time, strategy name and input order. Limits requiring a later
+intrabar touch use only the remaining capacity. Existing and newly consumed
+slots stay reserved through that minute, even after an exit. Limit entry-bar
+targets are deferred; ambiguous stop/target bars stop first. Limits receive no
+favorable opening improvement, while adverse opening gaps stop at the first
+observed price. Limit expiry uses observed bar openings and does not establish
+the ordering of a touch versus an expiry inside a minute.
+
+An optional positive-integer `max_holding_minutes` is supported by the central
+reference/fast Market engines and unified portfolio. At the first observed open
+at/after the cap, an already breached stop/target takes precedence, followed by
+the time exit, before that minute's later high/low. Legacy portfolio and single
+Limit entry points reject the option explicitly.
+
+The report coverage fields expose whole missing weeks/months. Their closing mark
+and allocated equity change remain unknown; the first resumed mark has a
+separately labeled change since the last observed period. No price is filled in.
+
+Private-data acceptance and design-only commands:
+
+    python scripts/verify_unified_real_m1.py --json /private/2024.json --out /private/unified-acceptance
+    python scripts/research_qs01_design.py --source-dir /private/annual-json --out /private/qs01-design
+
+The first command compares reference/fast Donchian ledgers, sparse mixed execution
+fixtures against standalone engines, every observed floating mark from original
+M1 closes, constrained capacity, and weekly/monthly totals. Fixture returns are
+execution diagnostics. The second command exposes no year or threshold tuning
+arguments: it loads 2012–2016 only and applies the preregistered QS01 screen once.
+The original preregistration remains unchanged; extracted annual file identities
+are recorded separately if the original ZIP is unavailable.
