@@ -77,7 +77,9 @@ def report(result: Result, settings: Settings, out: str | Path, *, source: str =
             periods["uncertain_gap_trades_net_pnl"] = 0.0
     peak = equity["equity"].cummax().clip(lower=0)
     equity["drawdown"] = (peak - equity["equity"]).clip(lower=0)
-    month_end_equity = equity["equity"].resample("ME").last()
+    raw_month_end_equity = equity["equity"].resample("ME").last()
+    month_end_equity = raw_month_end_equity.ffill()
+    monthly["month_has_observed_m1"] = raw_month_end_equity.notna().to_numpy()
     month_end_dd = (
         month_end_equity.cummax().clip(lower=0) - month_end_equity
     ).clip(lower=0)
@@ -88,7 +90,9 @@ def report(result: Result, settings: Settings, out: str | Path, *, source: str =
     monthly["month_equity_change"] = month_end_equity.diff().fillna(
         month_end_equity.iloc[0]
     ).to_numpy()
-    week_end_equity = equity["equity"].resample("W-SUN").last()
+    raw_week_end_equity = equity["equity"].resample("W-SUN").last()
+    week_end_equity = raw_week_end_equity.ffill()
+    weekly["week_has_observed_m1"] = raw_week_end_equity.notna().to_numpy()
     weekly["week_end_equity"] = week_end_equity.to_numpy()
     weekly["week_equity_change"] = week_end_equity.diff().fillna(
         week_end_equity.iloc[0]
@@ -143,7 +147,9 @@ def report(result: Result, settings: Settings, out: str | Path, *, source: str =
         "last_observed_realized_pnl": float(equity["realized_pnl"].iloc[-1]),
         "monthly_mtm_vs_realized_note": (
             "monthly.net_pnl recognizes trades at EXIT; month_equity_change "
-            "uses observed minute-close equity including floating P/L and accrued fee."
+            "uses observed minute-close equity including floating P/L and accrued fee. "
+            "Calendar periods without quotes carry the prior observed mark and "
+            "are explicitly flagged as not observed."
         ),
         "positive_months": int((monthly["net_pnl"] > 0).sum()),
         "nonpositive_months": int((monthly["net_pnl"] <= 0).sum()),
