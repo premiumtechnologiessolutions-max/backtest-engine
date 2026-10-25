@@ -33,3 +33,24 @@
 - `tests/test_qs01.py` and `tests/test_qs01_runner_contract.py` cover causal signals, missing M1, stop-first gap precedence, time exits, fixed cost and reference/fast parity **when run**. This checkpoint has only locally executed the four extracted signal-generation tests (4/4 passed); full repository tests, remote CI, and reference/fast time-exit parity tests have **not** been executed successfully yet.
 - Design-only authorized source runner: `scripts/run_qs01_frozen_design.py`. Requires the exact private original archive SHA-256, uses only **2012–2016**, writes full trade/equity/week/month ledgers and a strict 200 trades / positive net / PF>1.10 / >=31 positive months gate. No automatic access to validation years.
 - **No QS01 real-data performance results exist at this checkpoint.** Never interpret code implementation or a synthetic unit test as design qualification, clean out-of-sample success, broker execution, or 81/81 monthly profitability.
+
+### Additional safety audit
+
+The canonical `validate_execution` allowlist now recognizes the opt-in
+`time_exit` reason; without this correction, a legitimate QS01 time exit
+would have failed the report/accounting stage. Synthetic time-exit parity,
+fee-once, gap-stop precedence and report reconciliation are committed as
+tests but **have not yet been run against the full GitHub package**.
+
+Both single-strategy and shared-portfolio weekly/monthly reports now
+distinguish periods with no observed M1 quotes from observed period-end
+marks. Empty periods carry the prior last-observed mark (not a fabricated
+new quote); the single-strategy summary separately counts calendar months
+and months with M1 observations. QS01 design screening refuses missing
+months rather than treating them as normal flat months.
+
+Local extracted QS01 signal tests: 4/4 passed, plus 100/100
+future-data perturbations and 30/30 missing-minute rejection checks.
+Local extracted shared-portfolio sparse-calendar cases passed (one
+unobserved month, three unobserved weeks). These are scoped tests, **not
+full repository pytest, CI, broker-tick parity or strategy performance**.
