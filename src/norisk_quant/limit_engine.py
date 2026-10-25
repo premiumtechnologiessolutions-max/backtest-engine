@@ -64,6 +64,7 @@ def run_limits(minutes: pd.DataFrame, orders: list[LimitOrder], settings: Settin
     cursor = 0
     pending: list[LimitOrder] = []
     expired = 0
+    ambiguous_entry_target_deferred = 0
     position: Position | None = None
     trades = []
     equity = []
@@ -123,11 +124,13 @@ def run_limits(minutes: pd.DataFrame, orders: list[LimitOrder], settings: Settin
 
         # Oldest eligible pending order wins. Existing positions block entry.
         # No opening a second position on the same minute another position exited.
+        entered_this_bar = False
         if not occupied_at_open and position is None:
             for j, o in enumerate(pending):
                 touched = lo <= o.price if o.side == 1 else hi >= o.price
                 if not touched:
                     continue
+                entered_this_bar = True
                 position = Position(
                     entry_at=at, signal_at=pd.Timestamp(o.placed_at),
                     side=o.side, entry_price=o.price,
@@ -150,7 +153,14 @@ def run_limits(minutes: pd.DataFrame, orders: list[LimitOrder], settings: Settin
             if hit_stop:
                 exit_trade(at, position.stop, "ambiguous_stop_first" if hit_target else "stop")
             elif hit_target:
-                exit_trade(at, position.target, "target")
+                # M1 high/low cannot establish whether a TP print happened
+                # AFTER limit entry. A same-bar TP can occur before entry.
+                # Do not award an unknowable instant profit. Keep the trade
+                # open and evaluate TP/SL on the NEXT observed minute.
+                if entered_this_bar:
+                    ambiguous_entry_target_deferred += 1
+                else:
+                    exit_trade(at, position.target, "target")
 
         floating = (
             position.side * (cl - position.entry_price) * settings.ounces - fee
@@ -177,4 +187,5 @@ def run_limits(minutes: pd.DataFrame, orders: list[LimitOrder], settings: Settin
         equity=pd.DataFrame.from_records(equity).set_index("at"),
         pending_at_end=len(pending) + len(queued) - cursor,
         expired_signals=expired,
+        uncertain_entry_tp_deferred=ambiguous_entry_target_deferred,
     )
