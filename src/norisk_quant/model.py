@@ -13,8 +13,8 @@ class Settings:
     ounces: float = 1.0
     roundtrip_cost_per_ounce: float = 0.40
     max_entry_delay_minutes: int = 1
-    max_hold_minutes: int | None = None
     close_at_end: bool = True
+    max_hold_minutes: int | None = None
 
     def __post_init__(self) -> None:
         if not math.isfinite(self.ounces) or self.ounces <= 0:
