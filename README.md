@@ -122,6 +122,23 @@ exact reproducibility. A dataset fingerprint alone cannot prove broker
 execution quality. This detects stealth changes to a single quote or
 timestamp without publishing raw prices.
 
+## Execution causality hardening
+
+The fast M1 runner previously shortened exact confirmation timestamps to
+integer epoch seconds. For a signal confirmed at `00:01:00.500Z`, this
+could incorrectly permit entry at the `00:01:00` candle OPEN — before
+the signal existed. The optimized engine now compares **nanoseconds**
+against observed UTC M1 openings. The reference and optimized engines
+both reject source minute timestamps with any sub-minute offset and
+nonfinite OHLC prices. Position/fee/stop/target values reject NaN and
+Infinity. See `tests/test_subsecond_causality_and_quote_guards.py`.
+
+These fixes are committed but the entire GitHub Actions suite remains
+**not yet run** because the private account's October Actions quota is
+exhausted. Local independent historical matching on 3,800 entries is
+encouraging but cannot replace green checks on the immutable repo
+commit, the exact data and the full historical scenario pipeline.
+
 ## Ingest data (LOCAL ONLY, do not upload raw ZIP to Git)
 
 Put your original annual JSON archive outside the repository or in the ignored data directory:
