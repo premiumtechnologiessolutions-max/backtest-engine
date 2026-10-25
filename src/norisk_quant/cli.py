@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 from .data import import_gold_zip, load_market, quality, read_source
+from .bos_fib import BosFibSettings, bos_fib_limit_orders
 from .execution import run
 from .fast_engine import run_fast
 from .fvg import fvg_midpoint_limit_orders
@@ -75,7 +76,7 @@ def main() -> None:
     test.add_argument("--end", required=True, help="UTC inclusive YYYY-MM-DD")
     test.add_argument("--out", required=True)
     test.add_argument("--timeframe", default="M15", choices=("M1", "M5", "M15", "H1", "H4"))
-    test.add_argument("--strategy", default="ema", choices=("ema", "donchian", "fvg"))
+    test.add_argument("--strategy", default="ema", choices=("ema", "donchian", "fvg", "bos-fib"))
     test.add_argument("--execution", default="reference", choices=("reference", "fast"))
     test.add_argument("--donchian-lookback", type=int, default=20)
     test.add_argument("--stop-usd", type=float, default=15.0)
@@ -84,6 +85,14 @@ def main() -> None:
     test.add_argument("--fvg-stop-buffer-usd", type=float, default=0.1)
     test.add_argument("--fvg-rr", type=float, default=2.0)
     test.add_argument("--fvg-expiry-hours", type=float, default=20.0)
+    test.add_argument("--bos-pivot-left", type=int, default=3)
+    test.add_argument("--bos-pivot-right", type=int, default=3)
+    test.add_argument("--bos-fib-entry", type=float, default=0.618)
+    test.add_argument("--bos-rr", type=float, default=1.0)
+    test.add_argument("--bos-stop-buffer-usd", type=float, default=0.10)
+    test.add_argument("--bos-min-break-usd", type=float, default=0.10)
+    test.add_argument("--bos-min-impulse-usd", type=float, default=1.0)
+    test.add_argument("--bos-expiry-minutes", type=int, default=120)
     test.add_argument("--fast", type=int, default=9)
     test.add_argument("--slow", type=int, default=21)
     test.add_argument("--stop-atr", type=float, default=1.5)
@@ -171,7 +180,22 @@ def main() -> None:
             ounces=args.ounces,
             roundtrip_cost_per_ounce=args.all_in_cost_per_ounce,
         )
-        if args.strategy == "fvg":
+        if args.strategy == "bos-fib":
+            if args.timeframe != "M1":
+                raise ValueError("BOS/Fib variant is defined on M1 only; use --timeframe M1")
+            params = BosFibSettings(
+                pivot_left=args.bos_pivot_left,
+                pivot_right=args.bos_pivot_right,
+                fib_entry=args.bos_fib_entry,
+                reward_risk=args.bos_rr,
+                sl_buffer_usd=args.bos_stop_buffer_usd,
+                min_break_usd=args.bos_min_break_usd,
+                min_impulse_usd=args.bos_min_impulse_usd,
+                expiry_minutes=args.bos_expiry_minutes,
+            )
+            limit_orders = bos_fib_limit_orders(data, settings=params)
+            result = run_limits(data, limit_orders, settings)
+        elif args.strategy == "fvg":
             limit_orders = fvg_midpoint_limit_orders(
                 data,
                 timeframe=args.timeframe,
