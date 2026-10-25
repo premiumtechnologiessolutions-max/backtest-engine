@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+import math
 from typing import Literal
 
 Side = Literal[1, -1]
@@ -14,10 +15,10 @@ class Settings:
     close_at_end: bool = True
 
     def __post_init__(self) -> None:
-        if self.ounces <= 0:
-            raise ValueError("ounces must be positive")
-        if self.roundtrip_cost_per_ounce < 0:
-            raise ValueError("roundtrip cost cannot be negative")
+        if not math.isfinite(self.ounces) or self.ounces <= 0:
+            raise ValueError("ounces must be finite positive")
+        if not math.isfinite(self.roundtrip_cost_per_ounce) or self.roundtrip_cost_per_ounce < 0:
+            raise ValueError("roundtrip cost must be finite nonnegative")
         if self.max_entry_delay_minutes < 0:
             raise ValueError("max entry delay cannot be negative")
 
@@ -34,8 +35,11 @@ class Signal:
     def __post_init__(self) -> None:
         if self.side not in (1, -1):
             raise ValueError("side must be +1 or -1")
-        if self.stop_distance <= 0 or self.target_distance <= 0:
-            raise ValueError("stop and target distances must be positive")
+        if (
+            not math.isfinite(self.stop_distance) or self.stop_distance <= 0
+            or not math.isfinite(self.target_distance) or self.target_distance <= 0
+        ):
+            raise ValueError("stop and target distances must be finite positive")
 
 
 @dataclass
