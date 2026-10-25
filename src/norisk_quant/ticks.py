@@ -73,6 +73,9 @@ def normalize_ticks(
     if duplicates.any():
         if "seq" not in result.columns or result["seq"].isna().any():
             raise ValueError("Same-timestamp ticks require a non-null sequence field")
+        result["seq"] = pd.to_numeric(result["seq"], errors="raise")
+        if result["seq"].isna().any() or (result["seq"] % 1 != 0).any():
+            raise ValueError("Sequence must contain integer event indices")
         if result.duplicated(subset=["ts_utc", "seq"]).any():
             raise ValueError("Duplicate timestamp/sequence pair")
         # Sorting is stable and uses source-provided order, never bid price.
@@ -140,8 +143,8 @@ def compare_tick_bid_to_m1(ticks: pd.DataFrame, minute_bid: pd.DataFrame, *,
     required = {"o", "h", "l", "c"}
     if not required.issubset(minute_bid.columns):
         raise ValueError("BID M1 OHLC columns missing")
-    actual = ticks["bid"].resample("1min").agg(
-        o="first", h="max", l="min", c="last"
+    actual = ticks["bid"].resample("1min").ohlc().rename(
+        columns={"open": "o", "high": "h", "low": "l", "close": "c"}
     ).dropna()
     compare = minute_bid[list(("o", "h", "l", "c"))].join(
         actual, how="left", rsuffix="_tick"
