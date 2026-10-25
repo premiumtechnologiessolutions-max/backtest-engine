@@ -123,6 +123,36 @@ The `regular_daily_break_pattern` and `regular_weekend_pattern` labels mean the 
 GitHub Actions checks are **not confirmed passing** as of 2026-10-25. Both the regular `Engine quality gates` workflow and a separate runner-only probe (no checkout/pip/tests) reported failure. Available connector responses contained no per-step logs, so the root cause **is undiagnosed** and neither failing CI nor passing unit tests may be inferred. Keep the PR in draft; do not merge until diagnostics and an independent test run are successful.
 
 
+## Experimental limit-order strategy support (FVG midpoint)
+
+The engine now has an **M1 OHLC limit-order research mode** to avoid
+misrepresenting every Fair Value Gap as an immediate market entry.
+
+Example (original BID/ASK ZIP stays private):
+
+    norisk backtest --data "/secure/Gold data.zip" --start 2024-01-01 --end 2024-12-31 --strategy fvg --timeframe H1 --fvg-min-gap-usd 0.5 --fvg-stop-buffer-usd 0.1 --fvg-rr 2 --fvg-expiry-hours 20 --ounces 1 --all-in-cost-per-ounce 0.40 --out reports/generated/fvg-h1-2024
+
+The generator uses three **consecutive, complete** H1 candles, defines
+the gap from first/third candle ranges, and places a **limit order at
+50% of the gap (CE)** after third-candle close. Buy SL is beyond the
+first candle's low; sell SL beyond its high. Target is the configured
+reward/risk multiplier and order expiry is elapsed clock hours.
+
+When both limit entry and SL are inside an M1 candle, the simulator
+assumes SL was hit after entry: this is intentionally conservative,
+**not proof of actual event order**. Opening beyond SL gets a worse
+first-available-open price; normal fills use the limit price with
+no assumed favorable improvement. Only one position is allowed and
+other pending orders are discarded upon fill; this is **not** portfolio
+execution. This experimental model lacks ICT-specific displacement,
+BOS/CHoCH, sessions or tick replay until expressly added.
+
+Reports run the fixed-all-in cost and accounting integrity checks and
+explicitly mark **end_of_data** forced exits and separate weekly/monthly
+realized PnL from sampled equity changes. GitHub CI is still failing
+before runner assignment, so the newly committed files and tests are
+not yet a fully certified executable release.
+
 ## Target: research platform beyond the MT5 Strategy Tester
 
 The goal is a **stronger auditable research workflow**, not an unsupported claim
