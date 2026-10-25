@@ -9,6 +9,7 @@ from .execution import run
 from .gaps import classify_index_gaps
 from .model import Settings
 from .report import report
+from .registry import ExperimentIdentity, experiment_manifest
 from .strategy import ema_cross_signals
 from .ticks import TickSource, audit_tick_csv
 from .walkforward import year_folds, fold_manifest
@@ -56,6 +57,13 @@ def main() -> None:
     fold_plan.add_argument("--min-training-years", type=int, default=5)
     fold_plan.add_argument("--embargo-days", type=int, default=14)
     fold_plan.add_argument("--out", required=True)
+
+    identify = subs.add_parser(
+        "identify-experiment",
+        help="Make a deterministic ID for a versioned experiment; does NOT run a backtest",
+    )
+    identify.add_argument("--spec", required=True, help="JSON file matching ExperimentIdentity")
+    identify.add_argument("--out", required=True)
 
     test = subs.add_parser("backtest", help="Run EMA example on M1 data (research smoke model)")
     test.add_argument("--data", required=True)
@@ -134,6 +142,16 @@ def main() -> None:
             }, indent=2), encoding="utf-8"
         )
         print(json.dumps({"folds": len(folds), "written": str(dest)}, indent=2))
+    elif args.command == "identify-experiment":
+        params = json.loads(Path(args.spec).read_text(encoding="utf-8"))
+        identity = ExperimentIdentity(**params)
+        manifest = experiment_manifest(identity)
+        destination = Path(args.out)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text(
+            json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
+        print(json.dumps(manifest, indent=2, ensure_ascii=False))
     elif args.command == "backtest":
         data = load_market(args.data, args.start, args.end)
         settings = Settings(
