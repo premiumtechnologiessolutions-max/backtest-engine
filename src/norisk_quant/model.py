@@ -13,6 +13,7 @@ class Settings:
     ounces: float = 1.0
     roundtrip_cost_per_ounce: float = 0.40
     max_entry_delay_minutes: int = 1
+    max_hold_minutes: int | None = None
     close_at_end: bool = True
 
     def __post_init__(self) -> None:
@@ -22,6 +23,12 @@ class Settings:
             raise ValueError("roundtrip cost must be finite nonnegative")
         if self.max_entry_delay_minutes < 0:
             raise ValueError("max entry delay cannot be negative")
+        if self.max_hold_minutes is not None and (
+            isinstance(self.max_hold_minutes, bool)
+            or not isinstance(self.max_hold_minutes, int)
+            or self.max_hold_minutes < 1
+        ):
+            raise ValueError("max hold minutes must be a positive integer or None")
 
 
 @dataclass(frozen=True)
