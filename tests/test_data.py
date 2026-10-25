@@ -67,3 +67,31 @@ def test_ema_sample_is_evaluated_after_candle_close():
     signals = ema_cross_signals(bars, timeframe="M1", fast=4, slow=12)
     assert signals
     assert all(s.confirmed_at > bars.index[0] for s in signals)
+
+
+def test_import_refuses_mixed_year_and_tracks_member_sha256(tmp_path):
+    source = tmp_path / "mixed_year.zip"
+    rows = source_rows()
+    rows[1]["ts"] = 1609459200  # 2021-01-01 UTC in a 2020 file
+    with zipfile.ZipFile(source, "w") as archive:
+        archive.writestr("2020.json", json.dumps(rows))
+    manifest = import_gold_zip(source, tmp_path / "out")
+    entry = manifest["annual_partitions"][0]
+    assert entry["wrong_year_rows"] == 1
+    assert entry["accepted"] is False
+    assert len(entry["source_member_sha256"]) == 64
+    assert not (tmp_path / "out" / "xauusd_2020.parquet").exists()
+
+
+def test_import_rejects_nonminute_timestamp_and_prevents_stale_overwrite(tmp_path):
+    source = tmp_path / "bad_second.zip"
+    rows = source_rows()
+    rows[1]["ts"] += 1
+    with zipfile.ZipFile(source, "w") as archive:
+        archive.writestr("2020.json", json.dumps(rows))
+    destination = tmp_path / "out"
+    manifest = import_gold_zip(source, destination)
+    assert manifest["annual_partitions"][0]["off_minute_timestamps"] == 1
+    assert manifest["annual_partitions"][0]["accepted"] is False
+    with pytest.raises(FileExistsError, match="versioned"):
+        import_gold_zip(source, destination)
