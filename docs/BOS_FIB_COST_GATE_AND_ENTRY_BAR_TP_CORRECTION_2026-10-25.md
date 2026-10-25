@@ -39,10 +39,10 @@ The apparent +$2.96 in 2017–19 (5x) consists of **19 trades in 36 months** and
 | --- | ---: | ---: | ---: |
 | 2012 | -405.97 | -637.48 | 354 |
 | 2017 | -259.93 | -289.15 | 64 |
-
+| 2020 | -504.27 | -942.21 | 527 |
 | 2024 | -597.29 | -1,020.33 | 503 |
 
-For precise unrounded year/variant results, use the archived yearly/monthly ledgers, not the rounded table. The 2020 annual ledger is authoritative; the old-v-new delta is not a deployable edge.
+For precise unrounded year/variant results, use the archived yearly/monthly ledgers, not the rounded table. The correction does not create a deployable edge.
 
 ## Independent effect check on an older FVG 2024 variant
 
