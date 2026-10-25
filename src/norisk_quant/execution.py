@@ -13,6 +13,7 @@ class Result:
     trades: pd.DataFrame
     equity: pd.DataFrame
     pending_at_end: int
+    expired_signals: int = 0
 
 
 def run(minutes: pd.DataFrame, signals: Iterable[Signal], settings: Settings) -> Result:
@@ -171,5 +172,6 @@ def run(minutes: pd.DataFrame, signals: Iterable[Signal], settings: Settings) ->
     return Result(
         trades=pd.DataFrame.from_records(trades, columns=trade_cols),
         equity=pd.DataFrame.from_records(equity).set_index("at"),
-        pending_at_end=len(ordered) - index + skipped,
+        pending_at_end=len(ordered) - index,
+        expired_signals=skipped,
     )
