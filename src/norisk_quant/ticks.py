@@ -57,7 +57,7 @@ def normalize_ticks(
     result = raw.copy()
     # Reject naive strings instead of assuming provider machine timezone.
     text = result["ts_utc"].astype(str)
-    if not text.str.contains(r"(Z|[+-]\d\d:\d\d)$", regex=True).all():
+    if not text.str.contains(r"(?:Z|[+-]\d\d:\d\d)$", regex=True).all():
         raise ValueError("Every tick timestamp must explicitly specify UTC offset/Z")
     result["ts_utc"] = pd.to_datetime(text, utc=True, errors="raise", format="ISO8601")
     result["bid"] = pd.to_numeric(result["bid"], errors="raise")
@@ -132,17 +132,39 @@ def compare_tick_bid_to_m1(ticks: pd.DataFrame, minute_bid: pd.DataFrame, *,
     Differences can arise from distinct feed sources. This reports them
     without deciding which source is right or manufacturing missing ticks.
     """
-    if tolerance < 0:
-        raise ValueError("tolerance cannot be negative")
+    # A NaN/inf tolerance makes every comparison evaluate False and can
+    # silently turn a real mismatch into a reported match.
+    if (isinstance(tolerance, (bool, np.bool_)) or
+            not isinstance(tolerance, (int, float, np.integer, np.floating)) or
+            not np.isfinite(tolerance) or tolerance < 0):
+        raise ValueError("tolerance must be finite and nonnegative")
     if ticks.empty:
         raise ValueError("Empty tick data")
     if not isinstance(ticks.index, pd.DatetimeIndex) or ticks.index.tz is None:
         raise ValueError("Ticks need UTC-aware DatetimeIndex")
+    if ticks.index.hasnans or not ticks.index.is_monotonic_increasing:
+        raise ValueError("Tick timestamps must be finite and sorted")
+    if "bid" not in ticks.columns:
+        raise ValueError("Tick BID column missing")
+    tick_bid = pd.to_numeric(ticks["bid"], errors="coerce").to_numpy(dtype=float)
+    if not np.isfinite(tick_bid).all() or (tick_bid <= 0).any():
+        raise ValueError("Invalid tick BID quotes")
     if not isinstance(minute_bid.index, pd.DatetimeIndex) or minute_bid.index.tz is None:
         raise ValueError("M1 bars need UTC-aware DatetimeIndex")
+    if (minute_bid.index.hasnans or minute_bid.index.has_duplicates or
+            not minute_bid.index.is_monotonic_increasing or
+            (minute_bid.index.as_unit("ns").asi8 % 60_000_000_000 != 0).any()):
+        raise ValueError("M1 timestamps must be unique sorted minute opens")
     required = {"o", "h", "l", "c"}
     if not required.issubset(minute_bid.columns):
         raise ValueError("BID M1 OHLC columns missing")
+    # DataFrame.max(skipna=True) otherwise masks a missing H/L/O/C field:
+    # e.g. a NaN high and three matching fields incorrectly look identical.
+    bars = minute_bid[["o", "h", "l", "c"]].to_numpy(dtype=float)
+    if (not np.isfinite(bars).all() or (bars <= 0).any() or
+            (bars[:, 1] < np.maximum(bars[:, 0], bars[:, 3])).any() or
+            (bars[:, 2] > np.minimum(bars[:, 0], bars[:, 3])).any()):
+        raise ValueError("Invalid BID M1 OHLC")
     actual = ticks["bid"].resample("1min").ohlc().rename(
         columns={"open": "o", "high": "h", "low": "l", "close": "c"}
     ).dropna()
