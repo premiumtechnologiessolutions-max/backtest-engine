@@ -39,7 +39,12 @@ def fvg_midpoint_limit_orders(
     if len(bars) < 3:
         return []
     orders: list[LimitOrder] = []
+    expected_bar_step = pd.Timedelta(minutes={"M1": 1, "M5": 5, "M15": 15, "H1": 60, "H4": 240}[timeframe])
     for i in range(2, len(bars)):
+        # Do not infer a three-candle pattern across closed/absent sessions.
+        if not (bars.index[i] - bars.index[i - 1] == expected_bar_step
+                and bars.index[i - 1] - bars.index[i - 2] == expected_bar_step):
+            continue
         first = bars.iloc[i - 2]
         third = bars.iloc[i]
         confirmed = pd.Timestamp(third["close_at"])
@@ -62,7 +67,7 @@ def fvg_midpoint_limit_orders(
             midpoint = (float(first["l"]) + float(third["h"])) / 2
             stop = float(first["h"]) + stop_buffer_usd
             distance = stop - midpoint
-            if distance <= 0:
+            if distance <= 0 or midpoint - reward_to_risk * distance <= 0:
                 continue
             orders.append(LimitOrder(
                 placed_at=confirmed,
