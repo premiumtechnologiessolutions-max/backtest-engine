@@ -170,7 +170,31 @@ def load_market(path: str | Path, start: str, end: str) -> pd.DataFrame:
     path = Path(path)
     begin = pd.Timestamp(start, tz="UTC")
     finish = pd.Timestamp(end, tz="UTC") + pd.Timedelta(days=1)
-    if path.is_dir():
+    if path.suffix.lower() == ".zip":
+        parts = []
+        with zipfile.ZipFile(path) as archive:
+            selected_members = {}
+            for member in archive.namelist():
+                if not member.lower().endswith(".json"):
+                    continue
+                match = re.search(r"(20\\d{2})", Path(member).name)
+                if not match:
+                    continue
+                year = int(match.group(1))
+                if begin.year <= year <= finish.year:
+                    if year in selected_members:
+                        raise ValueError(f"Duplicate year {year} within ZIP")
+                    selected_members[year] = member
+            for year in range(begin.year, finish.year + 1):
+                if year in selected_members:
+                    part = normalize(_records_from_bytes(archive.read(selected_members[year])))
+                    if (part.index.year != year).any():
+                        raise ValueError(f"ZIP member for {year} contains another year")
+                    parts.append(part)
+        if not parts:
+            raise ValueError("No source years found in the requested ZIP date range")
+        frame = pd.concat(parts).sort_index()
+    elif path.is_dir():
         parts = []
         for year in range(begin.year, finish.year + 1):
             candidate = path / f"xauusd_{year}.parquet"
