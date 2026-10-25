@@ -30,7 +30,10 @@ def test_reference_report_missing_month_is_not_observed(tmp_path):
     bars = sparse()
     settings = Settings()
     result = run(bars, [Signal(bars.index[0], 1, 5, 5, "a")], settings)
-    report(result, settings, tmp_path)
+    summary = report(result, settings, tmp_path)
+    assert summary["months_observed"] == 3
+    assert summary["months_with_m1_observations"] == 2
+    assert summary["calendar_months_without_m1"] == 1
     assert_sparse_months(
         tmp_path, "month_has_observed_m1", "month_end_equity", "month_equity_change"
     )
