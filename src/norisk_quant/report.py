@@ -83,6 +83,16 @@ def report(result: Result, settings: Settings, out: str | Path, *, source: str =
     ).clip(lower=0)
     monthly["month_end_equity"] = month_end_equity.to_numpy()
     monthly["month_end_drawdown"] = month_end_dd.to_numpy()
+    # Unrealized equity must be visible separately from P/L booked at exit.
+    # First period uses a starting research equity of zero.
+    monthly["month_equity_change"] = month_end_equity.diff().fillna(
+        month_end_equity.iloc[0]
+    ).to_numpy()
+    week_end_equity = equity["equity"].resample("W-SUN").last()
+    weekly["week_end_equity"] = week_end_equity.to_numpy()
+    weekly["week_equity_change"] = week_end_equity.diff().fillna(
+        week_end_equity.iloc[0]
+    ).to_numpy()
 
     total_profit = float(trades.loc[trades["net_pnl"] > 0, "net_pnl"].sum())
     total_loss = float(trades.loc[trades["net_pnl"] < 0, "net_pnl"].sum())
@@ -119,6 +129,12 @@ def report(result: Result, settings: Settings, out: str | Path, *, source: str =
         "profit_factor": total_profit / -total_loss if total_loss < 0 else None,
         "max_drawdown_observed_m1": float(equity["drawdown"].max()),
         "max_drawdown_month_end": float(month_end_dd.max()),
+        "last_observed_equity": float(equity["equity"].iloc[-1]),
+        "last_observed_realized_pnl": float(equity["realized_pnl"].iloc[-1]),
+        "monthly_mtm_vs_realized_note": (
+            "monthly.net_pnl recognizes trades at EXIT; month_equity_change "
+            "uses observed minute-close equity including floating P/L and accrued fee."
+        ),
         "positive_months": int((monthly["net_pnl"] > 0).sum()),
         "nonpositive_months": int((monthly["net_pnl"] <= 0).sum()),
         "months_observed": int(len(monthly)),
