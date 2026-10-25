@@ -62,3 +62,31 @@ If the run produces a different trade ledger than the reference replay, **freeze
 3. Run the exact integrated `norisk backtest` CLI and compare every real 2024 Donchian trade to this baseline (not just PNL).
 4. Real tick execution, authentic Bid/Ask fill parity with MT5, portfolio margin ledger and FVG limit-order engine are NOT implemented.
 5. Previous 2020–2026 outcomes are previously exposed and cannot be declared clean out-of-sample. Future prospective data will be needed.
+
+## Follow-up gate (2026-10-25, after FVG foundation)
+
+The central engine now rejects **per-minute realized P/L timeline drift**, even
+when final trade net, final equity, and the floating-equity arithmetic still
+match. See `src/norisk_quant/accounting.py` and regression tests in
+`tests/test_accounting_integrity.py`. These new tests are committed but
+**not certified passing**, because the GitHub Actions runner remains unavailable.
+
+A new **real-year parity command** runs the exact installed repository
+package against the user's private source archive:
+
+```bash
+python scripts/parity_donchian_year.py --zip "/secure/Gold data.zip" --year 2024 --out reports/generated/parity-2024.json
+```
+
+It compares every trade column, each observed M1 equity sample, signal
+pending/expiry counters, and fixed-cost accounting for reference versus fast
+execution. It fails with exit code 1 on any difference, emits source SHA-256,
+and does not send market data to GitHub. It **has not yet been run** on the
+current GitHub commit. This is an *internal two-kernel parity check* and
+does not prove agreement with the independent 2024 standalone script,
+broker tick fills, or multi-year carry at the year boundary.
+
+**Latest runner evidence:** GitHub Actions runs `40212582381` and
+`40212582476` again failed before observable job steps. Issue #2 remains
+open. Draft PR #1 must remain unmerged until independent executable tests
+and CI can be observed passing.
