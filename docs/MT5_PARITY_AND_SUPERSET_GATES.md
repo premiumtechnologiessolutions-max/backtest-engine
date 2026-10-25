@@ -27,7 +27,7 @@ on actually implementing and verifying those features.
 | M1 event engine | Research prototype | Unit tests pass, execution conventions frozen and externally reproduced |
 | All-in $0.40/oz round-trip | Implemented in M1 model | Zero movement must net -$0.40/oz and nothing additional charged |
 | Weekly/monthly + marked equity | Implemented research reports | Verify against audited trade ledger, months crossing exits and floating risk |
-| External Tick BID/ASK validator | Implemented in \`ticks.py\` | Source file plus provenance audit; still NO tick execution engine |
+| External Tick BID/ASK validator | Implemented in `ticks.py` | Source file plus provenance audit; still NO tick execution engine |
 | Observed-tick order execution | **Not implemented** | Tick bid/ask event replay, stops, limits, ambiguous orders, verified broker rules |
 | Broker parity regression vs MT5 | **Not implemented** | Identical broker quote feed, symbol settings, EA signal transcript, reconcile each fill |
 | Multi-strategy concurrent portfolio | **Not implemented** | Exposure budget, correlated positions, cash/equity and simultaneous orders |
@@ -83,17 +83,17 @@ and confirmed broker execution.
 
 ## Developer-facing invocation
 
-After installing \`pip install -e ".[dev]"\`, source audit:
+After installing `pip install -e ".[dev]"`, source audit:
 
-\`\`\`bash
+```bash
 norisk import-gold "/secure/Gold data.zip" --out data/processed
 norisk audit-gaps --data data/processed --start 2010-01-01 --end 2026-09-20 --out reports/generated/gaps
 norisk plan-walkforward --start-year 2012 --last-year 2024 --min-training-years 5 --embargo-days 14 --out reports/generated/folds.json
 norisk audit-ticks --csv /secure/observed_tick_quotes.csv --provider "broker-provided source" --symbol XAUUSD --out reports/generated/tick-manifest.json
-\`\`\`
+```
 
-**Important:** \`audit-ticks\` checks the existence/schema/plausibility of
-declared external ticks, and outputs \`source_authentication: NOT_VERIFIED\`.
+**Important:** `audit-ticks` checks the existence/schema/plausibility of
+declared external ticks, and outputs `source_authentication: NOT_VERIFIED`.
 It does not infer that a file originated from a broker, does NOT replay ticks,
 and is not evidence of equality to the MT5 tester.
 
