@@ -29,5 +29,15 @@
     "Only 2019 was inspected in this report; other 16 years are not certified.",
     "No Parquet partition or strategy backtest was executed during this audit.",
     "A local environment lacked pyarrow, so no claim of successful package installation or GitHub CI."
-  ]
+  ],
+  "gap_duration_counts_interval_minutes": {
+    "61": 139,
+    "62": 57,
+    "2941": 27,
+    "2942": 20
+  },
+  "gaps_10_to_120min": 199,
+  "gaps_120_to_1000min": 6,
+  "gaps_over_1000min": 53,
+  "gap_interpretation": "Daily ~61-62 minute intervals and weekend ~2941-2942 minute intervals dominate. These are consistent with normal market closures, but no official broker schedule has been independently verified."
 }
