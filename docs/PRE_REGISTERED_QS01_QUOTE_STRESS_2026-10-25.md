@@ -24,3 +24,12 @@
 5. Record full trade, weekly and monthly ledgers; realized and observed floating drawdown; count of ambiguous M1 bars and gap-through events; exposure, PF, worst month, and source/commit fingerprints. No cherry-picking of favorable months or retrospective per-month strategy switching.
 
 **Important:** A wide quoted spread may signal low liquidity and *higher*, not lower, risk. A positive design result would still not prove broker fill feasibility or a monthly-profit guarantee. This is an untested hypothesis, not an accepted strategy.
+
+## Implementation checkpoint (2026-10-25; no historical profitability run)
+
+- Frozen signal code: `src/norisk_quant/qs01.py`, requiring exactly 241 contiguous observed M1 candles, 240 *prior* close-spreads, and *prior* Wilder ATR20. Bid/Ask close-spread is only a predictor.
+- The opt-in `Settings(max_entry_delay_minutes=0, max_hold_minutes=30)` now supports the previously frozen **30 elapsed UTC minute** time exit at the first subsequent observed open. The reference and fast engines check gap-through stop and target at the open **before** a time exit. Defaults for other strategies are unchanged (`max_hold_minutes=None`).
+- CLI: `norisk backtest --strategy qs01 --timeframe M1 --ounces 1 --all-in-cost-per-ounce 0.40 --execution reference|fast ...`. Any other timeframe/ounces are rejected.
+- `tests/test_qs01.py` and `tests/test_qs01_runner_contract.py` cover causal signals, missing M1, stop-first gap precedence, time exits, fixed cost and reference/fast parity **when run**. This checkpoint has only locally executed the four extracted signal-generation tests (4/4 passed); full repository tests, remote CI, and reference/fast time-exit parity tests have **not** been executed successfully yet.
+- Design-only authorized source runner: `scripts/run_qs01_frozen_design.py`. Requires the exact private original archive SHA-256, uses only **2012–2016**, writes full trade/equity/week/month ledgers and a strict 200 trades / positive net / PF>1.10 / >=31 positive months gate. No automatic access to validation years.
+- **No QS01 real-data performance results exist at this checkpoint.** Never interpret code implementation or a synthetic unit test as design qualification, clean out-of-sample success, broker execution, or 81/81 monthly profitability.
