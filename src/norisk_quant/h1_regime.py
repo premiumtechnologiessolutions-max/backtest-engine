@@ -17,10 +17,13 @@ from .limit_engine import LimitOrder
 class H1RegimeSettings:
     ema_span: int = 50
     slope_lag_bars: int = 5
+    max_regime_age_minutes: int | None = None
 
     def __post_init__(self) -> None:
         if self.ema_span < 2 or self.slope_lag_bars < 1:
             raise ValueError("H1 EMA span >= 2 and slope lag >= 1 required")
+        if self.max_regime_age_minutes is not None and self.max_regime_age_minutes < 0:
+            raise ValueError("H1 regime maximum age must be nonnegative")
 
 
 def complete_h1_regimes(
@@ -76,5 +79,9 @@ def filter_orders_h1(
             completed_ns, at.tz_convert("UTC").value, side="right"
         ) - 1
         if prior >= 0 and int(trends[prior]) == order.side:
+            if cfg.max_regime_age_minutes is not None:
+                max_age_ns = cfg.max_regime_age_minutes * 60_000_000_000
+                if at.tz_convert("UTC").value - int(completed_ns[prior]) > max_age_ns:
+                    continue
             retained.append(order)
     return retained
