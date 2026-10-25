@@ -93,6 +93,35 @@ changed. No user-market-data ZIP was pushed to GitHub. Keep PR #1
 as a draft until unit tests have passed for this code revision.
 See [tracking Issue #2](https://github.com/premiumtechnologiessolutions-max/backtest-engine/issues/2).
 
+## Research audit progress: actual historical ledger matching
+
+A local reconstructed Limit replay was checked against **3,800 archived
+historical XAUUSD trades** (H1 BOS/Fibonacci, with and without 5× projected
+reward-to-fee screen) for **2012–2019**. Each entry, exit, timestamp,
+direction, SL, TP, profit, fixed $0.40/oz cost, reason and gap count
+matched across **13 fields**; 16 year/model combinations were checked.
+**This is NOT a full-suite GitHub CI pass**, and the reconstructed local
+modules were not all byte-identical to the current repository.
+See `docs/LIMIT_3800_TRADE_PARITY_AUDIT_2026-10-25.md`.
+
+A new `scripts/verify_bos_h1_parity.py` replays the **actual imported
+repository package** against external standalone reference ledgers and
+**fails closed** on mismatched values. Both the raw gold archive and
+historical reference ledgers must be supplied in a private authorized
+execution environment; neither is committed to GitHub.
+`tests/test_historical_parity_contract.py` verifies its drift detection.
+Additional randomized M1/Limit stress fixtures run without market data.
+
+**New data provenance guard:** every `norisk backtest` CLI report
+records `source_fingerprints.loaded_m1_bidask_sha256` for **exact UTC
+timestamps and 8 BID/ASK price columns**, plus the file SHA if supplied,
+row count, selected strategy CLI parameters and any available CI commit
+revision. If no code revision is available, the report explicitly says
+an immutable Git commit and locked dependencies are still needed for
+exact reproducibility. A dataset fingerprint alone cannot prove broker
+execution quality. This detects stealth changes to a single quote or
+timestamp without publishing raw prices.
+
 ## Ingest data (LOCAL ONLY, do not upload raw ZIP to Git)
 
 Put your original annual JSON archive outside the repository or in the ignored data directory:
