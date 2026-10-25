@@ -33,6 +33,7 @@ class BosFibSettings:
     max_bos_waves_per_regime: int = 2
     min_gross_reward_fee_multiple: float = 0.0
     all_in_cost_per_ounce: float = 0.40
+    ignore_ambiguous_dual_pivots: bool = False
 
     def __post_init__(self) -> None:
         if self.pivot_left < 1 or self.pivot_right < 1:
@@ -113,11 +114,18 @@ def bos_fib_limit_orders(
         if gap_count[i] == gap_count[j - left]:
             # Pivot tie convention: strict vs left, inclusive vs right;
             # makes duplicate highs deterministic and does not revise pivots.
-            if high[j] > max(high[j-left:j]) and high[j] >= max(high[j+1:i+1]):
+            is_high = high[j] > max(high[j-left:j]) and high[j] >= max(high[j+1:i+1])
+            is_low = low[j] < min(low[j-left:j]) and low[j] <= min(low[j+1:i+1])
+            if settings.ignore_ambiguous_dual_pivots and is_high and is_low:
+                # The original M1 OHLC cannot reveal which extreme came
+                # first inside this outside bar. Do not invent swing order.
+                # Keep evaluating this minute for BOS with prior pivots.
+                is_high = is_low = False
+            if is_high:
                 highs.append((j, float(high[j])))
                 if len(highs) > 3:
                     highs.pop(0)
-            if low[j] < min(low[j-left:j]) and low[j] <= min(low[j+1:i+1]):
+            if is_low:
                 lows.append((j, float(low[j])))
                 if len(lows) > 3:
                     lows.pop(0)
