@@ -77,3 +77,36 @@ def test_limit_validation_rejects_wrong_risk_order():
             pd.Timestamp("2024-01-02", tz="UTC"),
             side=1, price=100, stop=101, target=105
         )
+
+
+
+def test_unordered_intrabar_tp_cannot_be_awarded_on_entry_minute():
+    # Market opens above TP, trades through the limit, then stays above SL.
+    # OHLC cannot prove that TP occurred AFTER entry. The old simulator
+    # booked an instant profit that might have been impossible.
+    market = candles([
+        ("2024-01-02T00:00:00Z", 103, 103, 103, 103),
+        ("2024-01-02T00:01:00Z", 105, 106, 99, 101),
+        ("2024-01-02T00:02:00Z", 100, 101, 97, 98),
+    ])
+    result = run_limits(market, [buy()], Settings())
+    assert result.uncertain_entry_tp_deferred == 1
+    assert len(result.trades) == 1
+    trade = result.trades.iloc[0]
+    assert trade["entry_at"] == pd.Timestamp("2024-01-02T00:01:00Z")
+    assert trade["closed_at"] == pd.Timestamp("2024-01-02T00:02:00Z")
+    assert trade["exit_reason"] == "stop"
+    assert trade["net_pnl"] == pytest.approx(-2.4)
+    validate_execution(result, Settings())
+
+
+def test_same_minute_tp_does_not_turn_into_synthetic_realized_profit(tmp_path):
+    market = candles([
+        ("2024-01-02T00:00:00Z", 103, 103, 103, 103),
+        ("2024-01-02T00:01:00Z", 105, 106, 99, 101),
+    ])
+    result = run_limits(market, [buy()], Settings())
+    assert result.trades.iloc[0]["exit_reason"] == "end_of_data"
+    summary = report(result, Settings(), tmp_path)
+    assert summary["same_entry_bar_target_deferred"] == 1
+    assert summary["forced_end_of_data_closures"] == 1
