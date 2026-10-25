@@ -22,19 +22,19 @@ on actually implementing and verifying those features.
 
 | Feature | Repository state | Acceptance before claim |
 | --- | --- | --- |
-| Yearly raw BID/ASK M1 importer | Implemented code, not end-to-end certified | Real 17-year import succeeds, anomalies & original SHA published |
+| Yearly raw BID/ASK M1 importer | Implemented; 2012–2016 design and 2024 real-M1 samples audited, but original ZIP SHA not independently reverified in those runs | Full 2010–2026 import and original-archive SHA authentication remain acceptance gates |
 | DST-aware gap catalogue | Implemented code, not certified | Reconcile against historical provider hours / broker metadata |
-| M1 event engine | Research prototype | Unit tests pass, execution conventions frozen and externally reproduced |
+| M1 event engine | Reference, fast, Limit and unified shared-capacity replay locally tested; 263-test package suite passed at the recorded pre-tick-hardening checkpoint | Linux GitHub CI, additional broker-realism gates and regression after subsequent commits still required |
 | All-in $0.40/oz round-trip | Implemented in M1 model | Zero movement must net -$0.40/oz and nothing additional charged |
 | Weekly/monthly + marked equity | Implemented research reports | Verify against audited trade ledger, months crossing exits and floating risk |
 | External Tick BID/ASK validator | Implemented in `ticks.py` | Source file plus provenance audit; still NO tick execution engine |
 | Observed-tick order execution | **Not implemented** | Tick bid/ask event replay, stops, limits, ambiguous orders, verified broker rules |
 | Broker parity regression vs MT5 | **Not implemented** | Identical broker quote feed, symbol settings, EA signal transcript, reconcile each fill |
-| Multi-strategy concurrent portfolio | **Not implemented** | Exposure budget, correlated positions, cash/equity and simultaneous orders |
+| Multi-strategy concurrent portfolio | **Implemented for research**: shared Market/Limit positions, slots, ounces and marked/realized ledger; 2024 source-M1 acceptance passed | Real broker margin, correlated risk budgeting, quote-feed fills and liquidation rules not implemented |
 | Purged Walk-Forward splits | Implemented planner, not experiment pipeline | Locked preprocessing, parameter selection on train only, embargo/purge validation |
 | Robustness/FDR/Monte Carlo | **Not implemented** | Predefined analysis and deterministic result reproduction |
 | Remote runner from ChatGPT | **Not implemented** | Secured authorized dispatch plus logged audited artifacts |
-| CI in GitHub Actions | **Failing** | Diagnose runner infrastructure and get green checks before merging draft PR |
+| CI in GitHub Actions | **Manual-only / no green runner evidence** under October 2026 quota blocker | Resume after quota reset, verify Linux Python 3.11 full suite and only then consider merging Draft PR |
 
 ## Three execution modes — mutually exclusive cost conventions
 
@@ -97,3 +97,22 @@ declared external ticks, and outputs `source_authentication: NOT_VERIFIED`.
 It does not infer that a file originated from a broker, does NOT replay ticks,
 and is not evidence of equality to the MT5 tester.
 
+
+## Tick-to-M1 comparison: fail-closed audit inputs
+
+The `compare_tick_bid_to_m1` helper now rejects NaN/infinite/negative
+tolerances, invalid/nonfinite BID ticks, invalid/nonfinite M1 OHLC and
+duplicate, unsorted or non-minute-aligned M1 timestamps. Previously a
+`NaN` tolerance made every mismatch flag false, while Pandas
+`max(skipna=True)` could hide a missing high/low among matching fields.
+The timestamp-offset regex now uses a noncapturing group to avoid an
+unnecessary Pandas capture warning.
+
+Two regression tests were added to `tests/test_ticks.py`. The corrected
+comparison logic passed 14 **isolated local cases** (including parameterized
+negative cases) on Linux/Pandas; this was an extracted function harness, not
+an execution of the full current GitHub checkout. The previously recorded
+263-test source/wheel/sdist results predate these commits, so they must
+not be presented as a full-suite pass for the new head. GitHub CI remains
+unverified. This guard prevents false *audit* matches; it does not create
+real tick data or broker execution parity.
