@@ -281,7 +281,11 @@ def write_portfolio_report(result: PortfolioResult, settings: PortfolioSettings,
         realized = realized.reindex(periods, fill_value=0.0)
         for col in ("trades", "net_pnl", "cost"):
             if col not in realized: realized[col] = 0.0
-        marked = eq["equity"].resample(rule).last()
+        raw_marked = eq["equity"].resample(rule).last()
+        # Missing calendar periods have no observable closing quote. Carry
+        # forward the last observed mark, and explicitly flag the absence.
+        marked = raw_marked.ffill()
+        realized["has_observed_m1"] = raw_marked.notna().to_numpy()
         realized["period_end_equity"] = marked.to_numpy()
         realized["equity_change"] = marked.diff().fillna(marked.iloc[0]).to_numpy()
         realized.index.name = "period"
@@ -299,7 +303,7 @@ def write_portfolio_report(result: PortfolioResult, settings: PortfolioSettings,
         "capacity_rejected": result.capacity_rejected,
         "duplicate_strategy_rejected": result.duplicate_strategy_rejected,
         "open_positions_before_optional_end_close": result.open_positions_at_end,
-        "caveat": "Synthetic M1 OHLC with stop-first; not broker ticks or a broker margin model. Open equity unobserved during gaps; month-end is observed only.",
+        "caveat": "Synthetic M1 OHLC with stop-first; not broker ticks or a broker margin model. Missing calendar periods carry the last observed equity with has_observed_m1=false; this is NOT an observed month-end quote.",
     }
     (dest / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     return summary
