@@ -2,7 +2,7 @@
 
 ## Scope
 This is a source-validation hardening change, **not** a new strategy or backtest.
-Changes are in `src/norisk_quant/data.py` and `tests/test_ingest_quote_integrity.py`.
+Changes are in `src/norisk_quant/data.py` and `tests/test_ingest_quote_integrity.py`. The final load path now also revalidates cached Parquet, preventing a changed partition from bypassing the original ZIP manifest.
 
 Previously `normalize(strict=False)` could feed a ZIP manifest acceptance
 decision using only OHLC bounds and opening/closing BID/ASK checks. A missing,
@@ -25,10 +25,8 @@ fill accuracy, or an independent data source. The canonical research cost
 remains fixed **$0.40/oz ALL-IN per completed round trip**.
 
 ## Verification status
-- Two commits saved to the development branch: code `49a205e`,
-  regression tests `3658734`.
-- A separate local six-fixture check of the new finite/positive/crossed
-  high-low predicates passed (6/6). This is **not** the repository test suite.
+- Four implementation/test commits saved to the development branch: `49a205e`, `3658734`, `8c9a429`, `fdfaaa2`. The last two add cached-Parquet revalidation and regression coverage.
+- Separate local reconstructed checks passed: 6/6 quote-predicate fixtures and 6/6 cached-M1 validation fixtures. These are **not** the repository test suite or a run of the exact installed package.
 - New GitHub pytest cases were added, but **not executed here** against
   the full installed repository. The local runtime lacks `pyarrow` and
   cannot fetch the private repository over the network.
@@ -38,8 +36,7 @@ remains fixed **$0.40/oz ALL-IN per completed round trip**.
   were uploaded.
 
 ## Next gate
-Run the current complete installed-package tests and verify imported Parquet
-partitions receive equivalent fail-closed validation on reload. Replay the
+Run the current complete installed-package tests and run the newly added cached-Parquet tests with `pyarrow`. Audit whether the original Gold archive itself meets the stricter high/low quote invariants before interpreting any resulting import rejection. Replay the
 pre-existing 13-field execution parity against the exact original private
 archive only in a runtime where that archive is actually available. Do not
 rerun completed strategy profitability searches merely to test this change.
