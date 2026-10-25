@@ -30,16 +30,21 @@ def normalize(raw: pd.DataFrame, *, strict: bool = True) -> pd.DataFrame:
         raise ValueError("Duplicate candle timestamps: quarantine the source")
     frame = frame.set_index("ts")
     if strict:
+        if frame.index.hasnans:
+            raise ValueError("Invalid UTC candle timestamp: quarantine the source")
+        price_array = frame[list(PRICE_COLUMNS)].to_numpy(dtype=float)
         invalid = (
-            frame[list(PRICE_COLUMNS)].isna().any(axis=1)
+            pd.Series(~np.isfinite(price_array).all(axis=1), index=frame.index)
+            | (frame[list(PRICE_COLUMNS)] <= 0).any(axis=1)
+            | (frame.index.asi8 % 60_000_000_000 != 0)
             | (frame["h"] < frame[["o", "c", "l"]].max(axis=1))
             | (frame["l"] > frame[["o", "c", "h"]].min(axis=1))
             | (frame["ah"] < frame[["ao", "ac", "al"]].max(axis=1))
             | (frame["al"] > frame[["ao", "ac", "ah"]].min(axis=1))
             | (frame["ao"] < frame["o"])
             | (frame["ac"] < frame["c"])
-            | (frame["h"] <= 0)
-            | (frame["l"] <= 0)
+            | (frame["ah"] < frame["h"])
+            | (frame["al"] < frame["l"])
         )
         if invalid.any():
             raise ValueError(f"{int(invalid.sum())} anomalous BID/ASK candles: quarantine before running")
@@ -58,6 +63,9 @@ def quality(frame: pd.DataFrame) -> dict:
     ask_bad = (frame["ah"] < frame[["ao", "ac", "al"]].max(axis=1)) | (
         frame["al"] > frame[["ao", "ac", "ah"]].min(axis=1)
     )
+    price_array = frame[list(PRICE_COLUMNS)].to_numpy(dtype=float)
+    nonfinite_rows = ~np.isfinite(price_array).all(axis=1)
+    nonpositive_rows = (price_array <= 0).any(axis=1)
     return {
         "rows": int(len(frame)),
         "start_utc": frame.index.min().isoformat(),
@@ -70,6 +78,10 @@ def quality(frame: pd.DataFrame) -> dict:
         "ask_ohlc_anomalies": int(ask_bad.sum()),
         "ask_below_bid_open": int((frame["ao"] < frame["o"]).sum()),
         "ask_below_bid_close": int((frame["ac"] < frame["c"]).sum()),
+        "ask_below_bid_high": int((frame["ah"] < frame["h"]).sum()),
+        "ask_below_bid_low": int((frame["al"] < frame["l"]).sum()),
+        "nonfinite_price_rows": int(nonfinite_rows.sum()),
+        "nonpositive_price_rows": int(nonpositive_rows.sum()),
         "note": "Gaps include legitimate market closures; this is NOT proof of corrupt data.",
     }
 
@@ -163,6 +175,10 @@ def import_gold_zip(source: str | Path, destination: str | Path) -> dict:
                 + checks["ask_ohlc_anomalies"]
                 + checks["ask_below_bid_open"]
                 + checks["ask_below_bid_close"]
+                + checks["ask_below_bid_high"]
+                + checks["ask_below_bid_low"]
+                + checks["nonfinite_price_rows"]
+                + checks["nonpositive_price_rows"]
             )
             wrong_year = int((frame.index.year != year).sum())
             off_minute = int(((frame.index.asi8 // 1_000_000_000) % 60 != 0).sum())
