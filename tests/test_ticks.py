@@ -93,3 +93,42 @@ def test_tick_csv_audit_is_sha_bound_and_not_authenticated(tmp_path):
     assert len(manifest["source_file_sha256"]) == 64
     assert manifest["source_authentication"] == "NOT_VERIFIED"
     ensure_tick_capability(tick_audit=manifest, claimed_mode="observed_tick_research")
+
+
+def test_tick_comparison_fails_closed_on_nonfinite_tolerance():
+    ticks = normalize_ticks(sample(), source())
+    bars = pd.DataFrame(
+        {"o": [100.0], "h": [101.0], "l": [100.0], "c": [100.5]},
+        index=pd.to_datetime(["2024-05-01T00:00:00Z"], utc=True),
+    )
+    for invalid in (float("nan"), float("inf"), -1.0, True, "0.1"):
+        with pytest.raises(ValueError, match="finite and nonnegative"):
+            compare_tick_bid_to_m1(ticks, bars, tolerance=invalid)
+    valid = compare_tick_bid_to_m1(ticks, bars, tolerance=0.0)
+    assert bool(valid.iloc[0]["tick_present"])
+    assert not bool(valid.iloc[0]["mismatch"])
+
+
+def test_tick_comparison_rejects_corrupt_ohlc_and_timestamps():
+    ticks = normalize_ticks(sample(), source())
+    bars = pd.DataFrame(
+        {"o": [100.0], "h": [101.0], "l": [100.0], "c": [100.5]},
+        index=pd.to_datetime(["2024-05-01T00:00:00Z"], utc=True),
+    )
+    for field, invalid in (("h", float("nan")), ("h", float("inf")),
+                           ("h", 99.0), ("l", 102.0)):
+        bad = bars.copy()
+        bad.loc[bad.index[0], field] = invalid
+        with pytest.raises(ValueError, match="Invalid BID M1 OHLC"):
+            compare_tick_bid_to_m1(ticks, bad)
+    duplicated = pd.concat([bars, bars])
+    with pytest.raises(ValueError, match="unique sorted minute opens"):
+        compare_tick_bid_to_m1(ticks, duplicated)
+    off_minute = bars.copy()
+    off_minute.index = off_minute.index + pd.Timedelta(seconds=1)
+    with pytest.raises(ValueError, match="unique sorted minute opens"):
+        compare_tick_bid_to_m1(ticks, off_minute)
+    bad_ticks = ticks.copy()
+    bad_ticks.loc[bad_ticks.index[0], "bid"] = float("nan")
+    with pytest.raises(ValueError, match="Invalid tick BID quotes"):
+        compare_tick_bid_to_m1(bad_ticks, bars)
