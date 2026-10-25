@@ -113,12 +113,16 @@ def import_gold_zip(source: str | Path, destination: str | Path) -> dict:
     if (destination / "manifest.json").exists() or any(destination.glob("xauusd_*.parquet")):
         raise FileExistsError("Destination already contains imported data; use a new versioned directory")
     entries = []
+    seen_years: set[int] = set()
     with zipfile.ZipFile(source) as archive:
         for name in sorted(n for n in archive.namelist() if n.lower().endswith(".json")):
             match = re.search(r"(20\d{2})", Path(name).name)
             if not match:
                 raise ValueError(f"Cannot identify year for {name}")
             year = int(match.group(1))
+            if year in seen_years:
+                raise ValueError(f"Multiple source JSON members for year {year}; refusing overwrite")
+            seen_years.add(year)
             member_bytes = archive.read(name)
             records = _records_from_bytes(member_bytes)
             # Quality scan is retained even if ingest refuses invalid candles.
