@@ -1,0 +1,143 @@
+"""Optimized exact M1 OHLC research replay; NOT broker tick execution.
+
+For signal types supported by this version: confirmed market entry at the
+next observed M1 open (within max_entry_delay_minutes), one open position,
+SL-first M1 ambiguity, adverse gap-through stops, $0.40/oz ALL-IN cost.
+
+No fabricated ticks or fills within missing intervals. Returns the same
+Result/trade columns as execution.run for parity testing.
+"""
+from __future__ import annotations
+
+import numpy as np
+import pandas as pd
+
+from .execution import Result
+from .model import Position, Settings, Signal
+
+
+def run_fast(minutes: pd.DataFrame, signals: list[Signal], settings: Settings) -> Result:
+    if minutes.empty or not isinstance(minutes.index, pd.DatetimeIndex):
+        raise ValueError("Nonempty M1 DatetimeIndex required")
+    if minutes.index.tz is None or minutes.index.has_duplicates or not minutes.index.is_monotonic_increasing:
+        raise ValueError("M1 DatetimeIndex must be UTC-aware, sorted, and unique")
+    for required in ("o", "h", "l", "c"):
+        if required not in minutes:
+            raise ValueError(f"Missing {required}")
+    for s in signals:
+        if pd.Timestamp(s.confirmed_at).tzinfo is None:
+            raise ValueError("Signal confirmation must include timezone")
+    stamps = minutes.index.asi8 // 1_000_000_000
+    opens, highs, lows, closes = (
+        minutes[k].to_numpy(dtype=np.float64) for k in ("o", "h", "l", "c")
+    )
+    if (
+        not np.isfinite(np.column_stack((opens, highs, lows, closes))).all()
+        or (lows > np.minimum(opens, closes)).any()
+        or (highs < np.maximum(opens, closes)).any()
+        or (highs < lows).any()
+        or (lows <= 0).any()
+    ):
+        raise ValueError("Invalid M1 OHLC")
+    ordered = sorted(signals, key=lambda s: pd.Timestamp(s.confirmed_at))
+    sig_times = [
+        int(pd.Timestamp(s.confirmed_at).tz_convert("UTC").timestamp())
+        for s in ordered
+    ]
+    pos: Position | None = None
+    pointer = expired = 0
+    fee = settings.roundtrip_cost_per_ounce * settings.ounces
+    realized = 0.0
+    ledger: list[dict] = []
+    equity: list[dict] = []
+    previous: int | None = None
+
+    def close(trade: Position, when: int, price: float, reason: str) -> None:
+        nonlocal realized
+        net_gross = trade.side * (price - trade.entry_price) * settings.ounces
+        pnl = net_gross - fee
+        realized += pnl
+        ledger.append({
+            "strategy": trade.strategy,
+            "signal_at": trade.signal_at,
+            "entry_at": trade.entry_at,
+            "closed_at": pd.Timestamp(when, unit="s", tz="UTC"),
+            "side": trade.side,
+            "entry_price": trade.entry_price,
+            "exit_price": price,
+            "stop": trade.stop,
+            "target": trade.target,
+            "ounces": settings.ounces,
+            "gross_pnl": net_gross,
+            "cost": fee,
+            "net_pnl": pnl,
+            "exit_reason": reason,
+            "gap_minutes": trade.gap_minutes,
+        })
+
+    for i, now_raw in enumerate(stamps):
+        now = int(now_raw)
+        op, hi, lo, cl = opens[i], highs[i], lows[i], closes[i]
+        gap = max(0, (now - previous) // 60 - 1) if previous is not None else 0
+        previous = now
+        occupied = pos is not None
+        if pos is not None:
+            pos.gap_minutes += gap
+            if (pos.side == 1 and op <= pos.stop) or (pos.side == -1 and op >= pos.stop):
+                close(pos, now, op, "gap_stop" if gap else "open_stop")
+                pos = None
+            elif (pos.side == 1 and op >= pos.target) or (pos.side == -1 and op <= pos.target):
+                close(pos, now, pos.target, "open_target")
+                pos = None
+        while pointer < len(ordered) and (now - sig_times[pointer]) / 60 > settings.max_entry_delay_minutes:
+            expired += 1
+            pointer += 1
+        if not occupied and pos is None and pointer < len(ordered) and now >= sig_times[pointer]:
+            sig = ordered[pointer]
+            pointer += 1
+            pos = Position(
+                entry_at=pd.Timestamp(now, unit="s", tz="UTC"),
+                signal_at=pd.Timestamp(sig.confirmed_at).tz_convert("UTC"),
+                side=sig.side,
+                entry_price=float(op),
+                stop=float(op - sig.side * sig.stop_distance),
+                target=float(op + sig.side * sig.target_distance),
+                strategy=sig.strategy,
+            )
+        if pos is not None:
+            stop_hit = lo <= pos.stop if pos.side == 1 else hi >= pos.stop
+            target_hit = hi >= pos.target if pos.side == 1 else lo <= pos.target
+            if stop_hit:
+                close(pos, now, pos.stop, "ambiguous_stop_first" if target_hit else "stop")
+                pos = None
+            elif target_hit:
+                close(pos, now, pos.target, "target")
+                pos = None
+        floating = (
+            pos.side * (cl - pos.entry_price) * settings.ounces - fee
+            if pos is not None else 0.0
+        )
+        equity.append({
+            "at": pd.Timestamp(now, unit="s", tz="UTC"),
+            "realized_pnl": realized,
+            "floating_pnl": floating,
+            "equity": realized + floating,
+        })
+
+    if pos is not None and settings.close_at_end:
+        close(pos, int(stamps[-1]), float(closes[-1]), "end_of_data")
+        equity[-1]["realized_pnl"] = realized
+        equity[-1]["floating_pnl"] = 0.0
+        equity[-1]["equity"] = realized
+
+    columns = [
+        "strategy", "signal_at", "entry_at", "closed_at", "side",
+        "entry_price", "exit_price", "stop", "target", "ounces",
+        "gross_pnl", "cost", "net_pnl", "exit_reason", "gap_minutes",
+    ]
+    return Result(
+        trades=pd.DataFrame.from_records(ledger, columns=columns),
+        equity=pd.DataFrame.from_records(equity).set_index("at"),
+        pending_at_end=len(ordered) - pointer,
+        expired_signals=expired,
+    )
