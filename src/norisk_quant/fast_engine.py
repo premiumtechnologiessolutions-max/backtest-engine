@@ -27,7 +27,10 @@ def run_fast(minutes: pd.DataFrame, signals: list[Signal], settings: Settings) -
     for s in signals:
         if pd.Timestamp(s.confirmed_at).tzinfo is None:
             raise ValueError("Signal confirmation must include timezone")
-    stamps = minutes.index.asi8 // 1_000_000_000
+    stamps_ns = minutes.index.asi8
+    if (stamps_ns % 60_000_000_000 != 0).any():
+        raise ValueError("M1 candle opens must align to exact minute boundaries")
+    stamps = stamps_ns // 1_000_000_000
     opens, highs, lows, closes = (
         minutes[k].to_numpy(dtype=np.float64) for k in ("o", "h", "l", "c")
     )
@@ -40,8 +43,10 @@ def run_fast(minutes: pd.DataFrame, signals: list[Signal], settings: Settings) -
     ):
         raise ValueError("Invalid M1 OHLC")
     ordered = sorted(signals, key=lambda s: pd.Timestamp(s.confirmed_at))
-    sig_times = [
-        int(pd.Timestamp(s.confirmed_at).tz_convert("UTC").timestamp())
+    # Nanosecond confirmation time preserves subsecond causality. Truncating
+    # to int(epoch_seconds) could execute a signal up to 0.999s BEFORE it existed.
+    sig_times_ns = [
+        pd.Timestamp(s.confirmed_at).tz_convert("UTC").value
         for s in ordered
     ]
     pos: Position | None = None
@@ -89,10 +94,15 @@ def run_fast(minutes: pd.DataFrame, signals: list[Signal], settings: Settings) -
             elif (pos.side == 1 and op >= pos.target) or (pos.side == -1 and op <= pos.target):
                 close(pos, now, pos.target, "open_target")
                 pos = None
-        while pointer < len(ordered) and (now - sig_times[pointer]) / 60 > settings.max_entry_delay_minutes:
+        while pointer < len(ordered) and (
+            int(stamps_ns[i]) - sig_times_ns[pointer]
+        ) > settings.max_entry_delay_minutes * 60_000_000_000:
             expired += 1
             pointer += 1
-        if not occupied and pos is None and pointer < len(ordered) and now >= sig_times[pointer]:
+        if (
+            not occupied and pos is None and pointer < len(ordered)
+            and int(stamps_ns[i]) >= sig_times_ns[pointer]
+        ):
             sig = ordered[pointer]
             pointer += 1
             pos = Position(
