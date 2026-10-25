@@ -118,10 +118,14 @@ def test_cost_relative_pretrade_gate_is_exact_subset_of_unfiltered_orders():
 
 def test_fee_gate_cannot_consult_future_minute():
     bars = choppy_synthetic(n=450)
-    settings = BosFibSettings(min_gross_reward_fee_multiple=5.0)
+    # Use an intentionally lower synthetic fee to ensure the fixture
+    # contains eligible signals and this test cannot silently skip.
+    settings = BosFibSettings(
+        min_gross_reward_fee_multiple=5.0,
+        all_in_cost_per_ounce=0.20,
+    )
     orders = bos_fib_limit_orders(bars, settings=settings)
-    if not orders:
-        pytest.skip("Synthetic scenario emitted no eligible order")
+    assert orders
     first = orders[0]
     cutoff = first.placed_at
     altered = bars.copy()
