@@ -188,6 +188,25 @@ See `docs/BOS_FIB_COST_GATE_AND_ENTRY_BAR_TP_CORRECTION_2026-10-25.md`.
 None of these results certifies Github-package backtest parity, true
 tick-level fill accuracy or independently unseen out-of-sample profits.
 
+## Strict H1 confirmation filter (research, NOT validated profit)
+
+Optional BOS/Fib gate requiring a **fully observed H1 bar (60/60 M1)**
+to have closed on or before the BOS signal; close must be on the same
+side of EMA50 as the trade, and EMA50 must slope that direction relative
+to five previous completed H1 bars. Unfinished H1 bars never count.
+
+    norisk backtest --data "/secure/Gold data.zip" --start 2012-01-01 --end 2012-12-31 --strategy bos-fib --timeframe M1 --bos-require-h1-trend --bos-fib-entry 0.618 --bos-rr 1 --ounces 1 --all-in-cost-per-ounce 0.40 --out reports/generated/bos-fib-h1-2012
+
+Add `--bos-min-gross-reward-fee-multiple 5` for the second frozen
+cost-coverage candidate. Both **failed** historical acceptance:
+`h1_only` returned 0/60 months and -$1,133.61/oz in 2012–16,
+0/36 and -$440.20 in 2017–19. `h1_and_5x` returned 5/60 months and
+-$24.88 (42 trades), then 1/36 and -$5.85 (4 trades). Year-by-year
+standalone replay audited 16 ledgers against weekly/monthly P/L, with
+8/8 local H1 and BOS generator checks passing. This is NOT proof of
+whole GitHub package parity or real-tick broker execution.
+Source and constraints: `docs/BOS_FIB_H1_REGIME_REJECT_2012_2019_2026-10-25.md`.
+
 ## Experimental limit-order strategy support (FVG midpoint)
 
 The engine now has an **M1 OHLC limit-order research mode** to avoid
