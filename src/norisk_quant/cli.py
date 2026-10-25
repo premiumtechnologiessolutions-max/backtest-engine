@@ -98,6 +98,7 @@ def main() -> None:
     test.add_argument("--bos-min-gross-reward-fee-multiple", type=float, default=0.0)
     test.add_argument("--bos-require-h1-trend", action="store_true", help="Use fully closed H1 EMA50 slope5 filter")
     test.add_argument("--bos-h1-max-age-minutes", type=int, default=None, help="Reject stale H1 regime after a quote closure (opt-in; e.g. 120)")
+    test.add_argument("--bos-ignore-dual-pivots", action="store_true", help="Exclude swing candles that are both M1 pivot high and low")
     test.add_argument("--fast", type=int, default=9)
     test.add_argument("--slow", type=int, default=21)
     test.add_argument("--stop-atr", type=float, default=1.5)
@@ -206,6 +207,7 @@ def main() -> None:
                 expiry_minutes=args.bos_expiry_minutes,
                 min_gross_reward_fee_multiple=args.bos_min_gross_reward_fee_multiple,
                 all_in_cost_per_ounce=args.all_in_cost_per_ounce,
+                ignore_ambiguous_dual_pivots=args.bos_ignore_dual_pivots,
             )
             limit_orders = bos_fib_limit_orders(data, settings=params)
             if args.bos_require_h1_trend:
