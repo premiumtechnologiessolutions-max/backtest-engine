@@ -104,6 +104,15 @@ def run(minutes: pd.DataFrame, signals: Iterable[Signal], settings: Settings) ->
             elif position.side == -1 and op <= position.target:
                 close(position, start, position.target, "open_target")
                 position = None
+            elif (
+                settings.max_hold_minutes is not None
+                and (start - pd.Timestamp(position.entry_at)).total_seconds()
+                >= 60 * settings.max_hold_minutes
+            ):
+                # Time exits occur at the first OBSERVED open at/after expiry.
+                # At that open, adverse gap-stop and target precedence remains.
+                close(position, start, op, "time_exit")
+                position = None
 
         # Expire stale signals, rather than acting on an old signal after a
         # market closure. Signals are confirmed at CLOSE, not earlier.
