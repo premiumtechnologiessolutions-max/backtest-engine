@@ -32,6 +32,16 @@ Clone this private repo in a trusted Python environment:
 
 On macOS/Linux, activate with: source .venv/bin/activate
 
+## Verified first real-data audit (2019 only)
+
+The read-only audit script has been executed against the original 2019.json inside the local Gold data.zip (not uploaded to GitHub):
+
+    python scripts/audit_gold_zip.py --zip "C:\path\Gold data.zip" --year 2019 --out 2019_audit.json
+
+Result: 353,320 M1 records; no duplicate timestamps or Bid/Ask OHLC anomalies; 258 intervals over 10 minutes. Common gaps of 61–62 minutes (196) and 2,941–2,942 minutes (47) are consistent with daily and weekend market closures. See docs/audits/xauusd_2019_source_audit_2026-10-25.json. This is a **source data check**, not a passing backtest.
+
+**CI blocker:** GitHub Actions jobs have repeatedly failed before any runner steps started (empty runner name and steps). No pytest success has been established; see docs/CI_STATUS_AR.md. Keep PR #1 in draft.
+
 ## Ingest data (LOCAL ONLY, do not upload raw ZIP to Git)
 
 Put your original annual JSON archive outside the repository or in the ignored data directory:
