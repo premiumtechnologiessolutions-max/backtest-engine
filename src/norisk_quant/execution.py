@@ -14,6 +14,7 @@ class Result:
     equity: pd.DataFrame
     pending_at_end: int
     expired_signals: int = 0
+    uncertain_entry_tp_deferred: int = 0
 
 
 def run(minutes: pd.DataFrame, signals: Iterable[Signal], settings: Settings) -> Result:
