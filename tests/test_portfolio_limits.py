@@ -135,3 +135,19 @@ def test_unconstrained_shared_limit_matches_two_independent_reference_runs():
         shared.equity["equity"].to_numpy(),
         (a.equity["equity"] + b.equity["equity"]).to_numpy(), rtol=0, atol=1e-7,
     )
+
+
+def test_limit_portfolio_report_includes_ambiguity_and_weekly_monthly(tmp_path):
+    from norisk_quant.portfolio_limits import write_limit_portfolio_report
+
+    market = bars([[100, 100, 100, 100], [100, 102, 100, 101], [100, 100, 100, 100]])
+    cfg = PortfolioSettings({"a": 1}, max_open_positions=1, max_total_ounces=1)
+    result = run_limit_portfolio(
+        market, [order(market.index[1], "a", 1, 100, 99, 101.5)], cfg
+    )
+    summary = write_limit_portfolio_report(result, cfg, tmp_path)
+    assert summary["uncertain_entry_tp_deferred"] == 1
+    assert (tmp_path / "monthly.csv").exists()
+    assert (tmp_path / "weekly.csv").exists()
+    assert (tmp_path / "equity_m1.csv").exists()
+    assert (tmp_path / "trades.csv").exists()
