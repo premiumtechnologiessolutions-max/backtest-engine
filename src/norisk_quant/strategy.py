@@ -8,8 +8,26 @@ TIMEFRAMES = {"M1": 1, "M5": 5, "M15": 15, "H1": 60, "H4": 240}
 
 
 def aggregate_bars(minutes: pd.DataFrame, timeframe: str) -> pd.DataFrame:
+    """Make ONLY complete UTC-anchored M1-based candles.
+
+    A 170-of-240 observed-minutes H4 candle is NOT complete; it must not
+    influence signals or indicators. Partial daily/weekend candles are
+    discarded rather than interpolated. Broker-server timezone-specific
+    H4/D1 candles need separate explicit source metadata and anchoring.
+    """
     if timeframe not in TIMEFRAMES:
         raise ValueError(f"Unsupported timeframe: {timeframe}")
+    required = {"o", "h", "l", "c"}
+    if not required.issubset(minutes.columns):
+        raise ValueError("M1 OHLC columns required")
+    if not isinstance(minutes.index, pd.DatetimeIndex) or minutes.index.tz is None:
+        raise ValueError("Source candles must have timezone-aware UTC DatetimeIndex")
+    if minutes.index.has_duplicates or not minutes.index.is_monotonic_increasing:
+        raise ValueError("Source M1 dates must be sorted and unique")
+    if (minutes.index.asi8 % 60_000_000_000 != 0).any():
+        raise ValueError("M1 candle opens must align exactly to minute boundaries")
+    if minutes[list(required)].isna().any().any():
+        raise ValueError("NaN in M1 source; never construct a fabricated full candle")
     width = TIMEFRAMES[timeframe]
     if width == 1:
         out = minutes[["o", "h", "l", "c"]].copy()
