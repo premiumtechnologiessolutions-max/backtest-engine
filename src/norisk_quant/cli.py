@@ -97,6 +97,7 @@ def main() -> None:
     test.add_argument("--bos-expiry-minutes", type=int, default=120)
     test.add_argument("--bos-min-gross-reward-fee-multiple", type=float, default=0.0)
     test.add_argument("--bos-require-h1-trend", action="store_true", help="Use fully closed H1 EMA50 slope5 filter")
+    test.add_argument("--bos-h1-max-age-minutes", type=int, default=None, help="Reject stale H1 regime after a quote closure (opt-in; e.g. 120)")
     test.add_argument("--fast", type=int, default=9)
     test.add_argument("--slow", type=int, default=21)
     test.add_argument("--stop-atr", type=float, default=1.5)
@@ -202,7 +203,10 @@ def main() -> None:
             limit_orders = bos_fib_limit_orders(data, settings=params)
             if args.bos_require_h1_trend:
                 limit_orders = filter_orders_h1(
-                    data, limit_orders, cfg=H1RegimeSettings(ema_span=50, slope_lag_bars=5)
+                    data, limit_orders, cfg=H1RegimeSettings(
+                        ema_span=50, slope_lag_bars=5,
+                        max_regime_age_minutes=args.bos_h1_max_age_minutes,
+                    )
                 )
             result = run_limits(data, limit_orders, settings)
         elif args.strategy == "fvg":
