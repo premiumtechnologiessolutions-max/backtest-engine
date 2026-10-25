@@ -61,8 +61,8 @@ def execute(gold_zip: Path, out: Path, *, execution: str = "reference") -> dict:
         },
     )
     trades = result.trades
-    if summary["months_observed"] != 60:
-        raise AssertionError("Design period must contain exactly 60 monthly rows")
+    if summary["months_observed"] != 60 or summary["months_with_m1_observations"] != 60:
+        raise AssertionError("QS01 design requires 60 calendar months WITH observed M1 quotes")
     net = float(trades["net_pnl"].sum()) if len(trades) else 0.0
     if abs(net - summary["net_pnl"]) > 1e-7:
         raise AssertionError("Executed trade ledger and report net differ")
