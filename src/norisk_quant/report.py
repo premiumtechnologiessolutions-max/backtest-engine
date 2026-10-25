@@ -8,6 +8,7 @@ from pathlib import Path
 import pandas as pd
 
 from .execution import Result
+from .accounting import validate_execution
 from .gaps import annotate_trade_gap_exposure, classify_index_gaps
 from .model import Settings
 
@@ -48,6 +49,7 @@ def _periods(trades: pd.DataFrame, start: pd.Timestamp, end: pd.Timestamp, perio
 
 
 def report(result: Result, settings: Settings, out: str | Path, *, source: str = "unknown") -> dict:
+    audit = validate_execution(result, settings)
     out = Path(out)
     out.mkdir(parents=True, exist_ok=True)
     equity = result.equity.copy()
@@ -93,6 +95,12 @@ def report(result: Result, settings: Settings, out: str | Path, *, source: str =
         "end_utc": end.isoformat(),
         "settings": asdict(settings),
         "trades": int(len(trades)),
+        "accounting_checks": audit["accounting_checks"],
+        "forced_end_of_data_closures": audit["forced_end_of_data_closures"],
+        "forced_end_of_data_pnl": audit["forced_end_of_data_pnl"],
+        "forced_liquidation_caveat": (
+            "end_of_data is an artificial research close, not an observed broker liquidation."
+        ),
         "wins": wins,
         "win_rate": wins / len(trades) if len(trades) else None,
         "net_pnl": float(trades["net_pnl"].sum()),
@@ -117,6 +125,17 @@ def report(result: Result, settings: Settings, out: str | Path, *, source: str =
         "open_equity_warning": "M1 OHLC cannot reconstruct the tick path or floating equity during missing intervals.",
         "incomplete_final_period_warning": "Final month can be partial. end_of_data exits are synthetic research liquidations.",
     }
+    if not trades.empty:
+        forced = trades[trades["exit_reason"] == "end_of_data"]
+        if not forced.empty:
+            end_labels = pd.to_datetime(forced["closed_at"], utc=True).dt.tz_localize(None).dt.to_period("M")
+            end_count = forced.groupby(end_labels).size()
+            end_pnl = forced.groupby(end_labels)["net_pnl"].sum()
+            monthly["synthetic_end_of_data_trades"] = end_count.reindex(monthly.index, fill_value=0).astype(int)
+            monthly["synthetic_end_of_data_net_pnl"] = end_pnl.reindex(monthly.index, fill_value=0.0)
+    if "synthetic_end_of_data_trades" not in monthly:
+        monthly["synthetic_end_of_data_trades"] = 0
+        monthly["synthetic_end_of_data_net_pnl"] = 0.0
     gaps.to_csv(out / "gap_catalogue.csv", index=False)
     trades.to_csv(out / "trades.csv", index=False)
     equity.to_csv(out / "equity_m1.csv")
