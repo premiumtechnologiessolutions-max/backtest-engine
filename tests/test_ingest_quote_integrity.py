@@ -72,3 +72,33 @@ def test_direct_zip_load_refuses_nonfinite_quotes(tmp_path):
         handle.writestr("2020.json", json.dumps(rows))
     with pytest.raises(ValueError, match="anomalous"):
         load_market(archive, "2020-01-01", "2020-01-31")
+
+
+@pytest.mark.parametrize("field,value", [
+    ("ah", 101.9), ("al", 98.9), ("ac", float("nan")), ("o", 0.0),
+])
+def test_cached_parquet_quote_tampering_is_rejected(tmp_path, field, value):
+    # Parquet must not bypass the strict JSON/ZIP source gates.
+    frame = normalize(pd.DataFrame(_rows()))
+    frame.loc[frame.index[0], field] = value
+    cached = tmp_path / "cached.parquet"
+    frame.to_parquet(cached)
+    with pytest.raises(ValueError, match="Loaded M1"):
+        load_market(cached, "2020-01-01", "2020-01-31")
+
+
+def test_cached_parquet_rejects_non_utc_and_off_minute_index(tmp_path):
+    frame = normalize(pd.DataFrame(_rows()))
+    cached = tmp_path / "cached.parquet"
+    frame.index = frame.index + pd.Timedelta(seconds=1)
+    frame.to_parquet(cached)
+    with pytest.raises(ValueError, match="minute opens"):
+        load_market(cached, "2020-01-01", "2020-01-31")
+
+
+def test_valid_cached_parquet_remains_loadable(tmp_path):
+    frame = normalize(pd.DataFrame(_rows()))
+    cached = tmp_path / "cached.parquet"
+    frame.to_parquet(cached)
+    loaded = load_market(cached, "2020-01-01", "2020-01-31")
+    pd.testing.assert_frame_equal(loaded, frame)
