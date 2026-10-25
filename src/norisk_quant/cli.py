@@ -6,11 +6,13 @@ from pathlib import Path
 
 from .data import import_gold_zip, load_market, quality, read_source
 from .execution import run
+from .fast_engine import run_fast
 from .gaps import classify_index_gaps
 from .model import Settings
 from .report import report
 from .registry import ExperimentIdentity, experiment_manifest
 from .strategy import ema_cross_signals
+from .strategies_native import donchian_breakout_signals
 from .ticks import TickSource, audit_tick_csv
 from .walkforward import year_folds, fold_manifest
 
@@ -71,6 +73,11 @@ def main() -> None:
     test.add_argument("--end", required=True, help="UTC inclusive YYYY-MM-DD")
     test.add_argument("--out", required=True)
     test.add_argument("--timeframe", default="M15", choices=("M1", "M5", "M15", "H1", "H4"))
+    test.add_argument("--strategy", default="ema", choices=("ema", "donchian"))
+    test.add_argument("--execution", default="reference", choices=("reference", "fast"))
+    test.add_argument("--donchian-lookback", type=int, default=20)
+    test.add_argument("--stop-usd", type=float, default=15.0)
+    test.add_argument("--target-usd", type=float, default=30.0)
     test.add_argument("--fast", type=int, default=9)
     test.add_argument("--slow", type=int, default=21)
     test.add_argument("--stop-atr", type=float, default=1.5)
@@ -158,11 +165,17 @@ def main() -> None:
             ounces=args.ounces,
             roundtrip_cost_per_ounce=args.all_in_cost_per_ounce,
         )
-        signals = ema_cross_signals(
-            data, timeframe=args.timeframe, fast=args.fast,
-            slow=args.slow, stop_atr=args.stop_atr, rr=args.rr,
-        )
-        result = run(data, signals, settings)
+        if args.strategy == "ema":
+            signals = ema_cross_signals(
+                data, timeframe=args.timeframe, fast=args.fast,
+                slow=args.slow, stop_atr=args.stop_atr, rr=args.rr,
+            )
+        else:
+            signals = donchian_breakout_signals(
+                data, timeframe=args.timeframe, lookback=args.donchian_lookback,
+                stop_distance=args.stop_usd, target_distance=args.target_usd,
+            )
+        result = (run_fast if args.execution == "fast" else run)(data, signals, settings)
         summary = report(result, settings, args.out, source=str(Path(args.data)))
         print(json.dumps(summary, ensure_ascii=False, indent=2))
 
