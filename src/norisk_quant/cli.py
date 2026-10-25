@@ -6,6 +6,7 @@ from pathlib import Path
 
 from .data import import_gold_zip, load_market, quality, read_source
 from .bos_fib import BosFibSettings, bos_fib_limit_orders
+from .h1_regime import H1RegimeSettings, filter_orders_h1
 from .execution import run
 from .fast_engine import run_fast
 from .fvg import fvg_midpoint_limit_orders
@@ -94,6 +95,7 @@ def main() -> None:
     test.add_argument("--bos-min-impulse-usd", type=float, default=1.0)
     test.add_argument("--bos-expiry-minutes", type=int, default=120)
     test.add_argument("--bos-min-gross-reward-fee-multiple", type=float, default=0.0)
+    test.add_argument("--bos-require-h1-trend", action="store_true", help="Use fully closed H1 EMA50 slope5 filter")
     test.add_argument("--fast", type=int, default=9)
     test.add_argument("--slow", type=int, default=21)
     test.add_argument("--stop-atr", type=float, default=1.5)
@@ -197,6 +199,10 @@ def main() -> None:
                 all_in_cost_per_ounce=args.all_in_cost_per_ounce,
             )
             limit_orders = bos_fib_limit_orders(data, settings=params)
+            if args.bos_require_h1_trend:
+                limit_orders = filter_orders_h1(
+                    data, limit_orders, cfg=H1RegimeSettings(ema_span=50, slope_lag_bars=5)
+                )
             result = run_limits(data, limit_orders, settings)
         elif args.strategy == "fvg":
             limit_orders = fvg_midpoint_limit_orders(
