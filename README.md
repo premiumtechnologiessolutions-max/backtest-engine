@@ -70,6 +70,29 @@ GitHub Actions on the private repo currently **fails before receiving a
 runner** (independent probe job `runner_id=0`, `steps=[]`).
 This is tracked as Issue #2. PR #1 remains **draft/unmerged**.
 
+## Verified GitHub Actions account-level quota blocker — 2026-10-25
+
+Confirmed from GitHub's official owner-account notification emails:
+**2000/2000 included Actions minutes** reached 2026-10-04 and
+**0.5/0.5 GB Actions storage** reached 2026-10-08.
+Both alerts say included usage renews **2026-11-01**.
+
+Evidence: runner-only probe and normal CI jobs failed before starting
+(`runner_id=0`, `steps=[]`), which is consistent with the
+GitHub-hosted runner billing/quota gate. The current account's
+spending budget has not been read/modified.
+
+**Action taken:** while the free quota is exhausted, both
+`.github/workflows/ci.yml` and `runner-probe.yml` are
+**temporarily manual-dispatch-only** to prevent dozens of failed
+PR/push runs and emails. Auto PR triggering will be restored once a
+runner probe actually passes after the GitHub quota reset.
+
+No payment method, spending limit, or repository visibility was
+changed. No user-market-data ZIP was pushed to GitHub. Keep PR #1
+as a draft until unit tests have passed for this code revision.
+See [tracking Issue #2](https://github.com/premiumtechnologiessolutions-max/backtest-engine/issues/2).
+
 ## Ingest data (LOCAL ONLY, do not upload raw ZIP to Git)
 
 Put your original annual JSON archive outside the repository or in the ignored data directory:
