@@ -93,6 +93,7 @@ def main() -> None:
     test.add_argument("--bos-min-break-usd", type=float, default=0.10)
     test.add_argument("--bos-min-impulse-usd", type=float, default=1.0)
     test.add_argument("--bos-expiry-minutes", type=int, default=120)
+    test.add_argument("--bos-min-gross-reward-fee-multiple", type=float, default=0.0)
     test.add_argument("--fast", type=int, default=9)
     test.add_argument("--slow", type=int, default=21)
     test.add_argument("--stop-atr", type=float, default=1.5)
@@ -192,6 +193,8 @@ def main() -> None:
                 min_break_usd=args.bos_min_break_usd,
                 min_impulse_usd=args.bos_min_impulse_usd,
                 expiry_minutes=args.bos_expiry_minutes,
+                min_gross_reward_fee_multiple=args.bos_min_gross_reward_fee_multiple,
+                all_in_cost_per_ounce=args.all_in_cost_per_ounce,
             )
             limit_orders = bos_fib_limit_orders(data, settings=params)
             result = run_limits(data, limit_orders, settings)
