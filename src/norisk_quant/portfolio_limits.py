@@ -8,6 +8,8 @@ intrabar, and no same-entry-bar target award without a known price path.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
+import json
 from typing import Sequence
 
 import numpy as np
@@ -219,3 +221,21 @@ def run_limit_portfolio(
     )
     validate_portfolio(result, settings)
     return result
+
+
+def write_limit_portfolio_report(
+    result: LimitPortfolioResult,
+    settings: PortfolioSettings,
+    out: str | Path,
+) -> dict:
+    """Persist shared weekly/monthly/equity/trades plus LIMIT ambiguity count."""
+    from .portfolio import write_portfolio_report
+
+    summary = write_portfolio_report(result, settings, out)
+    summary["uncertain_entry_tp_deferred"] = result.uncertain_entry_tp_deferred
+    summary["limit_fill_policy"] = (
+        "Observed M1 touch at limit; stop-first; same-entry-bar TP deferred; "
+        "gap carry and adverse gap-through; no same-minute capacity recycling."
+    )
+    (Path(out) / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    return summary
