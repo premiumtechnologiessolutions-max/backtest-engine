@@ -308,8 +308,9 @@ Commands:
     norisk audit-ticks --csv /secure/broker_ticks.csv --provider "Broker source" --out reports/generated/tick-audit.json
     norisk identify-experiment --spec configs/experiment.json --out reports/generated/experiment-manifest.json
 
-**Current status:** no live tick-fill engine, portfolio capital ledger, distributed
-optimizer or remote ChatGPT runner exists yet. The GitHub Actions runner probe
+**Current status:** a shared-capacity market/Limit M1 research portfolio equity ledger
+exists, but it is **not** a broker capital/margin model. No live tick-fill engine,
+distributed optimizer or remote ChatGPT runner exists yet. The GitHub Actions runner probe
 also failed without reaching a usable diagnostic log; CI has NOT passed.
 
 ## Code review workflow
@@ -317,3 +318,18 @@ also failed without reaching a usable diagnostic log; CI has NOT passed.
 Open the PR from feat/quant-engine-foundation into main after GitHub Actions pass. Subsequent strategies should be separate PRs and use the same frozen execution/fee/data-quality conventions.
 
 GitHub is the code and report registry, NOT itself a live backtesting compute server or a data warehouse. ChatGPT conversations can inspect connected repositories; launching executions from chat requires a separate supported runner/workflow connector.
+
+
+## Shared LIMIT portfolio and exact-core parity (2026-10-25)
+
+- `src/norisk_quant/portfolio_limits.py`: causal multi-strategy LIMIT replay with
+  shared exposure, one $0.40/oz roundtrip cost, stop-first ambiguity and
+  gap-through handling. Use `write_limit_portfolio_report` for weekly/monthly
+  and observed M1 equity reports.
+- `tests/test_portfolio_limits.py`: nine local-passed deterministic checks.
+- `scripts/verify_portfolio_limit_2024.py`: private-data-only 2024 fixture parity;
+  requires the original ZIP locally; never commit that ZIP.
+- `docs/CENTRAL_LIMIT_EXACT_PARITY_AND_PORTFOLIO_2026-10-25.md`:
+  exact GitHub module SHA verification and 3,800 historical BOS/H1 trades
+  matching independent archived ledgers. **Both BOS/H1 variants remain rejected**.
+  Full GitHub Actions CI is still blocked and PR #1 remains Draft.
