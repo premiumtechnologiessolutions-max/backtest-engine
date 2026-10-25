@@ -31,6 +31,8 @@ class BosFibSettings:
     min_impulse_usd: float = 1.0
     expiry_minutes: int = 120
     max_bos_waves_per_regime: int = 2
+    min_gross_reward_fee_multiple: float = 0.0
+    all_in_cost_per_ounce: float = 0.40
 
     def __post_init__(self) -> None:
         if self.pivot_left < 1 or self.pivot_right < 1:
@@ -45,6 +47,10 @@ class BosFibSettings:
             raise ValueError("Buffers/minimum impulse must be finite positive")
         if self.expiry_minutes < 1 or self.max_bos_waves_per_regime < 1:
             raise ValueError("Expiry and max waves must be positive")
+        if not math.isfinite(self.min_gross_reward_fee_multiple) or self.min_gross_reward_fee_multiple < 0:
+            raise ValueError("Minimum reward/fee multiple must be finite nonnegative")
+        if not math.isfinite(self.all_in_cost_per_ounce) or self.all_in_cost_per_ounce < 0:
+            raise ValueError("All-in fixed cost must be finite nonnegative")
 
 
 def bos_fib_limit_orders(
@@ -163,6 +169,14 @@ def bos_fib_limit_orders(
             risk = stop - entry
             target = entry - settings.reward_risk * risk
         if not (distance >= settings.min_impulse_usd and risk > 0 and target > 0):
+            continue
+        # Signal-time-only cost coverage: a $0.40/oz all-in fee requires
+        # at least $2.00 gross reward per oz for the 5x-cost variant.
+        # Never consult future candles or realized trade outcome.
+        gross_target_per_ounce = settings.reward_risk * risk
+        if gross_target_per_ounce < (
+            settings.min_gross_reward_fee_multiple * settings.all_in_cost_per_ounce
+        ):
             continue
         confirmed_at = ix[i] + pd.Timedelta(minutes=1)
         orders.append(LimitOrder(
