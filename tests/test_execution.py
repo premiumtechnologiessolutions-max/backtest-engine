@@ -109,3 +109,25 @@ def test_invalid_settings_and_signal_are_rejected():
         Settings(roundtrip_cost_per_ounce=-1)
     with pytest.raises(ValueError):
         Signal(pd.Timestamp("2020-01-01", tz="UTC"), 1, -1, 2)
+
+
+def test_expired_signals_not_misreported_as_pending():
+    bars = candles([
+        ("2020-01-01T00:00:00Z", 100, 100, 100, 100),
+        ("2020-01-01T00:10:00Z", 100, 100, 100, 100),
+    ])
+    result = run(bars, [signal()], Settings(max_entry_delay_minutes=1))
+    assert result.trades.empty
+    assert result.expired_signals == 1
+    assert result.pending_at_end == 0
+
+
+def test_unconfirmed_future_signal_is_pending_not_expired():
+    bars = candles([
+        ("2020-01-01T00:00:00Z", 100, 100, 100, 100),
+        ("2020-01-01T00:01:00Z", 100, 100, 100, 100),
+    ])
+    result = run(bars, [signal("2020-01-01T00:02:00Z")], Settings())
+    assert result.trades.empty
+    assert result.expired_signals == 0
+    assert result.pending_at_end == 1
