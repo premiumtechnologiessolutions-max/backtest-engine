@@ -210,6 +210,38 @@ def import_gold_zip(source: str | Path, destination: str | Path) -> dict:
     return manifest
 
 
+
+def validate_loaded_m1(frame: pd.DataFrame) -> pd.DataFrame:
+    """Fail closed on source or Parquet M1 quotes before any backtest.
+
+    This is deliberately checked after slicing as well as on JSON import:
+    a cached Parquet partition can be modified after its original manifest
+    was written. No missing minutes are fabricated or filled.
+    """
+    if frame.empty or not isinstance(frame.index, pd.DatetimeIndex):
+        raise ValueError("Loaded M1 requires a nonempty UTC DatetimeIndex")
+    idx = frame.index
+    if (idx.tz is None or str(idx.tz) != "UTC" or idx.hasnans or
+            idx.has_duplicates or not idx.is_monotonic_increasing or
+            (idx.asi8 % 60_000_000_000 != 0).any()):
+        raise ValueError("Loaded M1 requires unique sorted UTC minute opens")
+    missing = set(PRICE_COLUMNS) - set(frame.columns)
+    if missing:
+        raise ValueError(f"Loaded M1 missing BID/ASK columns: {sorted(missing)}")
+    prices = frame[list(PRICE_COLUMNS)].to_numpy(dtype=float)
+    if not np.isfinite(prices).all() or (prices <= 0).any():
+        raise ValueError("Loaded M1 contains nonfinite or nonpositive BID/ASK")
+    bid, ask = prices[:, :4], prices[:, 4:]
+    for side in (bid, ask):
+        opn, high, low, close = side.T
+        if ((high < np.maximum.reduce((opn, low, close))) |
+                (low > np.minimum.reduce((opn, high, close)))).any():
+            raise ValueError("Loaded M1 contains invalid BID/ASK OHLC")
+    if (ask < bid).any():
+        raise ValueError("Loaded M1 contains crossed BID/ASK OHLC")
+    return frame
+
+
 def load_market(path: str | Path, start: str, end: str) -> pd.DataFrame:
     """End is inclusive UTC. Prefer an imported Parquet directory."""
     path = Path(path)
@@ -253,6 +285,4 @@ def load_market(path: str | Path, start: str, end: str) -> pd.DataFrame:
     selected = frame.loc[(frame.index >= begin) & (frame.index < finish)].copy()
     if selected.empty:
         raise ValueError("No data in requested period")
-    if selected.index.duplicated().any() or not selected.index.is_monotonic_increasing:
-        raise ValueError("Unordered or duplicated dates")
-    return selected
+    return validate_loaded_m1(selected)
