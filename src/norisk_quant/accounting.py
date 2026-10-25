@@ -36,7 +36,7 @@ def validate_execution(result: Result, settings: Settings, *, atol: float = 1e-7
     allowed_reasons = {
         "gap_stop", "open_stop", "open_target", "stop",
         "target", "ambiguous_stop_first", "end_of_data",
-        "entry_open_beyond_stop",
+        "entry_open_beyond_stop", "time_exit",
     }
     synthetic_count = 0
     if not trades.empty:
