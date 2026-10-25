@@ -139,6 +139,42 @@ exhausted. Local independent historical matching on 3,800 entries is
 encouraging but cannot replace green checks on the immutable repo
 commit, the exact data and the full historical scenario pipeline.
 
+## Long-session safety / BOS-Fib full monthly sensitivity — Oct 25 2026
+
+The engine has two **opt-in**, separately versioned, causal safety
+choices for the M1 BOS/Fibonacci strategy:
+
+- `--bos-h1-max-age-minutes 120` (with `--bos-require-h1-trend`):
+  rejects orders relying on a stale H1 EMA trend after long closures.
+  Default `None` preserves the older archived 3,800-trade parity.
+- `--bos-ignore-dual-pivots`: ignores a minute candle that is both
+  a high and low 3/3 pivot (unknown intrabar order). This can alter
+  downstream structure and is **not** simply subtracting bad trades.
+
+Run the frozen four-year protocol with the **actual package** and a
+private original ZIP (no upload to Git):
+```sh
+python scripts/run_bos_fib_frozen_sensitivity.py \
+  --gold-zip "/secure/Gold data.zip" \
+  --years 2012 2017 2020 2024 \
+  --out "/secure/reports/bos-h1-safety"
+```
+
+The offline scoped 24-unit-test run passed. The standalone full M1
+replay of this exact fixed rule set returned respectively **-$242.85,
+-$129.69, -$387.99 and -$465.70 per ounce**, with **0/12 positive
+months in each sampled year** (2,876 trades). Every year's completed
+trade/monthly ledger and fee matched; the report is
+`docs/LONG_SESSION_BOS_H1_EXECUTION_SAFETY_2026-10-25.md`.
+These four exposed years were NOT a continuous portfolio or unseen OOS,
+and the standalone calculations are NOT a new full-GitHub-CI pass.
+Do not deploy this rejected variant.
+
+Canonical CLI backtests now reject `--all-in-cost-per-ounce` values
+other than **0.40** to protect results from accidentally omitting
+transaction costs. Signal confirmation also requires explicit timezone
+information. No raw gold data is stored in the repo.
+
 ## Ingest data (LOCAL ONLY, do not upload raw ZIP to Git)
 
 Put your original annual JSON archive outside the repository or in the ignored data directory:
