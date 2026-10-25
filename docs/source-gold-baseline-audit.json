@@ -1,0 +1,177 @@
+{
+  "audit_version": "2026-10-25-initial",
+  "source": "User-provided Gold data.zip; keep outside repository",
+  "bytes": 155808257,
+  "sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
+  "instrument": "XAUUSD",
+  "schema": [
+    "ts",
+    "o",
+    "h",
+    "l",
+    "c",
+    "ao",
+    "ah",
+    "al",
+    "ac",
+    "v"
+  ],
+  "rows": 5936421,
+  "years": [
+    {
+      "filename": "2010 (1).json",
+      "rows": 365764,
+      "gaps_over_10_minutes": 65,
+      "duplicate_timestamps": 0,
+      "bid_ohlc_anomalies": 0,
+      "ask_ohlc_anomalies": 0,
+      "ask_below_bid_open_or_close": 0
+    },
+    {
+      "filename": "2011.json",
+      "rows": 363595,
+      "gaps_over_10_minutes": 121,
+      "duplicate_timestamps": 0,
+      "bid_ohlc_anomalies": 0,
+      "ask_ohlc_anomalies": 0,
+      "ask_below_bid_open_or_close": 0
+    },
+    {
+      "filename": "2012.json",
+      "rows": 352975,
+      "gaps_over_10_minutes": 263,
+      "duplicate_timestamps": 0,
+      "bid_ohlc_anomalies": 0,
+      "ask_ohlc_anomalies": 0,
+      "ask_below_bid_open_or_close": 0
+    },
+    {
+      "filename": "2013.json",
+      "rows": 352317,
+      "gaps_over_10_minutes": 283,
+      "duplicate_timestamps": 0,
+      "bid_ohlc_anomalies": 0,
+      "ask_ohlc_anomalies": 0,
+      "ask_below_bid_open_or_close": 0
+    },
+    {
+      "filename": "2014.json",
+      "rows": 351794,
+      "gaps_over_10_minutes": 261,
+      "duplicate_timestamps": 0,
+      "bid_ohlc_anomalies": 0,
+      "ask_ohlc_anomalies": 0,
+      "ask_below_bid_open_or_close": 0
+    },
+    {
+      "filename": "2015.json",
+      "rows": 353772,
+      "gaps_over_10_minutes": 258,
+      "duplicate_timestamps": 0,
+      "bid_ohlc_anomalies": 0,
+      "ask_ohlc_anomalies": 0,
+      "ask_below_bid_open_or_close": 0
+    },
+    {
+      "filename": "2016.json",
+      "rows": 354246,
+      "gaps_over_10_minutes": 258,
+      "duplicate_timestamps": 0,
+      "bid_ohlc_anomalies": 0,
+      "ask_ohlc_anomalies": 0,
+      "ask_below_bid_open_or_close": 0
+    },
+    {
+      "filename": "2017.json",
+      "rows": 352785,
+      "gaps_over_10_minutes": 256,
+      "duplicate_timestamps": 0,
+      "bid_ohlc_anomalies": 0,
+      "ask_ohlc_anomalies": 0,
+      "ask_below_bid_open_or_close": 0
+    },
+    {
+      "filename": "2018.json",
+      "rows": 353925,
+      "gaps_over_10_minutes": 260,
+      "duplicate_timestamps": 0,
+      "bid_ohlc_anomalies": 0,
+      "ask_ohlc_anomalies": 0,
+      "ask_below_bid_open_or_close": 0
+    },
+    {
+      "filename": "2019.json",
+      "rows": 353320,
+      "gaps_over_10_minutes": 258,
+      "duplicate_timestamps": 0,
+      "bid_ohlc_anomalies": 0,
+      "ask_ohlc_anomalies": 0,
+      "ask_below_bid_open_or_close": 0
+    },
+    {
+      "filename": "2020.json",
+      "rows": 355432,
+      "gaps_over_10_minutes": 259,
+      "duplicate_timestamps": 0,
+      "bid_ohlc_anomalies": 0,
+      "ask_ohlc_anomalies": 0,
+      "ask_below_bid_open_or_close": 0
+    },
+    {
+      "filename": "2021.json",
+      "rows": 354347,
+      "gaps_over_10_minutes": 257,
+      "duplicate_timestamps": 0,
+      "bid_ohlc_anomalies": 0,
+      "ask_ohlc_anomalies": 0,
+      "ask_below_bid_open_or_close": 0
+    },
+    {
+      "filename": "2022.json",
+      "rows": 354629,
+      "gaps_over_10_minutes": 257,
+      "duplicate_timestamps": 0,
+      "bid_ohlc_anomalies": 0,
+      "ask_ohlc_anomalies": 0,
+      "ask_below_bid_open_or_close": 0
+    },
+    {
+      "filename": "2023.json",
+      "rows": 352887,
+      "gaps_over_10_minutes": 257,
+      "duplicate_timestamps": 0,
+      "bid_ohlc_anomalies": 0,
+      "ask_ohlc_anomalies": 0,
+      "ask_below_bid_open_or_close": 0
+    },
+    {
+      "filename": "2024.json",
+      "rows": 355893,
+      "gaps_over_10_minutes": 260,
+      "duplicate_timestamps": 0,
+      "bid_ohlc_anomalies": 0,
+      "ask_ohlc_anomalies": 0,
+      "ask_below_bid_open_or_close": 0
+    },
+    {
+      "filename": "2025.json",
+      "rows": 354435,
+      "gaps_over_10_minutes": 259,
+      "duplicate_timestamps": 0,
+      "bid_ohlc_anomalies": 0,
+      "ask_ohlc_anomalies": 0,
+      "ask_below_bid_open_or_close": 0
+    },
+    {
+      "filename": "2026.json",
+      "rows": 254305,
+      "gaps_over_10_minutes": 185,
+      "duplicate_timestamps": 0,
+      "bid_ohlc_anomalies": 0,
+      "ask_ohlc_anomalies": 0,
+      "ask_below_bid_open_or_close": 0
+    }
+  ],
+  "checks": "Timestamp duplicates, monotonic order, BID and ASK OHLC bounds, bid/ask crossing",
+  "important_warning": "A gap over 10 minutes may be a normal market closure, not missing/corrupt data. The gap reason and executable tick path are NOT verified. No strategy results are validated by this audit."
+}
