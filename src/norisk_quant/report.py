@@ -153,7 +153,9 @@ def report(result: Result, settings: Settings, out: str | Path, *, source: str =
         ),
         "positive_months": int((monthly["net_pnl"] > 0).sum()),
         "nonpositive_months": int((monthly["net_pnl"] <= 0).sum()),
-        "months_observed": int(len(monthly)),
+        "months_observed": int(len(monthly)),  # legacy calendar-row count
+        "months_with_m1_observations": int(monthly["month_has_observed_m1"].sum()),
+        "calendar_months_without_m1": int((~monthly["month_has_observed_m1"]).sum()),
         "open_equity_warning": "M1 OHLC cannot reconstruct the tick path or floating equity during missing intervals.",
         "incomplete_final_period_warning": "Final month can be partial. end_of_data exits are synthetic research liquidations.",
     }
