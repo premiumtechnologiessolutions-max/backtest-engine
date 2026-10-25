@@ -77,22 +77,22 @@ See docs/RESEARCH_PROTOCOL_AR.md for development gates.
 
 ## Audit gaps from imported historical data
 
-After running \`norisk import-gold\`, classify observed quote gaps *without* assuming they were all exchange closures:
+After running `norisk import-gold`, classify observed quote gaps *without* assuming they were all exchange closures:
 
     norisk audit-gaps --data data/processed --start 2010-01-01 --end 2026-09-20 --min-missing-minutes 10 --out reports/generated/gap-audit
 
 Files generated:
-- \`gap_catalogue.csv\`: UTC and New York timestamps, missing minute counts, provisional class, confidence, and holiday-calendar hints.
-- \`gap_manual_review.csv\`: unusual or holiday-adjacent intervals requiring source-provider verification.
-- \`gap_summary.json\`: gap totals and category counts for the requested data version and period.
+- `gap_catalogue.csv`: UTC and New York timestamps, missing minute counts, provisional class, confidence, and holiday-calendar hints.
+- `gap_manual_review.csv`: unusual or holiday-adjacent intervals requiring source-provider verification.
+- `gap_summary.json`: gap totals and category counts for the requested data version and period.
 
-The \`regular_daily_break_pattern\` and \`regular_weekend_pattern\` labels mean the **timestamps** match typical trading hours; they do NOT verify the broker feed's past schedule. US holiday hints are likewise **candidates**, not confirmed closures or events. The classification uses America/New_York and handles daylight-saving transitions.
+The `regular_daily_break_pattern` and `regular_weekend_pattern` labels mean the **timestamps** match typical trading hours; they do NOT verify the broker feed's past schedule. US holiday hints are likewise **candidates**, not confirmed closures or events. The classification uses America/New_York and handles daylight-saving transitions.
 
 **Important:** This new command cannot be run by GitHub with only code present; the original private historical data must be available to an authorized execution environment. No market-data ZIP is committed to the repository.
 
 ## GitHub Actions status
 
-GitHub Actions checks are **not confirmed passing** as of 2026-10-25. Both the regular \`Engine quality gates\` workflow and a separate runner-only probe (no checkout/pip/tests) reported failure. Available connector responses contained no per-step logs, so the root cause **is undiagnosed** and neither failing CI nor passing unit tests may be inferred. Keep the PR in draft; do not merge until diagnostics and an independent test run are successful.
+GitHub Actions checks are **not confirmed passing** as of 2026-10-25. Both the regular `Engine quality gates` workflow and a separate runner-only probe (no checkout/pip/tests) reported failure. Available connector responses contained no per-step logs, so the root cause **is undiagnosed** and neither failing CI nor passing unit tests may be inferred. Keep the PR in draft; do not merge until diagnostics and an independent test run are successful.
 
 
 ## Code review workflow
