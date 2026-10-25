@@ -42,6 +42,34 @@ Result: 353,320 M1 records; no duplicate timestamps or Bid/Ask OHLC anomalies; 2
 
 **CI blocker:** GitHub Actions jobs have repeatedly failed before any runner steps started (empty runner name and steps). No pytest success has been established; see docs/CI_STATUS_AR.md. Keep PR #1 in draft.
 
+## New: fast research backtests directly from the original ZIP
+
+The engine now includes a fast M1 replay path and an H1 Donchian 20-bar
+research variant (fixed $15 XAUUSD stop, $30 target, **not** classic
+Turtle 20/10). Original source-year JSON can be selected directly out
+of the private ZIP, with no user-facing Parquet conversion prerequisite.
+
+    norisk backtest --data "/secure/Gold data.zip" --start 2024-01-01 --end 2024-12-31 --strategy donchian --timeframe H1 --donchian-lookback 20 --stop-usd 15 --target-usd 30 --execution fast --ounces 1 --all-in-cost-per-ounce 0.40 --out reports/generated/donchian-2024
+
+For research regression, change `--execution fast` to
+`--execution reference` and compare trades and marked equity.
+Two engine implementations are NOT considered equivalent until parity
+tests pass. `--strategy ema` remains an EMA/ATR experimental smoke
+strategy, and is not the same stop/target specification as the separate
+2024 EMA standalone validation.
+
+An **independent standalone script** ran the continuous 2020–Sep 20
+2026 Donchian variant on **2,381,928 M1** and produced 1,334 trades,
+**48/81 profitable months** and **+$1,146 per ounce** net with fixed
+all-in costs. This does NOT certify that the GitHub implementation
+produces exactly the same fills, or that the strategy is independently
+profitable. See
+`docs/REAL_DATA_SMOKE_AND_READINESS_2026-10-25.md`.
+
+GitHub Actions on the private repo currently **fails before receiving a
+runner** (independent probe job `runner_id=0`, `steps=[]`).
+This is tracked as Issue #2. PR #1 remains **draft/unmerged**.
+
 ## Ingest data (LOCAL ONLY, do not upload raw ZIP to Git)
 
 Put your original annual JSON archive outside the repository or in the ignored data directory:
