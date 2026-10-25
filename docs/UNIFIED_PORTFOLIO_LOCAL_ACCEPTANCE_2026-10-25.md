@@ -1,7 +1,7 @@
 # Unified Market + Limit local acceptance — 2026-10-25
 
 **Execution acceptance passed locally; no profitable strategy or broker execution is certified.**
-Engine code checkpoint: `c816881b74d0fd457b6f203af12e1a2d8baa49a0` on
+Final package code checkpoint: `0d057c0f549f0afc7c6cabf2f1ff909c81eeb0f7` on
 `feat/quant-engine-foundation`. Draft PR #1 remains unmerged. No historical
 BOS/Fib/H1 research was replayed in this session.
 
@@ -36,15 +36,15 @@ pytest **8.4.2**. Exact versions and module/package hashes are in
 
 | Gate | Result |
 |---|---|
-| Full repository source suite | 216 passed, 0 failed/skipped |
-| Full suite using installed wheel core outside repository directory | 216 passed, 0 failed/skipped |
-| Extracted source-distribution tests/scripts plus installed wheel core | 216 passed, 0 failed/skipped |
+| Full repository source suite | 263 passed, 0 failed/skipped |
+| Full suite using installed wheel core outside repository directory | 263 passed, 0 failed/skipped |
+| Extracted source-distribution tests/scripts plus installed wheel core | 263 passed, 0 failed/skipped |
 | Build source distribution and wheel | Passed |
-| Installed module bytes vs repository and both built wheels | All identical |
+| All 23 installed core modules vs repository and built wheel | All identical |
 | Dependency consistency (`pip check`) | No broken requirements |
 | Installed CLI help: root, backtest, audit-gaps | Passed |
 
-These are three executions of the **same 216 tests**, not 648 unique tests.
+These are three executions of the **same 263 tests**, not 789 unique tests.
 Seven existing pandas regex capture-group warnings in `ticks.py` remain;
 they do not fail tests. This Windows/Python 3.12 evidence does not assert that
 the GitHub Linux/Python 3.11 matrix ran.
@@ -58,14 +58,23 @@ resampling alias used by the reports; 2.1 must not be advertised as supported.
 The final wheel metadata and dependency consistency were checked after rebuilding.
 
 Installed wheel SHA-256:
-`d57cc545b3169b3980cffda9cec4350b6ba41d7e389dbbc365eacb629302364a`.
-The rebuilt wheel's different archive hash reflects build packaging; every
-engine module byte was independently compared and is identical.
+`d9dc988d59c26b65ebea957871bdad6c356e3d353c87609555b994b648f80d0d`.
+Every core module byte was independently compared between repository,
+installed wheel and built wheel; archive identity is recorded separately.
+
+Concurrent branch changes were preserved through two development-branch merges.
+The public QS01 CLI/API delegates to the already audited generator rather than
+maintaining a second rule implementation. The alternate holding-option spelling
+is a validated constructor alias; the original positional Settings contract is
+preserved. The exact-ZIP design runner and actual-observation month counts were
+retained, and both design runners now fail closed on a missing calendar month.
+No QS01 historical execution was repeated during this integration.
 
 ## New real-M1 acceptance gate
 
 Command: `python scripts/verify_unified_real_m1.py --json /private/2024.json --out /private/acceptance`.
-The actual installed wheel was used. Runtime: **83.638 seconds**.
+The installed wheel at clean checkpoint
+`069d58fe6556a74d55840fcd8484561b09d22274` was used. Runtime: **83.026 seconds**.
 
 Input: **355,893** original local Bid/Ask M1 rows, from 2024-01-01 23:00 UTC
 through 2024-12-31 21:58 UTC. No duplicate timestamps or Bid/Ask OHLC anomalies
@@ -96,9 +105,11 @@ in the unconstrained run and **-$100.855** with constrained capacity. Donchian's
 kernel parity, with no profitability selection or acceptance claim.
 
 Full aggregate evidence: `audits/unified-real-m1-2024-2026-10-25.json`.
-Its `code_tree_dirty: true` records the untracked `MANIFEST.in` packaging fix
-being prepared during the run. No execution/source module changed; installed,
-repository and built-wheel module hashes independently prove byte identity.
+Its `code_tree_dirty: false` confirms a clean execution checkpoint. Subsequent
+integration only added reporting/source-coverage compatibility. AST comparisons
+in the final package manifest prove the Market, fast, Limit, unified portfolio
+and QS01 signal functions unchanged from that real-data gate. Final source and
+installed-wheel byte identity is recorded separately at `0d057c0`.
 
 ## Remaining boundaries
 

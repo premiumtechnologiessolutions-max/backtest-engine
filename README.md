@@ -410,7 +410,7 @@ arguments: it loads 2012–2016 only and applies the preregistered QS01 screen o
 The original preregistration remains unchanged; extracted annual file identities
 are recorded separately if the original ZIP is unavailable.
 
-Latest independent local acceptance: **216/216 tests passed** on source, installed
+Latest independent local acceptance: **263/263 tests passed** on source, installed
 wheel core and extracted source-distribution tests/scripts (the same test set,
 three executions). New 2024 execution parity covered 355,893 M1 observations,
 171 reference/fast trades and 682 mixed Market/Limit fixture trades, with every

@@ -1,8 +1,8 @@
 {
   "status": "PASSED",
   "purpose": "EXECUTION_PARITY_NOT_PROFIT_RESEARCH",
-  "code_revision": "c816881b74d0fd457b6f203af12e1a2d8baa49a0",
-  "code_tree_dirty": true,
+  "code_revision": "069d58fe6556a74d55840fcd8484561b09d22274",
+  "code_tree_dirty": false,
   "source": {
     "annual_json_sha256": "78d02159d9eb41a4a6122eed42b696e3b9b93c159a68b312ee2bb854e749fd32",
     "loaded_m1_bidask_sha256": "7cf1d13a63cb6fb1a986e8d921db27c9abf936e63e62d9b8f270efb027c4c45c",
@@ -109,6 +109,6 @@
     "independent_per_position_floating_reconciliation": "PASSED",
     "capacity_rejected": 285
   },
-  "elapsed_seconds": 83.638,
+  "elapsed_seconds": 83.026,
   "limits": "Synthetic common BID OHLC reference; no broker tick/margin validation or profit claim."
 }
