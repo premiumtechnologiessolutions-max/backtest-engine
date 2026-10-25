@@ -48,7 +48,7 @@ def _periods(trades: pd.DataFrame, start: pd.Timestamp, end: pd.Timestamp, perio
     return group
 
 
-def report(result: Result, settings: Settings, out: str | Path, *, source: str = "unknown") -> dict:
+def report(result: Result, settings: Settings, out: str | Path, *, source: str = "unknown", provenance: dict | None = None, run_parameters: dict | None = None) -> dict:
     audit = validate_execution(result, settings)
     out = Path(out)
     out.mkdir(parents=True, exist_ok=True)
@@ -101,6 +101,14 @@ def report(result: Result, settings: Settings, out: str | Path, *, source: str =
         "engine": "noriskfx-quant-engine/0.1.0",
         "execution": "synthetic_same_reference_bid_ohlc_fixed_all_in_fee",
         "data_source": source,
+        "source_fingerprints": provenance or {},
+        "run_parameters": run_parameters or {},
+        "reproducibility_warning": (
+            "M1 slice SHA-256 verifies input quote bytes and timestamps, but "
+            "exact computational reproducibility also requires an immutable "
+            "Git commit and locked dependency versions. This is synthetic OHLC "
+            "research execution, not broker tick-fill validation."
+        ),
         "start_utc": start.isoformat(),
         "end_utc": end.isoformat(),
         "settings": asdict(settings),
