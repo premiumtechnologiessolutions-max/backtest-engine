@@ -95,6 +95,35 @@ The `regular_daily_break_pattern` and `regular_weekend_pattern` labels mean the 
 GitHub Actions checks are **not confirmed passing** as of 2026-10-25. Both the regular `Engine quality gates` workflow and a separate runner-only probe (no checkout/pip/tests) reported failure. Available connector responses contained no per-step logs, so the root cause **is undiagnosed** and neither failing CI nor passing unit tests may be inferred. Keep the PR in draft; do not merge until diagnostics and an independent test run are successful.
 
 
+## Target: research platform beyond the MT5 Strategy Tester
+
+The goal is a **stronger auditable research workflow**, not an unsupported claim
+of superior price-fill realism or speed. MT5 already supports real broker ticks,
+multi-symbol testing, genetic optimization and distributed agents. With only M1
+data, our core is strictly less precise than a calibrated MT5 real-tick replay.
+
+Added early research components:
+- `src/norisk_quant/ticks.py`: checks external genuine-looking timestamped
+  Bid/Ask quote ticks, their SHA-256 fingerprint, and M1 coverage. It **does
+  not replay tick orders** or independently authenticate a broker feed.
+- `src/norisk_quant/walkforward.py`: embargoed walk-forward fold planner;
+  automatically labels no historical split as proven independent.
+- `src/norisk_quant/registry.py`: stable experiment identity (data SHA,
+  full Git commit, rules, parameters, timeframe, exposure and fixed fee).
+  A saved identity is **not** evidence a backtest actually ran.
+- `docs/MT5_PARITY_AND_SUPERSET_GATES.md`: benchmark checklist, current
+  feature gaps, precise acceptance gates and mutually exclusive cost scenarios.
+
+Commands:
+
+    norisk plan-walkforward --start-year 2012 --last-year 2024 --min-training-years 5 --embargo-days 14 --out reports/generated/folds.json
+    norisk audit-ticks --csv /secure/broker_ticks.csv --provider "Broker source" --out reports/generated/tick-audit.json
+    norisk identify-experiment --spec configs/experiment.json --out reports/generated/experiment-manifest.json
+
+**Current status:** no live tick-fill engine, portfolio capital ledger, distributed
+optimizer or remote ChatGPT runner exists yet. The GitHub Actions runner probe
+also failed without reaching a usable diagnostic log; CI has NOT passed.
+
 ## Code review workflow
 
 Open the PR from feat/quant-engine-foundation into main after GitHub Actions pass. Subsequent strategies should be separate PRs and use the same frozen execution/fee/data-quality conventions.
