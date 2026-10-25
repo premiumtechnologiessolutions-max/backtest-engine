@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 
-from .data import import_gold_zip, load_market, quality, read_source
+from .data import import_gold_zip, load_market, quality, read_source, fingerprint_loaded_m1, sha256_file
 from .bos_fib import BosFibSettings, bos_fib_limit_orders
 from .h1_regime import H1RegimeSettings, filter_orders_h1
 from .execution import run
@@ -226,7 +227,30 @@ def main() -> None:
                     stop_distance=args.stop_usd, target_distance=args.target_usd,
                 )
             result = (run_fast if args.execution == "fast" else run)(data, signals, settings)
-        summary = report(result, settings, args.out, source=str(Path(args.data)))
+        data_path = Path(args.data)
+        source_file_sha = sha256_file(data_path) if data_path.is_file() else None
+        manifest_sha = None
+        manifest_file = data_path / "manifest.json" if data_path.is_dir() else None
+        if manifest_file is not None and manifest_file.is_file():
+            manifest = json.loads(manifest_file.read_text(encoding="utf-8"))
+            manifest_sha = manifest.get("source_sha256")
+        provenance = {
+            "loaded_m1_bidask_sha256": fingerprint_loaded_m1(data),
+            "loaded_m1_rows": int(len(data)),
+            "source_file_sha256": source_file_sha,
+            "source_archive_sha256_from_manifest": manifest_sha,
+            # CI can provide GITHUB_SHA; local runs must record their
+            # full repository commit separately if this is unspecified.
+            "git_revision_env": os.environ.get("GITHUB_SHA") or None,
+        }
+        settings_for_run = {
+            key: value for key, value in vars(args).items()
+            if key not in ("data", "out")
+        }
+        summary = report(
+            result, settings, args.out, source=str(data_path),
+            provenance=provenance, run_parameters=settings_for_run,
+        )
         print(json.dumps(summary, ensure_ascii=False, indent=2))
 
 
