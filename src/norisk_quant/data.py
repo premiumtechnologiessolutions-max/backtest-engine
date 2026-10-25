@@ -177,7 +177,7 @@ def load_market(path: str | Path, start: str, end: str) -> pd.DataFrame:
             for member in archive.namelist():
                 if not member.lower().endswith(".json"):
                     continue
-                match = re.search(r"(20\\d{2})", Path(member).name)
+                match = re.search(r"(20\d{2})", Path(member).name)
                 if not match:
                     continue
                 year = int(match.group(1))
