@@ -409,3 +409,12 @@ execution diagnostics. The second command exposes no year or threshold tuning
 arguments: it loads 2012–2016 only and applies the preregistered QS01 screen once.
 The original preregistration remains unchanged; extracted annual file identities
 are recorded separately if the original ZIP is unavailable.
+
+Latest independent local acceptance: **216/216 tests passed** on source, installed
+wheel core and extracted source-distribution tests/scripts (the same test set,
+three executions). New 2024 execution parity covered 355,893 M1 observations,
+171 reference/fast trades and 682 mixed Market/Limit fixture trades, with every
+floating mark independently rebuilt from original source closes. See
+[local acceptance and scope](docs/UNIFIED_PORTFOLIO_LOCAL_ACCEPTANCE_2026-10-25.md)
+and [frozen QS01 design result](docs/QS01_DESIGN_2012_2016_2026-10-25.md).
+These local passes do not imply a GitHub Actions pass; Draft PR #1 stays open.
