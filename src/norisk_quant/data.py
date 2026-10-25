@@ -74,6 +74,35 @@ def quality(frame: pd.DataFrame) -> dict:
     }
 
 
+def fingerprint_loaded_m1(frame: pd.DataFrame) -> str:
+    """Deterministic SHA-256 of the EXACT observed Bid/Ask bars in this run.
+
+    Hashes UTC nanosecond timestamps plus all 8 price columns, not just the
+    name of a source ZIP or a mutable Parquet manifest. The stable little-
+    endian float64 encoding is versioned to expose incompatible model changes.
+    This does not authenticate the original data provider or broker fills.
+    """
+    required = list(PRICE_COLUMNS)
+    if frame.empty or not isinstance(frame.index, pd.DatetimeIndex):
+        raise ValueError("Expected nonempty M1 time series")
+    if frame.index.tz is None or frame.index.has_duplicates or not frame.index.is_monotonic_increasing:
+        raise ValueError("M1 index must be timezone-aware, sorted and unique")
+    if (frame.index.asi8 % 60_000_000_000 != 0).any():
+        raise ValueError("M1 timestamps must align exactly to minute opens")
+    if not set(required).issubset(frame.columns):
+        raise ValueError("Missing original Bid/Ask price columns")
+    prices = frame[required].to_numpy(dtype="<f8", copy=True)
+    if not np.isfinite(prices).all():
+        raise ValueError("Missing or invalid prices")
+    digest = hashlib.sha256()
+    digest.update(b"NRF-XAUUSD-M1-BIDASK-SLICE-V1\x00")
+    digest.update(",".join(required).encode("ascii"))
+    digest.update(b"\x00")
+    digest.update(frame.index.asi8.astype("<i8", copy=False).tobytes(order="C"))
+    digest.update(prices.tobytes(order="C"))
+    return digest.hexdigest()
+
+
 def sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
