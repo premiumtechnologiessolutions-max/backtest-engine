@@ -86,13 +86,30 @@ def validate_execution(result: Result, settings: Settings, *, atol: float = 1e-7
         synthetic_count = int((trades["exit_reason"] == "end_of_data").sum())
 
     total = float(trades["net_pnl"].sum()) if not trades.empty else 0.0
-    last = float(equity["equity"].iloc[-1])
+    # Verify the entire realized P/L time series, not just the final total.
+    # Otherwise a ledger could shift a loss to another week/month while
+    # preserving both final net P/L and realized + floating = equity.
+    if trades.empty:
+        booked = pd.Series(0.0, index=equity.index)
+    else:
+        closing_times = pd.to_datetime(trades["closed_at"], utc=True)
+        if not closing_times.isin(equity.index).all():
+            raise ValueError("Trade close absent from observed M1 equity timestamps")
+        booked = trades.groupby(closing_times)["net_pnl"].sum().reindex(
+            equity.index, fill_value=0.0
+        )
+    expected_realized = booked.cumsum().to_numpy(dtype=float)
+    if not np.allclose(
+        equity["realized_pnl"].to_numpy(dtype=float), expected_realized,
+        rtol=0, atol=atol,
+    ):
+        raise ValueError("Realized P/L timeline disagrees with closed trades")
     if result.pending_at_end < 0 or result.expired_signals < 0:
         raise ValueError("Negative signal counts")
-    if not math.isclose(total, last, rel_tol=0, abs_tol=atol):
-        # If close_at_end=False, open P&L can remain in equity.
-        if settings.close_at_end:
-            raise ValueError("Closed-trade P/L and last equity disagree")
+    if settings.close_at_end and not math.isclose(
+        total, float(equity["equity"].iloc[-1]), rel_tol=0, abs_tol=atol
+    ):
+        raise ValueError("Closed-trade P/L and last equity disagree")
     return {
         "accounting_checks": "PASSED",
         "trades": int(len(trades)),
