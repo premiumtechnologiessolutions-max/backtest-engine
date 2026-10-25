@@ -141,7 +141,9 @@ def read_source(path: str | Path) -> pd.DataFrame:
     elif path.suffix.lower() == ".parquet":
         frame = pd.read_parquet(path)
         if isinstance(frame.index, pd.DatetimeIndex):
-            return frame
+            # read_source() is also a public ingestion entry point. Do not
+            # allow direct Parquet callers to bypass the load_market() gate.
+            return validate_loaded_m1(frame)
     else:
         raise ValueError("Expected .json, .csv, or .parquet")
     return normalize(frame)
