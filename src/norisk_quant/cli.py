@@ -6,6 +6,7 @@ from pathlib import Path
 
 from .data import import_gold_zip, load_market, quality, read_source
 from .execution import run
+from .gaps import classify_index_gaps
 from .model import Settings
 from .report import report
 from .strategy import ema_cross_signals
@@ -23,6 +24,16 @@ def main() -> None:
 
     audit = subs.add_parser("audit", help="Audit one source JSON/CSV/Parquet")
     audit.add_argument("source")
+
+    gap_audit = subs.add_parser(
+        "audit-gaps",
+        help="Classify time gaps by NY trading-hour PATTERN; holiday hints are unverified",
+    )
+    gap_audit.add_argument("--data", required=True, help="Imported Parquet directory or source file")
+    gap_audit.add_argument("--start", required=True, help="UTC inclusive YYYY-MM-DD")
+    gap_audit.add_argument("--end", required=True, help="UTC inclusive YYYY-MM-DD")
+    gap_audit.add_argument("--out", required=True, help="Destination directory")
+    gap_audit.add_argument("--min-missing-minutes", type=int, default=10)
 
     test = subs.add_parser("backtest", help="Run EMA example on M1 data (research smoke model)")
     test.add_argument("--data", required=True)
@@ -46,6 +57,36 @@ def main() -> None:
         # audits are persisted during import-gold.
         frame = read_source(args.source)
         print(json.dumps(quality(frame), ensure_ascii=False, indent=2))
+    elif args.command == "audit-gaps":
+        frame = load_market(args.data, args.start, args.end)
+        catalogue = classify_index_gaps(
+            frame.index, min_missing_minutes=args.min_missing_minutes
+        )
+        destination = Path(args.out)
+        destination.mkdir(parents=True, exist_ok=True)
+        catalogue.to_csv(destination / "gap_catalogue.csv", index=False)
+        catalogue[catalogue["needs_review"]].to_csv(
+            destination / "gap_manual_review.csv", index=False
+        )
+        counts = catalogue["classification"].value_counts().to_dict()
+        summary = {
+            "instrument": "XAUUSD",
+            "source": args.data,
+            "start_utc": frame.index.min().isoformat(),
+            "end_utc": frame.index.max().isoformat(),
+            "min_missing_minutes_exclusive": args.min_missing_minutes,
+            "total_gaps": int(len(catalogue)),
+            "needs_review": int(catalogue["needs_review"].sum()),
+            "classification_counts": {k: int(v) for k, v in counts.items()},
+            "important_warning": (
+                "Matching a NY time pattern or holiday calendar does not verify "
+                "historical broker hours or prove the cause of a feed interruption."
+            ),
+        }
+        (destination / "gap_summary.json").write_text(
+            json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        print(json.dumps(summary, ensure_ascii=False, indent=2))
     elif args.command == "backtest":
         data = load_market(args.data, args.start, args.end)
         settings = Settings(
