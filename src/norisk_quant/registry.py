@@ -8,6 +8,8 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+
+import pandas as pd
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
@@ -43,14 +45,21 @@ class ExperimentIdentity:
             raise ValueError("Unsupported execution mode")
         if self.exposure_context not in ("training", "historical_exposed", "future_prospective"):
             raise ValueError("Unknown exposure context")
+        start = pd.Timestamp(self.window_start_utc)
+        end = pd.Timestamp(self.window_end_exclusive_utc)
+        if start.tzinfo is None or end.tzinfo is None or not start < end:
+            raise ValueError("Experiment window must be chronological and timezone-aware")
         if self.execution_mode == "observed_tick_research":
             # This prototype cannot run an observed tick event engine yet.
             raise ValueError("Observed tick execution is not implemented")
 
 
 def fingerprint(identity: ExperimentIdentity) -> str:
+    fields = asdict(identity)
+    # Editorial notes must not generate a new experiment ID.
+    fields.pop("notes")
     canonical = json.dumps(
-        asdict(identity), sort_keys=True, separators=(",", ":"), ensure_ascii=False,
+        fields, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
         allow_nan=False,
     )
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
