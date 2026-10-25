@@ -164,15 +164,29 @@ pivot are never used before they close. Golden Zone is 0.618–0.786;
 tests the alternate TP. These are **explicit mechanical interpretations**
 of the handwritten strategy, not universal ICT rules or actual Elliot waves.
 
-**Observed standalone diagnostic (source ZIP, research execution, 1oz):**
-2012, 2017, 2020 and 2024 **all had 0/12 net-profitable months** in
-three fixed configurations. 2024 base 0.618/1R returned 2,284 trades
-with +$316.31 gross price P/L, **$913.60 total fees**, **-$597.29 net**.
-See `docs/BOS_FIB_M1_2026-10-25_FIXED_RESEARCH.md`. Those returns used
-the separate FVG-like standalone limit replay; the actual GitHub CLI
-and full repository pytest must still pass independent parity validation.
-No real ticks or broker fills were inferred. The strategy is not suitable
-for live use on the current evidence.
+**CORRECTION (2026-10-25):** The earlier BOS/Fib standalone P/L numbers in
+`docs/BOS_FIB_M1_2026-10-25_FIXED_RESEARCH.md` are **superseded**:
+the old M1 limit simulator sometimes credited a take-profit inside its
+**entry candle** without knowing whether that price printed before
+the entry limit filled. The new conservative limit simulator defers TP
+until a later observed M1 candle; stop-first remains. This is still an
+OHLC scenario and cannot reconstruct tick order.
+
+Under the corrected fill model, the 2024 BOS/Fib baseline has
+**2,284 trades, -$1,020.33/oz net and 0/12 winning months**.
+Predeclared fee coverage filters may be tested with
+`--bos-min-gross-reward-fee-multiple 5` or `10` (0 means disabled).
+They require planned gross target >=5×/10× fixed $0.40 all-in fee;
+this uses entry and TP values already known at BOS close.
+
+From a 15-year **standalone** real-data study (2012–Sep 2026),
+the 5× filter was **-$57.03** in 2012–16 development,
+**+$2.96 from just 19 trades** in 2017–19 chronological check,
+and **-$1,236.98** in already-examined 2020–Sep26 history.
+No filter qualifies as a strategy with dependable monthly returns.
+See `docs/BOS_FIB_COST_GATE_AND_ENTRY_BAR_TP_CORRECTION_2026-10-25.md`.
+None of these results certifies Github-package backtest parity, true
+tick-level fill accuracy or independently unseen out-of-sample profits.
 
 ## Experimental limit-order strategy support (FVG midpoint)
 
