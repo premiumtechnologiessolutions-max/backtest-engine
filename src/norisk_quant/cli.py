@@ -106,6 +106,13 @@ def main() -> None:
     test.add_argument("--all-in-cost-per-ounce", type=float, default=0.40)
 
     args = parser.parse_args()
+    # Canonical No Risk FX strategy research uses ONE declared full-cycle
+    # ALL-IN $0.40/oz fee. Reject accidental $0 or double-fee estimates.
+    if args.command == "backtest" and args.all_in_cost_per_ounce != 0.40:
+        parser.error(
+            "Canonical XAUUSD research requires exactly $0.40/oz ALL-IN "
+            "round-trip; do not disable or layer on another spread/fee."
+        )
     if args.command == "import-gold":
         manifest = import_gold_zip(args.zip_file, args.out)
         print(json.dumps(manifest, ensure_ascii=False, indent=2))
