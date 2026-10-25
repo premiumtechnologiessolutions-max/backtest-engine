@@ -120,6 +120,8 @@ def test_time_exit_opt_in_only_and_reject_invalid_holds():
         [100, 100, 100, 100],
     ], ["2024-01-02T00:00:00Z", "2024-01-02T00:01:00Z",
         "2024-01-02T00:32:00Z"])
+    # Existing positional Settings(ounces, cost, delay, close_at_end) is preserved.
+    assert Settings(1, 0.40, 1, True).max_hold_minutes is None
     result = replay_both(bars, [Signal(bars.index[1], 1, 5, 5, "baseline")], Settings())
     assert result.trades.iloc[0]["exit_reason"] == "end_of_data"
     for bad in (0, -1, 1.5, True):
