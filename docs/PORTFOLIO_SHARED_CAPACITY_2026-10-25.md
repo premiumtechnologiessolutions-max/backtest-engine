@@ -19,7 +19,7 @@ Summing historical monthly profits from independently executed FVG, MACD, RSI, e
 
 ## Executed local verification, not GitHub CI
 
-In a separate local Python environment, the **same 15,033-byte portfolio module** was tested with a simplified local copy of the Signal dataclass (NOT a full checkout of the current GitHub repository). Six isolated pytest tests passed:
+In a separate local Python environment, the **same 15,033-byte portfolio module** was tested with an exact local copy of the GitHub model.py fetched on 2026-10-25 (NOT a full checkout of the current GitHub repository). Six isolated pytest tests passed:
 1. Two simultaneous strategies, shared equity and single fee per roundtrip.
 2. Shared position capacity and no same-minute slot recycling.
 3. 18-minute missing-data gap and adverse open stop.
