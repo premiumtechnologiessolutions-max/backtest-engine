@@ -156,3 +156,45 @@ def classify_index_gaps(index: pd.DatetimeIndex, *, min_missing_minutes: int = 1
     lookup = index.get_indexer(idx)
     rows = [classify_gap(index[i - 1], index[i]) for i in lookup]
     return pd.DataFrame.from_records(rows, columns=cols)
+
+
+
+def annotate_trade_gap_exposure(trades: pd.DataFrame, gaps: pd.DataFrame) -> pd.DataFrame:
+    """Mark executed trades that crossed observed large gaps.
+
+    For a trade open on a *recorded* M1 timestamp, count each gap whose
+    first resumed bar opened after entry and no later than the close.
+    These are ex-post audit labels, NOT strategy inputs or retroactive exits.
+    Complexity O((trades+gaps) log gaps), no trade × gap Cartesian join.
+    """
+    import numpy as np
+
+    result = trades.copy()
+    for field in ("gap_intervals_over10m", "uncertain_gap_intervals", "gap_missing_minutes_total"):
+        result[field] = 0
+    result["gap_execution_review_required"] = False
+    if result.empty or gaps.empty:
+        return result
+    required = {"entry_at", "closed_at"}
+    if not required.issubset(result.columns):
+        raise ValueError("Trade ledger missing entry_at/closed_at")
+    closes = pd.to_datetime(gaps["next_seen_utc"], utc=True)
+    uncertainty = gaps["needs_review"].astype(bool).to_numpy()
+    missing = gaps["missing_minutes"].astype(int).to_numpy()
+    ordered = closes.argsort(kind="stable")
+    close_ns = closes.iloc[ordered].array.asi8
+    uncertainty = uncertainty[ordered]
+    missing = missing[ordered]
+    times_in = pd.to_datetime(result["entry_at"], utc=True).array.asi8
+    times_out = pd.to_datetime(result["closed_at"], utc=True).array.asi8
+    if (times_out < times_in).any():
+        raise ValueError("Trade closed before its entry")
+    begin = np.searchsorted(close_ns, times_in, side="right")
+    finish = np.searchsorted(close_ns, times_out, side="right")
+    cum_uncertain = np.concatenate(([0], np.cumsum(uncertainty.astype("int64"))))
+    cum_missing = np.concatenate(([0], np.cumsum(missing.astype("int64"))))
+    result["gap_intervals_over10m"] = finish - begin
+    result["uncertain_gap_intervals"] = cum_uncertain[finish] - cum_uncertain[begin]
+    result["gap_missing_minutes_total"] = cum_missing[finish] - cum_missing[begin]
+    result["gap_execution_review_required"] = result["uncertain_gap_intervals"] > 0
+    return result
