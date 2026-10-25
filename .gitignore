@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+data/*
+!data/README.md
+reports/generated/
+*.parquet
+*.zip
+*.xlsx
+*.csv
+!tests/fixtures/*.csv

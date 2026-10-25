@@ -1,0 +1,172 @@
+from __future__ import annotations
+
+import hashlib
+import io
+import json
+import re
+import zipfile
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+
+RAW_COLUMNS = ("ts", "o", "h", "l", "c", "ao", "ah", "al", "ac")
+PRICE_COLUMNS = ("o", "h", "l", "c", "ao", "ah", "al", "ac")
+
+
+def normalize(raw: pd.DataFrame, *, strict: bool = True) -> pd.DataFrame:
+    """Normalize original gold BID/ASK candles. Index is UTC candle OPEN."""
+    missing = set(RAW_COLUMNS) - set(raw.columns)
+    if missing:
+        raise ValueError(f"Missing source columns: {sorted(missing)}")
+    frame = raw.copy()
+    numeric_ts = pd.to_numeric(frame["ts"], errors="raise")
+    # Source timestamps are UNIX seconds, not milliseconds.
+    frame["ts"] = pd.to_datetime(numeric_ts, unit="s", utc=True, errors="raise")
+    for column in PRICE_COLUMNS:
+        frame[column] = pd.to_numeric(frame[column], errors="raise")
+    frame = frame.sort_values("ts")
+    if frame["ts"].duplicated().any():
+        raise ValueError("Duplicate candle timestamps: quarantine the source")
+    frame = frame.set_index("ts")
+    if strict:
+        invalid = (
+            frame[list(PRICE_COLUMNS)].isna().any(axis=1)
+            | (frame["h"] < frame[["o", "c", "l"]].max(axis=1))
+            | (frame["l"] > frame[["o", "c", "h"]].min(axis=1))
+            | (frame["ah"] < frame[["ao", "ac", "al"]].max(axis=1))
+            | (frame["al"] > frame[["ao", "ac", "ah"]].min(axis=1))
+            | (frame["ao"] < frame["o"])
+            | (frame["ac"] < frame["c"])
+            | (frame["h"] <= 0)
+            | (frame["l"] <= 0)
+        )
+        if invalid.any():
+            raise ValueError(f"{int(invalid.sum())} anomalous BID/ASK candles: quarantine before running")
+    return frame
+
+
+def quality(frame: pd.DataFrame) -> dict:
+    """Report observations without assuming every missing minute is bad data."""
+    if frame.empty:
+        return {"rows": 0, "status": "empty"}
+    deltas = frame.index.to_series().diff().dt.total_seconds().dropna()
+    missing = (deltas / 60 - 1).clip(lower=0)
+    bid_bad = (frame["h"] < frame[["o", "c", "l"]].max(axis=1)) | (
+        frame["l"] > frame[["o", "c", "h"]].min(axis=1)
+    )
+    ask_bad = (frame["ah"] < frame[["ao", "ac", "al"]].max(axis=1)) | (
+        frame["al"] > frame[["ao", "ac", "ah"]].min(axis=1)
+    )
+    return {
+        "rows": int(len(frame)),
+        "start_utc": frame.index.min().isoformat(),
+        "end_utc": frame.index.max().isoformat(),
+        "duplicate_timestamps": int(frame.index.duplicated().sum()),
+        "non_60s_intervals": int((deltas != 60).sum()),
+        "gaps_over_10min": int((deltas > 600).sum()),
+        "missing_observed_minutes": int(missing.sum()),
+        "bid_ohlc_anomalies": int(bid_bad.sum()),
+        "ask_ohlc_anomalies": int(ask_bad.sum()),
+        "ask_below_bid_open": int((frame["ao"] < frame["o"]).sum()),
+        "ask_below_bid_close": int((frame["ac"] < frame["c"]).sum()),
+        "note": "Gaps include legitimate market closures; this is NOT proof of corrupt data.",
+    }
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for block in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _records_from_bytes(content: bytes) -> pd.DataFrame:
+    obj = json.loads(content)
+    if isinstance(obj, dict):
+        obj = obj.get("data", obj.get("candles"))
+    if not isinstance(obj, list):
+        raise ValueError("JSON must be a candle array or have a data/candles array")
+    return pd.DataFrame.from_records(obj)
+
+
+def read_source(path: str | Path) -> pd.DataFrame:
+    path = Path(path)
+    if path.suffix.lower() == ".json":
+        frame = _records_from_bytes(path.read_bytes())
+    elif path.suffix.lower() == ".csv":
+        frame = pd.read_csv(path)
+    elif path.suffix.lower() == ".parquet":
+        frame = pd.read_parquet(path)
+        if isinstance(frame.index, pd.DatetimeIndex):
+            return frame
+    else:
+        raise ValueError("Expected .json, .csv, or .parquet")
+    return normalize(frame)
+
+
+def import_gold_zip(source: str | Path, destination: str | Path) -> dict:
+    """Ingest one annual JSON at a time; never commit raw market data to Git."""
+    source, destination = Path(source), Path(destination)
+    destination.mkdir(parents=True, exist_ok=True)
+    entries = []
+    with zipfile.ZipFile(source) as archive:
+        for name in sorted(n for n in archive.namelist() if n.lower().endswith(".json")):
+            match = re.search(r"(20\d{2})", Path(name).name)
+            if not match:
+                raise ValueError(f"Cannot identify year for {name}")
+            year = int(match.group(1))
+            records = _records_from_bytes(archive.read(name))
+            # Quality scan is retained even if ingest refuses invalid candles.
+            # Do NOT quietly remove or interpolate anomalies.
+            frame = normalize(records, strict=False)
+            checks = quality(frame)
+            anomalies = (
+                checks["bid_ohlc_anomalies"]
+                + checks["ask_ohlc_anomalies"]
+                + checks["ask_below_bid_open"]
+                + checks["ask_below_bid_close"]
+            )
+            row = {"year": year, "source_member": name, **checks, "accepted": anomalies == 0}
+            entries.append(row)
+            if anomalies:
+                continue
+            frame.to_parquet(destination / f"xauusd_{year}.parquet", compression="zstd")
+    manifest = {
+        "format_version": 1,
+        "instrument": "XAUUSD",
+        "source_sha256": sha256_file(source),
+        "timezone": "UTC",
+        "candle_timestamp": "open",
+        "cost_model": "all_in_fixed_fee_not_actual_broker_execution",
+        "annual_partitions": entries,
+    }
+    (destination / "manifest.json").write_text(
+        json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+    return manifest
+
+
+def load_market(path: str | Path, start: str, end: str) -> pd.DataFrame:
+    """End is inclusive UTC. Prefer an imported Parquet directory."""
+    path = Path(path)
+    begin = pd.Timestamp(start, tz="UTC")
+    finish = pd.Timestamp(end, tz="UTC") + pd.Timedelta(days=1)
+    if path.is_dir():
+        parts = []
+        for year in range(begin.year, finish.year + 1):
+            candidate = path / f"xauusd_{year}.parquet"
+            if candidate.is_file():
+                parts.append(pd.read_parquet(candidate))
+        if not parts:
+            raise ValueError("No year partitions for requested range; import data first")
+        frame = pd.concat(parts).sort_index()
+    else:
+        frame = read_source(path)
+    selected = frame.loc[(frame.index >= begin) & (frame.index < finish)].copy()
+    if selected.empty:
+        raise ValueError("No data in requested period")
+    if selected.index.duplicated().any() or not selected.index.is_monotonic_increasing:
+        raise ValueError("Unordered or duplicated dates")
+    return selected
