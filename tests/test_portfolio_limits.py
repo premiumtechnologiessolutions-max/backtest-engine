@@ -106,3 +106,32 @@ def test_seeded_limit_streams_preserve_shared_ledger():
         assert validate_portfolio(result, cfg)["status"] == "PASSED"
         assert result.trades["cost"].sum() == pytest.approx(.4 * result.trades["ounces"].sum())
         assert result.equity["open_positions"].max() <= 2
+
+
+def test_unconstrained_shared_limit_matches_two_independent_reference_runs():
+    from norisk_quant.limit_engine import run_limits
+    from norisk_quant.model import Settings
+
+    market = bars([
+        [100, 100, 100, 100],
+        [100, 102, 99.5, 100.5],
+        [100.5, 101.2, 99.6, 100.8],
+        [100.8, 101.5, 99.2, 100],
+        [100, 100.2, 99.8, 100],
+    ])
+    at = market.index[1]
+    buy = order(at, "a", 1, 100, 99, 101)
+    sell = order(at, "b", -1, 100, 101.5, 99)
+    cfg = PortfolioSettings({"a": 1, "b": 1}, max_open_positions=2, max_total_ounces=2)
+    shared = run_limit_portfolio(market, [buy, sell], cfg)
+    a = run_limits(market, [buy], Settings())
+    b = run_limits(market, [sell], Settings())
+    for name, standalone in (("a", a), ("b", b)):
+        pd.testing.assert_frame_equal(
+            shared.trades.loc[shared.trades["strategy"] == name].reset_index(drop=True),
+            standalone.trades.reset_index(drop=True), check_dtype=False,
+        )
+    np.testing.assert_allclose(
+        shared.equity["equity"].to_numpy(),
+        (a.equity["equity"] + b.equity["equity"]).to_numpy(), rtol=0, atol=1e-7,
+    )
