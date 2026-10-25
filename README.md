@@ -369,3 +369,21 @@ GitHub is the code and report registry, NOT itself a live backtesting compute se
   exact GitHub module SHA verification and 3,800 historical BOS/H1 trades
   matching independent archived ledgers. **Both BOS/H1 variants remain rejected**.
   Full GitHub Actions CI is still blocked and PR #1 remains Draft.
+
+## QS01 frozen quote-stress implementation (research only; 2026-10-25)
+
+The original preregistered `QS01` specification is implemented in
+`src/norisk_quant/qs01.py` (Bid/Ask close-spread predictor, prior Wilder
+ATR20, 241 consecutive M1 candles). The central reference and fast
+market-entry engines now support **opt-in** `Settings(max_hold_minutes=30)`,
+with first observed open time exit, gap-stop priority and unchanged default
+`max_hold_minutes=None`. QS01 fixes 1 oz, M1, zero-minute entry delay,
+and **$0.40 ALL-IN per ounce per roundtrip**. No extra spread fee.
+
+Use the existing `norisk backtest --strategy qs01 --timeframe M1 --execution
+reference ...` command only for authorized research. The private-source
+`scripts/run_qs01_frozen_design.py` hard-stops outside the exact source
+SHA-256 and 2012–2016 design window. **It has not been run against the
+original Gold data.zip here.** Synthetic signal tests passed locally (4/4);
+full package pytest and GitHub CI have not been verified. The PR remains
+Draft. See `docs/PRE_REGISTERED_QS01_QUOTE_STRESS_2026-10-25.md`.
