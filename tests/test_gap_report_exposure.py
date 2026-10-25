@@ -18,6 +18,7 @@ def test_active_session_gap_trade_is_flagged_in_reports(tmp_path):
         [
             ("2024-07-17T14:00:00Z", 100, 100, 100, 100),
             ("2024-07-17T14:01:00Z", 100, 100, 100, 100),
+            ("2024-07-17T14:02:00Z", 100, 100, 100, 100),
             ("2024-07-17T14:20:00Z", 98, 100, 97, 99),
         ]
     )
@@ -43,12 +44,13 @@ def test_normal_daily_reopen_gap_is_not_called_unknown(tmp_path):
         [
             ("2024-01-10T21:59:00Z", 100, 100, 100, 100),
             ("2024-01-10T22:00:00Z", 100, 100, 100, 100),
+            ("2024-01-10T22:01:00Z", 100, 100, 100, 100),
             ("2024-01-10T23:00:00Z", 98, 100, 97, 99),
         ]
     )
     trades = run(
         frame,
-        [Signal(pd.Timestamp("2024-01-10T22:00:00Z"), 1, 1.0, 2.0, "test")],
+        [Signal(pd.Timestamp("2024-01-10T21:59:00Z"), 1, 1.0, 2.0, "test")],
         Settings(),
     )
     summary = report(trades, Settings(), tmp_path)
