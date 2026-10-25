@@ -95,3 +95,12 @@ def test_import_rejects_nonminute_timestamp_and_prevents_stale_overwrite(tmp_pat
     assert manifest["annual_partitions"][0]["accepted"] is False
     with pytest.raises(FileExistsError, match="versioned"):
         import_gold_zip(source, destination)
+
+
+def test_import_rejects_duplicate_year_members(tmp_path):
+    source = tmp_path / "duplicate_years.zip"
+    with zipfile.ZipFile(source, "w") as archive:
+        archive.writestr("2020.json", json.dumps(source_rows()))
+        archive.writestr("2020 (1).json", json.dumps(source_rows()))
+    with pytest.raises(ValueError, match="Multiple source JSON members"):
+        import_gold_zip(source, tmp_path / "out")
