@@ -59,3 +59,36 @@ def test_broken_floating_equity_is_rejected():
     result.equity.loc[bars.index[1], "equity"] += 1
     with pytest.raises(ValueError, match="Equity ledger"):
         validate_execution(result, settings)
+
+
+def test_realized_pnl_cannot_be_shifted_to_another_minute():
+    bars, sig = _fixture()
+    settings = Settings()
+    result = run(bars, [sig], settings)
+    # Keep equity = realized + floating and the final total unchanged,
+    # but fabricate an early booking before the trade actually closes.
+    first = bars.index[0]
+    result.equity.loc[first, "realized_pnl"] = -0.4
+    result.equity.loc[first, "equity"] = -0.4
+    with pytest.raises(ValueError, match="Realized P/L timeline"):
+        validate_execution(result, settings)
+
+
+def test_unclosed_position_reconciles_realized_zero_and_floating():
+    bars, sig = _fixture()
+    settings = Settings(close_at_end=False)
+    result = run(bars, [sig], settings)
+    assert result.trades.empty
+    assert result.equity["realized_pnl"].eq(0).all()
+    assert result.equity["floating_pnl"].iloc[-1] == pytest.approx(-0.4)
+    assert validate_execution(result, settings)["accounting_checks"] == "PASSED"
+
+
+def test_nonzero_realized_without_any_trade_is_rejected():
+    bars, sig = _fixture()
+    settings = Settings(close_at_end=False)
+    result = run(bars, [sig], settings)
+    result.equity["realized_pnl"] += 3.0
+    result.equity["equity"] += 3.0
+    with pytest.raises(ValueError, match="Realized P/L timeline"):
+        validate_execution(result, settings)
