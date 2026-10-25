@@ -107,6 +107,8 @@ def report(result: Result, settings: Settings, out: str | Path, *, source: str =
         "trades": int(len(trades)),
         "accounting_checks": audit["accounting_checks"],
         "forced_end_of_data_closures": audit["forced_end_of_data_closures"],
+        "same_entry_bar_target_deferred": result.uncertain_entry_tp_deferred,
+        "same_entry_bar_target_note": "M1 OHLC cannot prove target occurred after limit fill; target is deferred when both occur in entry M1.",
         "forced_end_of_data_pnl": audit["forced_end_of_data_pnl"],
         "forced_liquidation_caveat": (
             "end_of_data is an artificial research close, not an observed broker liquidation."
