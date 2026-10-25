@@ -10,6 +10,8 @@ from .gaps import classify_index_gaps
 from .model import Settings
 from .report import report
 from .strategy import ema_cross_signals
+from .ticks import TickSource, audit_tick_csv
+from .walkforward import year_folds, fold_manifest
 
 
 def main() -> None:
@@ -34,6 +36,26 @@ def main() -> None:
     gap_audit.add_argument("--end", required=True, help="UTC inclusive YYYY-MM-DD")
     gap_audit.add_argument("--out", required=True, help="Destination directory")
     gap_audit.add_argument("--min-missing-minutes", type=int, default=10)
+
+    tick_audit = subs.add_parser(
+        "audit-ticks",
+        help="Audit external timestamped Bid/Ask quote ticks; does not run tick fills",
+    )
+    tick_audit.add_argument("--csv", required=True)
+    tick_audit.add_argument("--provider", required=True)
+    tick_audit.add_argument("--symbol", default="XAUUSD")
+    tick_audit.add_argument("--source-kind", default="declared_broker_ticks",
+                            choices=["declared_broker_ticks", "exchange_ticks"])
+    tick_audit.add_argument("--out", required=True)
+
+    fold_plan = subs.add_parser(
+        "plan-walkforward", help="Export embargoed research folds; not proof of OOS"
+    )
+    fold_plan.add_argument("--start-year", type=int, default=2012)
+    fold_plan.add_argument("--last-year", type=int, default=2024)
+    fold_plan.add_argument("--min-training-years", type=int, default=5)
+    fold_plan.add_argument("--embargo-days", type=int, default=14)
+    fold_plan.add_argument("--out", required=True)
 
     test = subs.add_parser("backtest", help="Run EMA example on M1 data (research smoke model)")
     test.add_argument("--data", required=True)
@@ -87,6 +109,31 @@ def main() -> None:
             json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8"
         )
         print(json.dumps(summary, ensure_ascii=False, indent=2))
+    elif args.command == "audit-ticks":
+        declared = TickSource(
+            provider=args.provider, symbol=args.symbol, source_kind=args.source_kind,
+        )
+        summary = audit_tick_csv(args.csv, declared)
+        dest = Path(args.out)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text(json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8")
+        print(json.dumps(summary, indent=2, ensure_ascii=False))
+    elif args.command == "plan-walkforward":
+        folds = year_folds(
+            start_year=args.start_year,
+            last_year=args.last_year,
+            minimum_train_years=args.min_training_years,
+            embargo_days=args.embargo_days,
+        )
+        dest = Path(args.out)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text(
+            json.dumps({
+                "folds": fold_manifest(folds),
+                "validation_status": "PLANNED_ONLY_NO_RESULT_IS_INDEPENDENT",
+            }, indent=2), encoding="utf-8"
+        )
+        print(json.dumps({"folds": len(folds), "written": str(dest)}, indent=2))
     elif args.command == "backtest":
         data = load_market(args.data, args.start, args.end)
         settings = Settings(
