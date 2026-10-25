@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+import pandas as pd
 import math
 from typing import Literal
 
@@ -33,6 +34,9 @@ class Signal:
     strategy: str = "unspecified"
 
     def __post_init__(self) -> None:
+        at = pd.Timestamp(self.confirmed_at)
+        if pd.isna(at) or at.tzinfo is None:
+            raise ValueError("Signal confirmation requires an explicit timezone")
         if self.side not in (1, -1):
             raise ValueError("side must be +1 or -1")
         if (
