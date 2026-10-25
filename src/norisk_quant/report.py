@@ -8,6 +8,7 @@ from pathlib import Path
 import pandas as pd
 
 from .execution import Result
+from .gaps import annotate_trade_gap_exposure, classify_index_gaps
 from .model import Settings
 
 
@@ -50,10 +51,28 @@ def report(result: Result, settings: Settings, out: str | Path, *, source: str =
     out = Path(out)
     out.mkdir(parents=True, exist_ok=True)
     equity = result.equity.copy()
-    trades = result.trades.copy()
+    gaps = classify_index_gaps(equity.index, min_missing_minutes=10)
+    trades = annotate_trade_gap_exposure(result.trades, gaps)
     start, end = equity.index[0], equity.index[-1]
     monthly = _periods(trades, start, end, "M")
     weekly = _periods(trades, start, end, "W-SUN")
+    # Post-trade labels. These flags NEVER affect signals or fills.
+    if not trades.empty:
+        flagged = trades.loc[trades["gap_execution_review_required"]]
+        if not flagged.empty:
+            for periods, freq in ((monthly, "M"), (weekly, "W-SUN")):
+                labels = (
+                    pd.to_datetime(flagged["closed_at"], utc=True)
+                    .dt.tz_localize(None).dt.to_period(freq)
+                )
+                counts = flagged.groupby(labels).size()
+                pnl = flagged.groupby(labels)["net_pnl"].sum()
+                periods["uncertain_gap_trades"] = counts.reindex(periods.index, fill_value=0).astype(int)
+                periods["uncertain_gap_trades_net_pnl"] = pnl.reindex(periods.index, fill_value=0.0)
+    for periods in (monthly, weekly):
+        if "uncertain_gap_trades" not in periods:
+            periods["uncertain_gap_trades"] = 0
+            periods["uncertain_gap_trades_net_pnl"] = 0.0
     peak = equity["equity"].cummax().clip(lower=0)
     equity["drawdown"] = (peak - equity["equity"]).clip(lower=0)
     month_end_equity = equity["equity"].resample("ME").last()
@@ -78,6 +97,17 @@ def report(result: Result, settings: Settings, out: str | Path, *, source: str =
         "win_rate": wins / len(trades) if len(trades) else None,
         "net_pnl": float(trades["net_pnl"].sum()),
         "total_fees": float(trades["cost"].sum()),
+        "gaps_over10_missing_minutes": int(len(gaps)),
+        "gaps_needing_manual_review": int(gaps["needs_review"].sum()),
+        "trades_exposed_to_uncertain_gaps": int(trades["gap_execution_review_required"].sum()),
+        "net_pnl_from_trades_exposed_to_uncertain_gaps": float(
+            trades.loc[trades["gap_execution_review_required"], "net_pnl"].sum()
+        ),
+        "gap_classification_note": (
+            "Classifies timestamp patterns only. Holiday hints and unusual gaps "
+            "require independent broker/provider evidence, and OHLC cannot reconstruct "
+            "missing quotes or true execution."
+        ),
         "profit_factor": total_profit / -total_loss if total_loss < 0 else None,
         "max_drawdown_observed_m1": float(equity["drawdown"].max()),
         "max_drawdown_month_end": float(month_end_dd.max()),
@@ -87,6 +117,7 @@ def report(result: Result, settings: Settings, out: str | Path, *, source: str =
         "open_equity_warning": "M1 OHLC cannot reconstruct the tick path or floating equity during missing intervals.",
         "incomplete_final_period_warning": "Final month can be partial. end_of_data exits are synthetic research liquidations.",
     }
+    gaps.to_csv(out / "gap_catalogue.csv", index=False)
     trades.to_csv(out / "trades.csv", index=False)
     equity.to_csv(out / "equity_m1.csv")
     monthly.to_csv(out / "monthly.csv")
