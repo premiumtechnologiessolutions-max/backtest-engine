@@ -89,3 +89,49 @@ def test_invalid_settings_or_bars_rejected():
     frame.iloc[0, frame.columns.get_loc("h")] = 0
     with pytest.raises(ValueError, match="Invalid OHLC"):
         bos_fib_limit_orders(frame)
+
+
+
+def test_cost_relative_pretrade_gate_is_exact_subset_of_unfiltered_orders():
+    bars = choppy_synthetic(n=450)
+    original = bos_fib_limit_orders(bars, settings=BosFibSettings())
+    five_x = bos_fib_limit_orders(
+        bars,
+        settings=BosFibSettings(
+            min_gross_reward_fee_multiple=5.0,
+            all_in_cost_per_ounce=0.40,
+        ),
+    )
+    ten_x = bos_fib_limit_orders(
+        bars,
+        settings=BosFibSettings(
+            min_gross_reward_fee_multiple=10.0,
+            all_in_cost_per_ounce=0.40,
+        ),
+    )
+    expected_five = [o for o in original if abs(o.target-o.price) >= 2.0-1e-10]
+    expected_ten = [o for o in original if abs(o.target-o.price) >= 4.0-1e-10]
+    assert five_x == expected_five
+    assert ten_x == expected_ten
+    assert len(ten_x) <= len(five_x) <= len(original)
+
+
+def test_fee_gate_cannot_consult_future_minute():
+    bars = choppy_synthetic(n=450)
+    settings = BosFibSettings(min_gross_reward_fee_multiple=5.0)
+    orders = bos_fib_limit_orders(bars, settings=settings)
+    if not orders:
+        pytest.skip("Synthetic scenario emitted no eligible order")
+    first = orders[0]
+    cutoff = first.placed_at
+    altered = bars.copy()
+    altered.loc[altered.index >= cutoff, ["o", "h", "l", "c"]] = [240, 241, 239, 240]
+    kept = bos_fib_limit_orders(altered, settings=settings)
+    assert [o for o in kept if o.placed_at <= cutoff] == [
+        o for o in orders if o.placed_at <= cutoff
+    ]
+
+
+def test_fee_gate_rejects_negative_multiple():
+    with pytest.raises(ValueError, match="multiple"):
+        BosFibSettings(min_gross_reward_fee_multiple=-1.0)
