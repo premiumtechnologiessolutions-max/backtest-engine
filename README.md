@@ -146,6 +146,34 @@ The `regular_daily_break_pattern` and `regular_weekend_pattern` labels mean the 
 GitHub Actions checks are **not confirmed passing** as of 2026-10-25. Both the regular `Engine quality gates` workflow and a separate runner-only probe (no checkout/pip/tests) reported failure. Available connector responses contained no per-step logs, so the root cause **is undiagnosed** and neither failing CI nor passing unit tests may be inferred. Keep the PR in draft; do not merge until diagnostics and an independent test run are successful.
 
 
+## BOS + Fibonacci Golden Zone from supplied M1 chart (research)
+
+Implemented as a **causal M1 structure/limit-order strategy**, not a promise
+that an image pattern is profitable. Source:
+`src/norisk_quant/bos_fib.py` and `tests/test_bos_fib.py`.
+
+    norisk backtest --data "/secure/Gold data.zip" --start 2024-01-01 --end 2024-12-31 --strategy bos-fib --timeframe M1 --bos-fib-entry 0.618 --bos-rr 1.0 --bos-pivot-left 3 --bos-pivot-right 3 --bos-stop-buffer-usd 0.10 --bos-min-break-usd 0.10 --bos-min-impulse-usd 1.0 --bos-expiry-minutes 120 --ounces 1 --all-in-cost-per-ounce 0.40 --out reports/generated/bos-fib-2024
+
+Fixed meaning: rising two confirmed highs/lows or falling two confirmed
+highs/lows, BOS when a completed minute closes beyond a confirmed
+structure level, retracement limit at 0.618 from the anchored impulse,
+SL beyond anchor, TP 1R and only the first two BOS events in the same
+detected trend regime. The extra three M1 candles needed to confirm a
+pivot are never used before they close. Golden Zone is 0.618–0.786;
+`--bos-fib-entry 0.705` chooses a deeper entry, and `--bos-rr 1.5`
+tests the alternate TP. These are **explicit mechanical interpretations**
+of the handwritten strategy, not universal ICT rules or actual Elliot waves.
+
+**Observed standalone diagnostic (source ZIP, research execution, 1oz):**
+2012, 2017, 2020 and 2024 **all had 0/12 net-profitable months** in
+three fixed configurations. 2024 base 0.618/1R returned 2,284 trades
+with +$316.31 gross price P/L, **$913.60 total fees**, **-$597.29 net**.
+See `docs/BOS_FIB_M1_2026-10-25_FIXED_RESEARCH.md`. Those returns used
+the separate FVG-like standalone limit replay; the actual GitHub CLI
+and full repository pytest must still pass independent parity validation.
+No real ticks or broker fills were inferred. The strategy is not suitable
+for live use on the current evidence.
+
 ## Experimental limit-order strategy support (FVG midpoint)
 
 The engine now has an **M1 OHLC limit-order research mode** to avoid
