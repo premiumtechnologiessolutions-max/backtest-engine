@@ -1,10 +1,12 @@
 name: Runner availability probe
 
+# Diagnostic workflow only: disabled on pushes and PRs to avoid spending
+# duplicate Actions minutes and emitting repeated failure emails.
 on:
-  push:
-    branches: ["feat/**"]
   workflow_dispatch:
-  pull_request:
+
+permissions:
+  contents: read
 
 jobs:
   infrastructure:
@@ -16,4 +18,3 @@ jobs:
           echo "RUNNER_OS=$RUNNER_OS"
           echo "GITHUB_SHA=$GITHUB_SHA"
           python3 --version
-          pwd
