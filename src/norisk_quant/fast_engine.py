@@ -94,6 +94,13 @@ def run_fast(minutes: pd.DataFrame, signals: list[Signal], settings: Settings) -
             elif (pos.side == 1 and op >= pos.target) or (pos.side == -1 and op <= pos.target):
                 close(pos, now, pos.target, "open_target")
                 pos = None
+            elif (
+                settings.max_hold_minutes is not None
+                and now - pd.Timestamp(pos.entry_at).value // 1_000_000_000
+                >= 60 * settings.max_hold_minutes
+            ):
+                close(pos, now, op, "time_exit")
+                pos = None
         while pointer < len(ordered) and (
             int(stamps_ns[i]) - sig_times_ns[pointer]
         ) > settings.max_entry_delay_minutes * 60_000_000_000:
