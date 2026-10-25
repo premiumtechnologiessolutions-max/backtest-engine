@@ -116,3 +116,45 @@ def test_legacy_engines_cannot_silently_ignore_unified_holding_cap():
     # to the single-position limit adapter.
     with pytest.raises(ValueError, match="requires run_unified_portfolio"):
         run_limits(market, [], SimpleNamespace(max_holding_minutes=30))
+
+
+def test_settings_hold_alias_normalizes_without_shifting_prior_positional_fields():
+    original = Settings(2., .40, 0, False)
+    assert original.close_at_end is False
+    assert original.max_holding_minutes is None
+    canonical = Settings(2., .40, 0, False, 30)
+    alias = Settings(2., .40, 0, False, max_hold_minutes=30)
+    assert alias.max_holding_minutes == canonical.max_holding_minutes == 30
+    assert alias.close_at_end is canonical.close_at_end is False
+    assert Settings(max_holding_minutes=30, max_hold_minutes=30).max_holding_minutes == 30
+
+
+@pytest.mark.parametrize("bad", [0, -1, True, False, 1.0, 1.5, np.nan, np.inf, "30"])
+def test_settings_hold_alias_rejects_invalid_types_and_durations(bad):
+    with pytest.raises(ValueError, match="max hold"):
+        Settings(max_hold_minutes=bad)
+
+
+def test_settings_hold_alias_rejects_conflicting_names():
+    with pytest.raises(ValueError, match="max hold.*conflicts"):
+        Settings(max_holding_minutes=30, max_hold_minutes=15)
+
+
+@pytest.mark.parametrize("canonical", [True, 1.0])
+def test_settings_hold_alias_cannot_mask_an_invalid_canonical_type(canonical):
+    with pytest.raises(ValueError, match="max holding"):
+        Settings(max_holding_minutes=canonical, max_hold_minutes=1)
+
+
+def test_settings_hold_alias_preserves_canonical_reference_fast_execution():
+    from norisk_quant.fast_engine import run_fast
+
+    market, signal, _, _ = fixture()
+    canonical = Settings(max_holding_minutes=1)
+    alias = Settings(max_hold_minutes=1)
+    expected = run(market, [signal], canonical)
+    assert expected.trades["exit_reason"].tolist() == ["time_exit"]
+    for engine in (run, run_fast):
+        observed = engine(market, [signal], alias)
+        pd.testing.assert_frame_equal(observed.trades, expected.trades)
+        pd.testing.assert_frame_equal(observed.equity, expected.equity)

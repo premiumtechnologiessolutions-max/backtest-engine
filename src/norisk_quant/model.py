@@ -17,8 +17,21 @@ class Settings:
     # Elapsed UTC minutes from entry; execute at first observed open at/after
     # the deadline. None preserves the existing unlimited holding contract.
     max_holding_minutes: int | None = None
+    # Constructor compatibility for the concurrently introduced spelling.
+    # Execution uses max_holding_minutes; keep all earlier positional fields.
+    max_hold_minutes: int | None = None
 
     def __post_init__(self) -> None:
+        if self.max_hold_minutes is not None:
+            if (isinstance(self.max_hold_minutes, bool)
+                    or not isinstance(self.max_hold_minutes, int)
+                    or self.max_hold_minutes <= 0):
+                raise ValueError("max hold minutes alias must be a positive integer or None")
+            if (self.max_holding_minutes is not None
+                    and self.max_holding_minutes != self.max_hold_minutes):
+                raise ValueError("max hold minutes alias conflicts with max holding minutes")
+            if self.max_holding_minutes is None:
+                object.__setattr__(self, "max_holding_minutes", self.max_hold_minutes)
         if not math.isfinite(self.ounces) or self.ounces <= 0:
             raise ValueError("ounces must be finite positive")
         if not math.isfinite(self.roundtrip_cost_per_ounce) or self.roundtrip_cost_per_ounce < 0:

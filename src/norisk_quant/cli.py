@@ -8,6 +8,8 @@ from pathlib import Path
 from .data import import_gold_zip, load_market, quality, read_source, fingerprint_loaded_m1, sha256_file
 from .bos_fib import BosFibSettings, bos_fib_limit_orders
 from .h1_regime import H1RegimeSettings, filter_orders_h1
+from .qs01 import qs01_signals
+from .quote_stress import qs01_settings
 from .execution import run
 from .fast_engine import run_fast
 from .fvg import fvg_midpoint_limit_orders
@@ -78,7 +80,7 @@ def main() -> None:
     test.add_argument("--end", required=True, help="UTC inclusive YYYY-MM-DD")
     test.add_argument("--out", required=True)
     test.add_argument("--timeframe", default="M15", choices=("M1", "M5", "M15", "H1", "H4"))
-    test.add_argument("--strategy", default="ema", choices=("ema", "donchian", "fvg", "bos-fib"))
+    test.add_argument("--strategy", default="ema", choices=("ema", "donchian", "fvg", "bos-fib", "qs01"))
     test.add_argument("--execution", default="reference", choices=("reference", "fast"))
     test.add_argument("--donchian-lookback", type=int, default=20)
     test.add_argument("--stop-usd", type=float, default=15.0)
@@ -114,6 +116,10 @@ def main() -> None:
             "Canonical XAUUSD research requires exactly $0.40/oz ALL-IN "
             "round-trip; do not disable or layer on another spread/fee."
         )
+    if args.command == "backtest" and args.strategy == "qs01" and (
+        args.timeframe != "M1" or args.ounces != 1.0
+    ):
+        parser.error("Frozen QS01 requires --timeframe M1 and --ounces 1")
     if args.command == "import-gold":
         manifest = import_gold_zip(args.zip_file, args.out)
         print(json.dumps(manifest, ensure_ascii=False, indent=2))
@@ -189,7 +195,7 @@ def main() -> None:
         print(json.dumps(manifest, indent=2, ensure_ascii=False))
     elif args.command == "backtest":
         data = load_market(args.data, args.start, args.end)
-        settings = Settings(
+        settings = qs01_settings() if args.strategy == "qs01" else Settings(
             ounces=args.ounces,
             roundtrip_cost_per_ounce=args.all_in_cost_per_ounce,
         )
@@ -218,6 +224,9 @@ def main() -> None:
                     )
                 )
             result = run_limits(data, limit_orders, settings)
+        elif args.strategy == "qs01":
+            signals = qs01_signals(data)
+            result = (run_fast if args.execution == "fast" else run)(data, signals, settings)
         elif args.strategy == "fvg":
             limit_orders = fvg_midpoint_limit_orders(
                 data,
