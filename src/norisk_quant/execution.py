@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Iterable
+import math
 
 import pandas as pd
 
@@ -30,6 +31,8 @@ def run(minutes: pd.DataFrame, signals: Iterable[Signal], settings: Settings) ->
         raise ValueError("Market data needs timezone-aware UTC DatetimeIndex")
     if minutes.index.has_duplicates or not minutes.index.is_monotonic_increasing:
         raise ValueError("M1 index must be sorted and unique")
+    if (minutes.index.asi8 % 60_000_000_000 != 0).any():
+        raise ValueError("M1 candle opens must align to exact minute boundaries")
     required = {"o", "h", "l", "c"}
     if not required.issubset(minutes):
         raise ValueError("Market data missing OHLC columns")
@@ -79,7 +82,10 @@ def run(minutes: pd.DataFrame, signals: Iterable[Signal], settings: Settings) ->
         prev_time = start
         occupied_at_open = position is not None
         op, hi, lo, cl = (float(bar[k]) for k in ("o", "h", "l", "c"))
-        if not (lo <= op <= hi and lo <= cl <= hi):
+        if (
+            not all(math.isfinite(price) for price in (op, hi, lo, cl))
+            or lo <= 0 or not (lo <= op <= hi and lo <= cl <= hi)
+        ):
             raise ValueError(f"Bad OHLC at {start}")
 
         # The first available quote after an unobserved gap is the earliest
