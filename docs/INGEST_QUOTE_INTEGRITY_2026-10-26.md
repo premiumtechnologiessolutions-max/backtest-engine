@@ -40,3 +40,23 @@ Run the current complete installed-package tests and run the newly added cached-
 pre-existing 13-field execution parity against the exact original private
 archive only in a runtime where that archive is actually available. Do not
 rerun completed strategy profitability searches merely to test this change.
+
+
+## Additional direct-Parquet ingress gate (2026-10-26)
+A separate public API path, `read_source("file.parquet")`, previously
+returned a cached DataFrame immediately when it already had a DatetimeIndex.
+That bypassed `validate_loaded_m1` even though `load_market` applied the
+gate after date slicing. Downstream users calling `read_source` directly
+could therefore receive nonfinite, crossed, off-minute or non-UTC quotes.
+
+`read_source` now calls `validate_loaded_m1` before returning a Parquet
+DataFrame with a DatetimeIndex. This is fail-closed, preserves valid source
+rows, does not change the $0.40/oz ALL-IN research cost, and does not create
+synthetic missing minutes.
+
+Regression file: `tests/test_read_source_parquet_gate.py` (one valid case
+and six malformed cases). A **separate isolated local reproduction** of the
+same guard passed 6/6 fixtures with a mocked Parquet reader. The new GitHub
+test file and the complete installed repository suite **have not yet been
+executed in this runtime**; `pyarrow` and authenticated network clone are
+not available. This is not CI success or real-source parity evidence.
