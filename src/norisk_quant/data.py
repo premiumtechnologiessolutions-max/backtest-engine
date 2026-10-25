@@ -110,6 +110,8 @@ def import_gold_zip(source: str | Path, destination: str | Path) -> dict:
     """Ingest one annual JSON at a time; never commit raw market data to Git."""
     source, destination = Path(source), Path(destination)
     destination.mkdir(parents=True, exist_ok=True)
+    if (destination / "manifest.json").exists() or any(destination.glob("xauusd_*.parquet")):
+        raise FileExistsError("Destination already contains imported data; use a new versioned directory")
     entries = []
     with zipfile.ZipFile(source) as archive:
         for name in sorted(n for n in archive.namelist() if n.lower().endswith(".json")):
@@ -117,7 +119,8 @@ def import_gold_zip(source: str | Path, destination: str | Path) -> dict:
             if not match:
                 raise ValueError(f"Cannot identify year for {name}")
             year = int(match.group(1))
-            records = _records_from_bytes(archive.read(name))
+            member_bytes = archive.read(name)
+            records = _records_from_bytes(member_bytes)
             # Quality scan is retained even if ingest refuses invalid candles.
             # Do NOT quietly remove or interpolate anomalies.
             frame = normalize(records, strict=False)
@@ -128,9 +131,19 @@ def import_gold_zip(source: str | Path, destination: str | Path) -> dict:
                 + checks["ask_below_bid_open"]
                 + checks["ask_below_bid_close"]
             )
-            row = {"year": year, "source_member": name, **checks, "accepted": anomalies == 0}
+            wrong_year = int((frame.index.year != year).sum())
+            off_minute = int(((frame.index.asi8 // 1_000_000_000) % 60 != 0).sum())
+            accepted = anomalies == 0 and wrong_year == 0 and off_minute == 0
+            row = {
+                "year": year, "source_member": name,
+                "source_member_sha256": hashlib.sha256(member_bytes).hexdigest(),
+                **checks,
+                "wrong_year_rows": wrong_year,
+                "off_minute_timestamps": off_minute,
+                "accepted": accepted,
+            }
             entries.append(row)
-            if anomalies:
+            if not accepted:
                 continue
             frame.to_parquet(destination / f"xauusd_{year}.parquet", compression="zstd")
     manifest = {
