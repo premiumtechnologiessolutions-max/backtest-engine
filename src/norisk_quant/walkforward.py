@@ -6,8 +6,6 @@ XAUUSD 2020–2026 has already been exposed in previous optimization.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from datetime import timedelta
-
 import pandas as pd
 
 
@@ -45,7 +43,6 @@ def year_folds(
     test_years: int = 1,
     embargo_days: int = 7,
     expanding: bool = True,
-    exposed_from_year: int = 2020,
 ) -> list[WalkForwardFold]:
     """Make frozen-year research folds, exclusive UTC boundaries.
 
@@ -74,7 +71,9 @@ def year_folds(
                 eval_start.isoformat(),
                 eval_end.isoformat(),
                 embargo_days,
-                evaluation_is_independent=(evaluation_year < exposed_from_year),
+                # Independence is NEVER inferred from a historical date.
+                # Proof requires a preregistered, truly unseen dataset.
+                evaluation_is_independent=False,
             )
         )
     return folds
