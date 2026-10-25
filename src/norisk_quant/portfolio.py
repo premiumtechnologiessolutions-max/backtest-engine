@@ -368,6 +368,7 @@ def write_portfolio_report(result: PortfolioResult, settings: PortfolioSettings,
     tr = result.trades
     start = eq.index[0].tz_convert("UTC").tz_localize(None)
     end = eq.index[-1].tz_convert("UTC").tz_localize(None)
+    coverage = {}
     for label, freq, rule in (("monthly", "M", "ME"), ("weekly", "W-SUN", "W-SUN")):
         periods = pd.period_range(start.to_period(freq), end.to_period(freq), freq=freq)
         if tr.empty:
@@ -380,8 +381,11 @@ def write_portfolio_report(result: PortfolioResult, settings: PortfolioSettings,
         for col in ("trades", "net_pnl", "cost"):
             if col not in realized: realized[col] = 0.0
         marked = _marked_periods(eq["equity"], rule)
+        coverage[label] = marked["has_observations"]
         for column in marked.columns:
             realized[column] = marked[column].to_numpy()
+        observed_alias = "month_has_observed_m1" if label == "monthly" else "week_has_observed_m1"
+        realized[observed_alias] = marked["has_observations"].to_numpy()
         realized["period_end_realized_pnl"] = eq["realized_pnl"].resample(rule).last().to_numpy()
         realized["period_end_floating_pnl"] = eq["floating_pnl"].resample(rule).last().to_numpy()
         realized.index.name = "period"
@@ -399,6 +403,9 @@ def write_portfolio_report(result: PortfolioResult, settings: PortfolioSettings,
         "capacity_rejected": result.capacity_rejected,
         "duplicate_strategy_rejected": result.duplicate_strategy_rejected,
         "open_positions_before_optional_end_close": result.open_positions_at_end,
+        "months_observed": int(len(coverage["monthly"])),
+        "months_with_m1_observations": int(coverage["monthly"].sum()),
+        "calendar_months_without_m1": int((~coverage["monthly"]).sum()),
         "period_coverage_note": (
             "Period-end values use the last observed M1 close in the period. "
             "An empty period and the allocated equity change on resumption remain "

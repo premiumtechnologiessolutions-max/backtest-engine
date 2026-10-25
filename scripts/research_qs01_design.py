@@ -24,6 +24,15 @@ YEARS = (2012, 2013, 2014, 2015, 2016)
 FROZEN_SOURCE_ZIP_SHA256 = "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121"
 
 
+def _require_design_month_observations(minutes: pd.DataFrame) -> None:
+    """A calendar label cannot stand in for an entirely unobserved month."""
+    expected = pd.period_range("2012-01", "2016-12", freq="M")
+    observed = minutes.index.tz_convert("UTC").tz_localize(None).to_period("M").unique()
+    if not observed.equals(expected):
+        missing = expected.difference(observed).astype(str).tolist()
+        raise ValueError(f"QS01 design requires actual M1 observations in all 60 months; missing {missing}")
+
+
 def _code_fingerprints(root: Path) -> dict:
     paths = [
         "src/norisk_quant/quote_stress.py", "src/norisk_quant/model.py",
@@ -75,6 +84,7 @@ def main() -> int:
     del parts
     if minutes.index.has_duplicates or minutes.index.min().year != 2012 or minutes.index.max().year != 2016:
         raise ValueError("Invalid continuous design range")
+    _require_design_month_observations(minutes)
     signals = quote_stress_signals(minutes)
     print(json.dumps({"stage": "frozen_signals", "count": len(signals)}), flush=True)
     settings = qs01_settings()

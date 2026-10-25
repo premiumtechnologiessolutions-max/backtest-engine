@@ -32,6 +32,7 @@ def _marked_periods(equity: pd.Series, rule: str) -> pd.DataFrame:
         "equity_change": change,
         "observed_m1_samples": samples,
         "has_observations": samples.gt(0),
+        "has_observed_m1": samples.gt(0),
         "change_spans_unobserved_period": resumed,
         "change_since_last_observed_period": since_observed,
     })
@@ -115,8 +116,10 @@ def report(result: Result, settings: Settings, out: str | Path, *, source: str =
     week_end_equity = week_marks["period_end_equity"]
     weekly["week_end_equity"] = week_end_equity.to_numpy()
     weekly["week_equity_change"] = week_marks["equity_change"].to_numpy()
+    monthly["month_has_observed_m1"] = month_marks["has_observations"].to_numpy()
+    weekly["week_has_observed_m1"] = week_marks["has_observations"].to_numpy()
     for periods, marks in ((monthly, month_marks), (weekly, week_marks)):
-        for column in ("observed_m1_samples", "has_observations",
+        for column in ("observed_m1_samples", "has_observations", "has_observed_m1",
                        "change_spans_unobserved_period",
                        "change_since_last_observed_period"):
             periods[column] = marks[column].to_numpy()
@@ -176,6 +179,7 @@ def report(result: Result, settings: Settings, out: str | Path, *, source: str =
         "nonpositive_months": int((monthly["net_pnl"] <= 0).sum()),
         "months_observed": int(len(monthly)),
         "months_with_m1_observations": int(month_marks["has_observations"].sum()),
+        "calendar_months_without_m1": int((~month_marks["has_observations"]).sum()),
         "weeks_without_m1_observations": int((~week_marks["has_observations"]).sum()),
         "period_coverage_note": (
             "Period-end equity is the last observed M1 close within that period. "

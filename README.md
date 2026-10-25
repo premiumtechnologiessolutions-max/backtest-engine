@@ -418,3 +418,11 @@ floating mark independently rebuilt from original source closes. See
 [local acceptance and scope](docs/UNIFIED_PORTFOLIO_LOCAL_ACCEPTANCE_2026-10-25.md)
 and [frozen QS01 design result](docs/QS01_DESIGN_2012_2016_2026-10-25.md).
 These local passes do not imply a GitHub Actions pass; Draft PR #1 stays open.
+
+The public `qs01.qs01_signals` API and `norisk backtest --strategy qs01
+--timeframe M1 --ounces 1 --execution reference` use the same audited frozen
+generator. `Settings(max_hold_minutes=30)` is a constructor-compatible alias
+for `max_holding_minutes=30`; conflicting options are rejected. The alternative
+`scripts/run_qs01_frozen_design.py` entry point requires the exact original ZIP
+SHA-256. It was not run locally because that archive was unavailable; the
+documented design rejection used fingerprinted extracted annual files instead.

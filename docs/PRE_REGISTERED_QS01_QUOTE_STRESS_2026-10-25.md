@@ -1,5 +1,11 @@
 # Preregistered hypothesis QS01 — quote-stress exhaustion (2026-10-25)
 
+**Subsequent result:** the available extracted 2012–2016 design data failed all
+four frozen gates: 172 trades, net -$70.59, PF 0.400, 10/60 positive months.
+See [the design evidence and original-ZIP identity limitation](QS01_DESIGN_2012_2016_2026-10-25.md).
+The frozen research rules below are preserved; the status statements further
+below describe their earlier creation/implementation checkpoints.
+
 **STATUS: RULES FROZEN, NOT TESTED.** This is a distinct Bid/Ask microstructure proxy, not a BOS/Fib/H1 threshold adjustment, a trading recommendation or a claim about real tick sequencing.
 
 ## Frozen research contract
@@ -24,3 +30,44 @@
 5. Record full trade, weekly and monthly ledgers; realized and observed floating drawdown; count of ambiguous M1 bars and gap-through events; exposure, PF, worst month, and source/commit fingerprints. No cherry-picking of favorable months or retrospective per-month strategy switching.
 
 **Important:** A wide quoted spread may signal low liquidity and *higher*, not lower, risk. A positive design result would still not prove broker fill feasibility or a monthly-profit guarantee. This is an untested hypothesis, not an accepted strategy.
+
+## Implementation checkpoint (2026-10-25; no historical profitability run)
+
+- Frozen signal code: `src/norisk_quant/qs01.py`, requiring exactly 241 contiguous observed M1 candles, 240 *prior* close-spreads, and *prior* Wilder ATR20. Bid/Ask close-spread is only a predictor.
+- The opt-in `Settings(max_entry_delay_minutes=0, max_hold_minutes=30)` now supports the previously frozen **30 elapsed UTC minute** time exit at the first subsequent observed open. The reference and fast engines check gap-through stop and target at the open **before** a time exit. Defaults for other strategies are unchanged (`max_hold_minutes=None`).
+- CLI: `norisk backtest --strategy qs01 --timeframe M1 --ounces 1 --all-in-cost-per-ounce 0.40 --execution reference|fast ...`. Any other timeframe/ounces are rejected.
+- `tests/test_qs01.py` and `tests/test_qs01_runner_contract.py` cover causal signals, missing M1, stop-first gap precedence, time exits, fixed cost and reference/fast parity **when run**. This checkpoint has only locally executed the four extracted signal-generation tests (4/4 passed); full repository tests, remote CI, and reference/fast time-exit parity tests have **not** been executed successfully yet.
+- Design-only authorized source runner: `scripts/run_qs01_frozen_design.py`. Requires the exact private original archive SHA-256, uses only **2012–2016**, writes full trade/equity/week/month ledgers and a strict 200 trades / positive net / PF>1.10 / >=31 positive months gate. No automatic access to validation years.
+- **No QS01 real-data performance results exist at this checkpoint.** Never interpret code implementation or a synthetic unit test as design qualification, clean out-of-sample success, broker execution, or 81/81 monthly profitability.
+
+### Additional safety audit
+
+The canonical `validate_execution` allowlist now recognizes the opt-in
+`time_exit` reason; without this correction, a legitimate QS01 time exit
+would have failed the report/accounting stage. Synthetic time-exit parity,
+fee-once, gap-stop precedence and report reconciliation are committed as
+tests but **have not yet been run against the full GitHub package**.
+
+Both single-strategy and shared-portfolio weekly/monthly reports now
+distinguish periods with no observed M1 quotes from observed period-end
+marks. Empty periods carry the prior last-observed mark (not a fabricated
+new quote); the single-strategy summary separately counts calendar months
+and months with M1 observations. QS01 design screening refuses missing
+months rather than treating them as normal flat months.
+
+Local extracted QS01 signal tests: 4/4 passed, plus 100/100
+future-data perturbations and 30/30 missing-minute rejection checks.
+Local extracted shared-portfolio sparse-calendar cases passed (one
+unobserved month, three unobserved weeks). These are scoped tests, **not
+full repository pytest, CI, broker-tick parity or strategy performance**.
+
+### Subsequent integrated reporting policy
+
+The merged reporting implementation retains **unknown** actual marks and
+allocated equity changes for empty periods and the first resumed period;
+`change_since_last_observed_period` separately identifies cross-gap changes.
+Observed-quote flags and calendar-versus-observed month counts are retained.
+This supersedes the earlier carried-primary-mark implementation note above.
+Full independent package verification and the subsequent design rejection are
+documented in `UNIFIED_PORTFOLIO_LOCAL_ACCEPTANCE_2026-10-25.md` and
+`QS01_DESIGN_2012_2016_2026-10-25.md`; GitHub CI is still not claimed passing.
