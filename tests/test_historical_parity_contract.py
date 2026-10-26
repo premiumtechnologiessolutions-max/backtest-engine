@@ -76,3 +76,27 @@ def test_zero_trade_replay_still_requires_all_thirteen_columns():
     current = current.iloc[:0].drop(columns=["entry_at"])
     with pytest.raises(AssertionError, match="Missing ledger field entry_at/entry_time"):
         exact_ledger_check(current, archive.iloc[:0])
+
+
+@pytest.mark.parametrize("field,bad", [
+    ("side", True), ("side", 1.0), ("side", 2),
+    ("gap_minutes", False), ("gap_minutes", 0.0), ("gap_minutes", -1),
+])
+@pytest.mark.parametrize("ledger", ["actual", "reference"])
+def test_replay_rejects_noninteger_or_invalid_discrete_fields_on_either_side(
+    field, bad, ledger
+):
+    """NumPy array_equal regards True == 1 and 0.0 == 0 as equal."""
+    current, archive = _case()
+    if ledger == "actual":
+        # Object dtype preserves bool vs int for a strict schema check.
+        current[field] = pd.Series([bad], dtype=object)
+    else:
+        archive[field] = pd.Series([bad], dtype=object)
+    with pytest.raises(AssertionError, match=f"First differing field: {field}"):
+        exact_ledger_check(current, archive)
+
+
+def test_replay_still_accepts_native_integer_discrete_fields():
+    current, archive = _case()
+    assert exact_ledger_check(current, archive)["fields"] == 13
