@@ -7,6 +7,7 @@ if the candle range is ambiguous. Pending orders use absolute prices.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from numbers import Integral
 
 import numpy as np
 import pandas as pd
@@ -31,8 +32,10 @@ class LimitOrder:
             raise ValueError("Limit order timestamps must specify UTC offset")
         if expires < placed:
             raise ValueError("Limit expires before being placed")
-        if self.side not in (1, -1):
-            raise ValueError("Limit side must be +1 or -1")
+        # bool == 1 and float(1.0) == 1 must not be accepted as sides.
+        if (isinstance(self.side, bool) or not isinstance(self.side, Integral)
+                or self.side not in (1, -1)):
+            raise ValueError("Limit side must be integer +1 or -1")
         for n in (self.price, self.stop, self.target):
             if not np.isfinite(n) or n <= 0:
                 raise ValueError("Limit prices must be finite positive numbers")
@@ -55,8 +58,10 @@ def run_limits(minutes: pd.DataFrame, orders: list[LimitOrder], settings: Settin
         raise ValueError("Maximum holding time requires run_unified_portfolio")
     if minutes.empty or not isinstance(minutes.index, pd.DatetimeIndex):
         raise ValueError("Nonempty M1 DatetimeIndex required")
-    if minutes.index.tz is None or minutes.index.has_duplicates or not minutes.index.is_monotonic_increasing:
-        raise ValueError("Sorted timezone-aware M1 index required")
+    if (minutes.index.tz is None or str(minutes.index.tz) != "UTC"
+            or minutes.index.hasnans or minutes.index.has_duplicates
+            or not minutes.index.is_monotonic_increasing):
+        raise ValueError("Sorted unique UTC M1 index required")
     if (minutes.index.as_unit("ns").asi8 % 60_000_000_000 != 0).any():
         raise ValueError("M1 candle opens must align to exact minute boundaries")
     if not {"o", "h", "l", "c"}.issubset(minutes):
@@ -136,7 +141,7 @@ def run_limits(minutes: pd.DataFrame, orders: list[LimitOrder], settings: Settin
                     continue
                 entered_this_bar = True
                 position = Position(
-                    entry_at=at, signal_at=pd.Timestamp(o.placed_at),
+                    entry_at=at, signal_at=pd.Timestamp(o.placed_at).tz_convert("UTC"),
                     side=o.side, entry_price=o.price,
                     stop=o.stop, target=o.target, strategy=o.strategy,
                 )
