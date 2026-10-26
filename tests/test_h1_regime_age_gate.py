@@ -39,3 +39,17 @@ def test_h1_age_guard_rejects_weekend_stale_signal_but_preserves_baseline():
 def test_reject_negative_h1_age_cutoff():
     with pytest.raises(ValueError, match="maximum age"):
         H1RegimeSettings(max_regime_age_minutes=-1)
+
+
+
+def test_numpy_integral_large_age_cannot_overflow_into_stale_rejection():
+    # np.int64(10**10) * 60e9 overflows in NumPy arithmetic.
+    # Casting to Python int before multiplying preserves the intended
+    # (effectively unrestricted) but explicit integer age limit.
+    data = _quotes()
+    last_confirmed_hour = data.index[-1] + pd.Timedelta(minutes=1)
+    candidate = _order(last_confirmed_hour + pd.Timedelta(days=2))
+    assert filter_orders_h1(
+        data, [candidate],
+        cfg=H1RegimeSettings(max_regime_age_minutes=np.int64(10**10)),
+    ) == [candidate]
