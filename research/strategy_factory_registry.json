@@ -1,0 +1,76 @@
+{
+  "format_version": 1,
+  "updated_utc": "2026-10-26",
+  "project": "No Risk FX XAUUSD quant research factory",
+  "branch": "feat/quant-engine-foundation",
+  "original_private_zip_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
+  "dataset_policy": "NEVER commit original quotes to public GitHub",
+  "research_status": "HISTORICALLY_EXPOSED_DESIGN_ONLY_NOT_OOS",
+  "fixed_roundtrip_all_in_fee_usd_per_oz": 0.4,
+  "completed_batches": [
+    {
+      "id": "NRF-FAC-001",
+      "family": "M15 Donchian breakout-follow",
+      "unique_parameter_specs": 20000,
+      "years": [
+        2012,
+        2013
+      ],
+      "completed_annual_replays": 40000,
+      "maximum_positive_months_out_of_24": 16,
+      "configs_24_of_24": 0,
+      "configs_annual_net_positive_both_years": 103,
+      "canonical_replay_parity_samples": 6,
+      "notes": "Frozen design research; yearly resets, no merged capital account",
+      "file": "scripts/batch_donchian_grid.py"
+    },
+    {
+      "id": "NRF-FAC-002",
+      "family": "M15 Donchian breakout-fade",
+      "unique_parameter_specs": 20000,
+      "years": [
+        2012,
+        2013
+      ],
+      "completed_annual_replays": 40000,
+      "maximum_positive_months_out_of_24": 18,
+      "configs_24_of_24": 0,
+      "configs_annual_net_positive_both_years": 417,
+      "canonical_replay_parity_samples": 6,
+      "notes": "Frozen countertrend research; correlated specs not independent hypotheses",
+      "file": "scripts/batch_channel_fade_grid.py"
+    }
+  ],
+  "totals": {
+    "distinct_parameter_specs": 40000,
+    "yearly_backtests": 80000,
+    "exit_booked_monthly_points": 960000,
+    "canonical_replay_parity_samples": 12
+  },
+  "next_priorities": [
+    {
+      "id": "NRF-FAC-003",
+      "status": "NOT_STARTED",
+      "hypothesis": "RSI mean-reversion with fully closed M5/M15 confirmation, predeclared regimes and holdout plan"
+    },
+    {
+      "id": "NRF-FAC-004",
+      "status": "NOT_STARTED",
+      "hypothesis": "EMA crossover trend confirmation across M15/H1 with causal volatility conditioning"
+    },
+    {
+      "id": "NRF-FAC-005",
+      "status": "NOT_STARTED",
+      "hypothesis": "Liquidity/BOS/FVG conditional combinations executed in ONE shared-capacity portfolio"
+    }
+  ],
+  "rules": [
+    "Preregister hypothesis and parameter grid before inspecting outcomes",
+    "Number of generated specs is never claimed as number of executed backtests",
+    "Only report success after actual private original-source execution and sample canonical parity",
+    "Never select params with entire research history then label selected historical years independent out-of-sample",
+    "Monthly stability, worst month, M1 floating drawdown, cost and true jointly constrained capital are mandatory",
+    "Do not modify closed batches to force 12/12; create separately tagged new research family",
+    "Stay Draft PR until full independent research acceptance; no live trade recommendation"
+  ]
+}
