@@ -28,6 +28,9 @@ class PortfolioSettings:
     close_at_end: bool = True
     all_in_cost_per_ounce: float = 0.40
     max_holding_minutes: int | None = None
+    # Opt-in: mirror canonical run_fast's 1-minute pending signal behavior.
+    # Default False preserves historical conservative immediate rejection.
+    defer_same_strategy_market_signals: bool = False
 
     def __post_init__(self) -> None:
         if not self.ounces_by_strategy or any(
@@ -50,6 +53,8 @@ class PortfolioSettings:
             or self.max_holding_minutes <= 0
         ):
             raise ValueError("Maximum holding minutes must be a positive integer")
+        if type(self.defer_same_strategy_market_signals) is not bool:
+            raise ValueError("Same-strategy signal deferral flag must be boolean")
         if self.all_in_cost_per_ounce != 0.40:
             raise ValueError("Research contract fixes ALL-IN fee at $0.40/oz per roundtrip")
 
@@ -117,6 +122,7 @@ def run_portfolio(
 
     positions: dict[str, _OpenPosition] = {}
     pointer = expired = rejected_capacity = rejected_duplicate = 0
+    pending_same_strategy: list[tuple] = []
     realized = 0.0
     trades: list[dict] = []
     equity: list[dict] = []
@@ -156,15 +162,34 @@ def run_portfolio(
             elif (p.side == 1 and op >= p.target) or (p.side == -1 and op <= p.target):
                 exit_position(p, at, p.target, "open_target")
 
-        # Consume all signals already confirmed at this observed M1 open.
+        # Market signals are sorted by confirmation time, strategy and input
+        # order. Optional pending entries are retried only at observed M1
+        # opens, never with intrabar knowledge or recycled same-minute slots.
+        opening: list[tuple] = []
+        if settings.defer_same_strategy_market_signals:
+            opening.extend(pending_same_strategy)
+            pending_same_strategy = []
         while pointer < len(ordered) and ordered[pointer][0] <= at:
-            confirmed, name, _, sig = ordered[pointer]
+            opening.append(ordered[pointer])
             pointer += 1
-            if (at - confirmed).total_seconds() / 60 > settings.max_entry_delay_minutes:
+        if settings.defer_same_strategy_market_signals:
+            opening.sort(key=lambda row: row[:3])
+        for confirmed, name, original_order, sig in opening:
+            age_minutes = (at - confirmed).total_seconds() / 60
+            if age_minutes > settings.max_entry_delay_minutes:
                 expired += 1
                 continue
             if name in occupied_names or name in positions:
-                rejected_duplicate += 1
+                # Canonical run_fast retains a confirmed Market signal while
+                # the strategy's previous trade exits during the same bar,
+                # allowing entry at the NEXT M1 open only if <=60s old.
+                if (settings.defer_same_strategy_market_signals
+                        and age_minutes < settings.max_entry_delay_minutes):
+                    pending_same_strategy.append(
+                        (confirmed, name, original_order, sig)
+                    )
+                else:
+                    rejected_duplicate += 1
                 continue
             qty = float(settings.ounces_by_strategy[name])
             if slots <= 0 or qty > available_ounces + 1e-12:
@@ -216,7 +241,7 @@ def run_portfolio(
     return PortfolioResult(
         trades=pd.DataFrame.from_records(trades, columns=columns),
         equity=pd.DataFrame.from_records(equity).set_index("at"),
-        pending_at_end=len(ordered) - pointer,
+        pending_at_end=len(ordered) - pointer + len(pending_same_strategy),
         expired_signals=expired,
         capacity_rejected=rejected_capacity,
         duplicate_strategy_rejected=rejected_duplicate,
