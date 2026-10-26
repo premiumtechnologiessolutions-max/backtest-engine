@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import importlib.metadata
 import json
+import re
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -26,6 +27,8 @@ PINNED = {
     "pytest": "8.4.2",
 }
 STEPS = (
+    ("git_revision", ["git", "rev-parse", "HEAD"]),
+    ("git_clean", ["git", "diff", "HEAD", "--quiet"]),
     ("compile", [sys.executable, "-m", "compileall", "-q", "src", "tests", "scripts"]),
     ("pip_check", [sys.executable, "-m", "pip", "check"]),
     ("full_pytest", [sys.executable, "-m", "pytest", "-q"]),
@@ -85,6 +88,11 @@ def acceptance(*, gold_zip: Path | None, reference_root: Path | None,
             if step["status"] != "PASSED":
                 report["status"] = "FAILED"
                 return report, 1
+            if name == "git_revision":
+                commit = step.get("stdout_tail", "").strip()
+                if re.fullmatch(r"[0-9a-f]{40}", commit) is None:
+                    raise ValueError("Cannot identify an exact 40-character Git commit")
+                report["git_commit"] = commit
         if gold_zip is None:
             report["status"] = "BLOCKED_PRIVATE_ARCHIVE_AND_REFERENCE_NOT_PROVIDED"
             return report, 2
