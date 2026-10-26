@@ -80,3 +80,13 @@ def test_dec31_zip_ignores_duplicate_members_from_unrequested_next_year(tmp_path
 def test_reversed_date_range_fails_before_reading(tmp_path):
     with pytest.raises(ValueError, match="End date must not precede start date"):
         load_market(tmp_path / "does-not-exist.zip", "2025-01-02", "2024-12-31")
+
+
+def test_cross_year_zip_still_includes_next_year_when_explicitly_requested(tmp_path):
+    archive = tmp_path / "synthetic_two_years.zip"
+    with zipfile.ZipFile(archive, "w") as handle:
+        handle.writestr("2024.json", json.dumps([_row("2024-12-31T23:59:00Z")]))
+        handle.writestr("2025.json", json.dumps([_row("2025-01-01T00:00:00Z")]))
+    result = load_market(archive, "2024-12-31", "2025-01-01")
+    assert len(result) == 2
+    assert result.index.year.tolist() == [2024, 2025]
