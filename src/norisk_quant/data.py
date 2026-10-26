@@ -253,7 +253,7 @@ def validate_loaded_m1(frame: pd.DataFrame) -> pd.DataFrame:
 
 def _calendar_day_utc(value: str, *, label: str) -> pd.Timestamp:
     """A full UTC calendar day, never a timestamp silently extended by 24h."""
-    if not isinstance(value, str) or re.fullmatch(r"\\d{4}-\\d{2}-\\d{2}", value) is None:
+    if not isinstance(value, str) or re.fullmatch(r"\d{4}-\d{2}-\d{2}", value) is None:
         raise ValueError(f"{label} must be a UTC calendar date in YYYY-MM-DD format")
     try:
         return pd.Timestamp(value, tz="UTC")
