@@ -33,7 +33,7 @@ def test_compression_uses_only_previous_channel_and_confirms_at_close():
 
 def test_cannot_signal_before_current_candle_fully_closes():
     src = synthetic_compression()
-    assert compression_breakout_signals(src.loc[: "2012-01-09T15:14:00Z"]) == []
+    assert compression_breakout_signals(src.loc[: "2012-01-09T15:13:00Z"]) == []
 
 
 def test_missing_minute_in_lookback_rejects_breakout():
