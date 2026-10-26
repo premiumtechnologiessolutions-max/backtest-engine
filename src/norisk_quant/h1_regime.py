@@ -91,7 +91,7 @@ def filter_orders_h1(
         ) - 1
         if prior >= 0 and int(trends[prior]) == order.side:
             if cfg.max_regime_age_minutes is not None:
-                max_age_ns = cfg.max_regime_age_minutes * 60_000_000_000
+                max_age_ns = int(cfg.max_regime_age_minutes) * 60_000_000_000
                 if at.tz_convert("UTC").value - int(completed_ns[prior]) > max_age_ns:
                     continue
             retained.append(order)
