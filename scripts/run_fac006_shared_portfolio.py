@@ -86,6 +86,7 @@ def _settings(slots: int) -> PortfolioSettings:
         max_open_positions=slots, max_total_ounces=float(slots),
         max_entry_delay_minutes=1, close_at_end=True,
         all_in_cost_per_ounce=.40,
+        defer_same_strategy_market_signals=True,
     )
 
 
