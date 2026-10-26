@@ -19,8 +19,9 @@ from .model import Position, Settings, Signal
 def run_fast(minutes: pd.DataFrame, signals: list[Signal], settings: Settings) -> Result:
     if minutes.empty or not isinstance(minutes.index, pd.DatetimeIndex):
         raise ValueError("Nonempty M1 DatetimeIndex required")
-    if minutes.index.tz is None or minutes.index.has_duplicates or not minutes.index.is_monotonic_increasing:
-        raise ValueError("M1 DatetimeIndex must be UTC-aware, sorted, and unique")
+    if (minutes.index.tz is None or str(minutes.index.tz) != "UTC"
+            or minutes.index.has_duplicates or not minutes.index.is_monotonic_increasing):
+        raise ValueError("M1 DatetimeIndex must be UTC, sorted, and unique")
     for required in ("o", "h", "l", "c"):
         if required not in minutes:
             raise ValueError(f"Missing {required}")
