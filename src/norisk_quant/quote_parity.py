@@ -43,6 +43,20 @@ def compare_bid_ask_ticks_to_m1(
         raise ValueError("Tick BID and ASK columns are required")
     if not set(_BID + _ASK).issubset(minutes.columns):
         raise ValueError("M1 BID and ASK OHLC columns are required")
+    # Reject schema coercion before NumPy can turn True or numeric-looking
+    # text into apparently valid market quotes. A parity PASS must certify
+    # genuine numeric source columns on both BID and ASK sides.
+    for label, frame, columns in (
+        ("tick", ticks, ("bid", "ask")),
+        ("M1", minutes, _BID + _ASK),
+    ):
+        for column in columns:
+            dtype = frame[column].dtype
+            if (not pd.api.types.is_numeric_dtype(dtype)
+                    or pd.api.types.is_bool_dtype(dtype)):
+                raise ValueError(
+                    f"{label} {column} requires numeric non-boolean BID/ASK quotes"
+                )
     if ticks.index.has_duplicates:
         if "seq" not in ticks.columns:
             raise ValueError("Duplicate tick timestamps require source sequence")
