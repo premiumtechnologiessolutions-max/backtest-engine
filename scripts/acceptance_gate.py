@@ -28,7 +28,7 @@ PINNED = {
 }
 STEPS = (
     ("git_revision", ["git", "rev-parse", "HEAD"]),
-    ("git_clean", ["git", "diff", "HEAD", "--quiet"]),
+    ("git_clean", ["git", "diff", "--quiet", "HEAD"]),
     ("compile", [sys.executable, "-m", "compileall", "-q", "src", "tests", "scripts"]),
     ("pip_check", [sys.executable, "-m", "pip", "check"]),
     ("full_pytest", [sys.executable, "-m", "pytest", "-q"]),
