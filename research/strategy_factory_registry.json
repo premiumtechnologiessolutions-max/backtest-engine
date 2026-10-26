@@ -141,23 +141,57 @@
       "file": "scripts/batch_mad_h1_session_grid.py",
       "frozen_spec": "docs/FAC010_FROZEN_MAD_H1_SESSION_2026-10-26.md",
       "report": "docs/FAC010_41472_ANNUAL_MAD_H1_SESSION_RESEARCH_2026-10-26.md"
+    },
+    {
+      "id": "NRF-FAC-011",
+      "family": "M15 exact directional-run normalized by prior32 median M15 range, closed H1 range regime, DST-aware local sessions",
+      "status": "LOCALLY_COMPLETED_HISTORICALLY_EXPOSED_LOCKED_CANDIDATE_REJECTED_OFFICIAL_CHECKOUT_PARITY_PENDING",
+      "preregistration_commit": "4dc11184bc6118aab8e97450bc0c0c884cd23d85",
+      "unique_parameter_specs": 19200,
+      "years": [
+        2012,
+        2013
+      ],
+      "completed_annual_replays": 38400,
+      "annual_replays_with_filled_trades": 37800,
+      "zero_trade_annual_executions": 600,
+      "specs_with_filled_trades_both_years": 18600,
+      "completed_monthly_pnl_values": 460800,
+      "unique_entry_signal_sequences_per_year": [
+        189,
+        191
+      ],
+      "maximum_positive_months_out_of_24": 23,
+      "configs_24_of_24": 0,
+      "configs_annual_net_positive_both_years": 918,
+      "configs_passing_preregistered_screen": 1,
+      "local_independent_slow_m1_parity_samples": 8,
+      "official_repository_checkout_private_data_parity_samples": 0,
+      "github_actions_status": "PENDING_NEW_HEAD",
+      "notes": "Exactly 19,200 correlated specs; 38,400 annual parameter executions of which 600 zero-trade. Sole screen pass locked and rejected on historically exposed 2014-16. Local slow M1 parity only; no official checkout canonical yet.",
+      "file": "scripts/batch_directional_run_h1_grid.py",
+      "frozen_spec": "docs/FAC011_FROZEN_DIRECTIONAL_RUN_H1_LOCAL_SESSIONS_2026-10-26.md",
+      "report": "docs/FAC011_38400_ANNUAL_RUN_H1_DST_LOCKED_REJECTION_2026-10-26.md"
     }
   ],
   "totals": {
-    "distinct_parameter_specs": 140736,
-    "yearly_backtests": 281472,
-    "exit_booked_monthly_points": 3377664,
+    "distinct_parameter_specs": 159936,
+    "yearly_backtests": 319272,
+    "exit_booked_monthly_points": 3831264,
     "canonical_replay_parity_samples": 48,
-    "independent_hypothesis_families": 6,
+    "independent_hypothesis_families": 7,
     "strictly_positive_every_month_in_both_years": 0,
     "zero_trade_parameter_specs_excluded": 25600,
-    "zero_trade_yearly_parameter_executions_excluded": 51200,
+    "zero_trade_yearly_parameter_executions_excluded": 51800,
     "zero_trade_canonical_parity_samples_excluded": 12,
-    "total_yearly_parameter_executions_including_zero_trade_negative_control": 332672,
+    "total_yearly_parameter_executions_including_zero_trade_negative_control": 371072,
     "local_copy_fast_engine_parity_samples": 6,
-    "independent_slow_m1_parity_samples": 6,
-    "annual_replays_pending_new_head_ci": 41472,
-    "canonical_replay_parity_samples_note": "Previous 48 full-repository canonical parity samples; FAC010 6 local fast_engine source-copy checks tracked separately until full-checkout verification."
+    "independent_slow_m1_parity_samples": 14,
+    "annual_replays_pending_new_head_ci": 79872,
+    "canonical_replay_parity_samples_note": "Previous 48 full-repository canonical parity samples; FAC010 6 local fast_engine source-copy checks tracked separately until full-checkout verification.",
+    "fac011_zero_trade_annual_executions": 600,
+    "fac011_local_locked_chronology_parity_years": 3,
+    "note_fac011": "FAC011 38,400 annual executions include 600 zero-trade, so 37,800 added to active yearly_backtests; 460,800 monthly P/L values generated including zero-trade; active monthly total excludes 7,200 zero-trade rows."
   },
   "next_priorities": [
     {
@@ -179,6 +213,11 @@
       "id": "NRF-FAC-010-CI-AND-CANONICAL",
       "status": "PENDING",
       "hypothesis": "Verify full GitHub Actions head, execute FAC010 official repository checkout against private archive, then update parity/status without re-grid or rerun entire search."
+    },
+    {
+      "id": "NRF-FAC-011-OFFICIAL-CHECKOUT-REPLAY",
+      "status": "PENDING",
+      "hypothesis": "Run existing frozen FAC011 script on private archive from official complete checkout, check >=3 canonical run_fast samples/year and 3 locked chronology years, then mark CI/parity; DO NOT rerun parameter grid or retune rejected candidate."
     }
   ],
   "rules": [
@@ -282,6 +321,52 @@
       "frozen_spec": "docs/FAC007_LOCKED_FAC005B_2014_2016_FOLLOWUP_2026-10-26.md",
       "report": "docs/FAC007_2014_2016_LOCKED_CANDIDATE_REJECTION_2026-10-26.md",
       "note": "Historical candidate stress selected on 2012-13; excluded from bulk annual-grid totals."
+    },
+    {
+      "id": "NRF-FAC-011-LOCKED",
+      "parent": "NRF-FAC-011",
+      "candidate_id": "RUN15_N3_K3.00_FOLLOW_HOT_ALL_SL3.00_TP6.00",
+      "years": [
+        2014,
+        2015,
+        2016
+      ],
+      "status": "REJECTED_HISTORICALLY_EXPOSED_NOT_CLEAN_OOS_OFFICIAL_CHECKOUT_PENDING",
+      "preregistration_commit": "34bec248970622dce568e5e7fe95cde4a6ad2bb5",
+      "original_source_yearly_replays": 3,
+      "trades_by_year": [
+        189,
+        208,
+        172
+      ],
+      "positive_months_by_year": [
+        4,
+        3,
+        3
+      ],
+      "net_usd_oz_by_year": [
+        -124.2,
+        -98.7,
+        -98.8
+      ],
+      "worst_month_usd_oz_by_year": [
+        -27.6,
+        -30.62,
+        -30.8
+      ],
+      "max_observed_m1_dd_by_year": [
+        134.85,
+        139.26,
+        107.76
+      ],
+      "total_positive_months": 10,
+      "total_months": 36,
+      "summed_net_separate_years_usd_oz": -321.7,
+      "local_slow_m1_ledger_monthly_equity_parity_years": 3,
+      "official_repository_checkout_private_data_parity_years": 0,
+      "frozen_spec": "docs/FAC011_LOCKED_CHRONOLOGY_2026-10-26.md",
+      "report": "docs/FAC011_38400_ANNUAL_RUN_H1_DST_LOCKED_REJECTION_2026-10-26.md",
+      "note": "Sole preregistered-screen candidate selected on exposed 2012-13; locked before this 2014-16 replay; rejected; years exposed elsewhere; not clean OOS. Excluded from bulk annual-grid totals."
     }
   ]
 }
