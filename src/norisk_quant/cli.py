@@ -261,6 +261,7 @@ def main() -> None:
             "loaded_m1_rows": int(len(data)),
             "source_file_sha256": source_file_sha,
             "source_archive_sha256_from_manifest": manifest_sha,
+            "cache_integrity_status": data.attrs.get("cache_integrity"),
             # CI can provide GITHUB_SHA; local runs must record their
             # full repository commit separately if this is unspecified.
             "git_revision_env": os.environ.get("GITHUB_SHA") or None,
