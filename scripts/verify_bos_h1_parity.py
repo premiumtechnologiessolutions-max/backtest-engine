@@ -165,6 +165,42 @@ def exact_ledger_check(ours: pd.DataFrame, reference: pd.DataFrame) -> dict:
             )
         if not equals:
             raise AssertionError(f"First differing field: {current}")
+    # Matching corrupt ledgers are not proof of valid execution.  Check
+    # independent physical/accounting invariants on BOTH sides, after the
+    # 13-field comparison has established the schema and finite values.
+    for label, ledger, fields in (
+        ("engine", ours, {
+            "signal": "signal_at", "entry_time": "entry_at",
+            "exit_time": "closed_at", "entry": "entry_price",
+            "exit": "exit_price", "stop": "stop", "target": "target",
+            "fee": "cost", "gross": "gross_pnl", "net": "net_pnl",
+        }),
+        ("archive", reference, {
+            "signal": "signal_time", "entry_time": "entry_time",
+            "exit_time": "exit_time", "entry": "entry",
+            "exit": "exit", "stop": "stop", "target": "target",
+            "fee": "fee", "gross": "gross", "net": "net",
+        }),
+    ):
+        def times(key: str) -> np.ndarray:
+            values = ledger[fields[key]]
+            if label == "engine":
+                return pd.to_datetime(values, utc=True).astype("int64").to_numpy()
+            return values.to_numpy(dtype="int64") * 1_000_000_000
+
+        signal_ns, entry_ns, exit_ns = times("signal"), times("entry_time"), times("exit_time")
+        if np.any(entry_ns < signal_ns) or np.any(exit_ns < entry_ns):
+            raise AssertionError(f"Ledger invariant: {label} signal/entry/exit chronology")
+        for price in ("entry", "exit", "stop", "target"):
+            if np.any(ledger[fields[price]].to_numpy(dtype=float) <= 0):
+                raise AssertionError(f"Ledger invariant: {label} nonpositive {price} price")
+        fee = ledger[fields["fee"]].to_numpy(dtype=float)
+        gross = ledger[fields["gross"]].to_numpy(dtype=float)
+        net = ledger[fields["net"]].to_numpy(dtype=float)
+        if not np.allclose(fee, 0.40, rtol=0, atol=1e-9):
+            raise AssertionError(f"Ledger invariant: {label} fee differs from fixed $0.40/oz")
+        if not np.allclose(net, gross - fee, rtol=0, atol=1e-7):
+            raise AssertionError(f"Ledger invariant: {label} net != gross - fee")
     return {
         "trades": len(ours),
         "fields": len(FIELDS),
