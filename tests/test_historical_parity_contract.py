@@ -100,3 +100,46 @@ def test_replay_rejects_noninteger_or_invalid_discrete_fields_on_either_side(
 def test_replay_still_accepts_native_integer_discrete_fields():
     current, archive = _case()
     assert exact_ledger_check(current, archive)["fields"] == 13
+
+
+@pytest.mark.parametrize("field,archived_field", [
+    ("gross_pnl", "gross"),
+    ("net_pnl", "net"),
+    ("entry_price", "entry"),
+    ("cost", "fee"),
+])
+def test_replay_rejects_matching_infinities_in_numeric_fields(field, archived_field):
+    # np.allclose(inf, inf) otherwise reports a match.
+    current, archive = _case()
+    current[field] = float("inf")
+    archive[archived_field] = float("inf")
+    with pytest.raises(AssertionError, match=f"First differing field: {field}"):
+        exact_ledger_check(current, archive)
+
+
+@pytest.mark.parametrize("field,archived_field", [
+    ("signal_at", "signal_time"),
+    ("entry_at", "entry_time"),
+    ("closed_at", "exit_time"),
+])
+def test_replay_rejects_fractional_archived_unix_seconds(field, archived_field):
+    # A dtype=int64 cast truncates these to the correct whole second.
+    current, archive = _case()
+    archive[archived_field] = archive[archived_field].astype(float) + 0.5
+    with pytest.raises(AssertionError, match=f"First differing field: {field}"):
+        exact_ledger_check(current, archive)
+
+
+def test_replay_rejects_naive_engine_timestamp_even_when_utc_wall_clock_matches():
+    # utc=True alone would silently localize this naive timestamp to UTC.
+    current, archive = _case()
+    current["entry_at"] = current["entry_at"].dt.tz_localize(None)
+    with pytest.raises(AssertionError, match="First differing field: entry_at"):
+        exact_ledger_check(current, archive)
+
+
+def test_replay_rejects_invalid_reference_timestamp_type():
+    current, archive = _case()
+    archive["signal_time"] = archive["signal_time"].astype(str)
+    with pytest.raises(AssertionError, match="First differing field: signal_at"):
+        exact_ledger_check(current, archive)
