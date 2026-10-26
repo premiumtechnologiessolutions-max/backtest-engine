@@ -96,7 +96,7 @@ def exact_ledger_check(ours: pd.DataFrame, reference: pd.DataFrame) -> dict:
                 raise AssertionError(
                     f"First differing field: {current} (archived Unix seconds must be integers)"
                 )
-            lhs_ns = pd.to_datetime(ours[current], utc=True).astype("int64").to_numpy()
+            lhs_ns = pd.to_datetime(ours[current], utc=True).dt.as_unit("ns").astype("int64").to_numpy()
             rhs_seconds = np.asarray(archived_values, dtype="int64")
             equals = bool(
                 np.all(lhs_ns % 1_000_000_000 == 0)
@@ -185,7 +185,7 @@ def exact_ledger_check(ours: pd.DataFrame, reference: pd.DataFrame) -> dict:
         def times(key: str) -> np.ndarray:
             values = ledger[fields[key]]
             if label == "engine":
-                return pd.to_datetime(values, utc=True).astype("int64").to_numpy()
+                return pd.to_datetime(values, utc=True).dt.as_unit("ns").astype("int64").to_numpy()
             return values.to_numpy(dtype="int64") * 1_000_000_000
 
         signal_ns, entry_ns, exit_ns = times("signal"), times("entry_time"), times("exit_time")
