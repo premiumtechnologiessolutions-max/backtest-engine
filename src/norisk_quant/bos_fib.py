@@ -10,6 +10,7 @@ Elliott-wave classifier or an assertion about the chart's handwritten count.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from numbers import Integral
 import math
 
 import numpy as np
@@ -36,8 +37,18 @@ class BosFibSettings:
     ignore_ambiguous_dual_pivots: bool = False
 
     def __post_init__(self) -> None:
-        if self.pivot_left < 1 or self.pivot_right < 1:
-            raise ValueError("Pivot confirmation must be >=1 on both sides")
+        for name, value in (
+            ("pivot_left", self.pivot_left),
+            ("pivot_right", self.pivot_right),
+            ("expiry_minutes", self.expiry_minutes),
+            ("max_bos_waves_per_regime", self.max_bos_waves_per_regime),
+        ):
+            # NaN/Infinity would bypass ordinary < 1 guards; a fractional
+            # pivot or expiry can also break candle indexing or timing.
+            if isinstance(value, bool) or not isinstance(value, Integral) or value < 1:
+                raise ValueError(f"BOS {name} must be a positive integer")
+        if type(self.ignore_ambiguous_dual_pivots) is not bool:
+            raise ValueError("BOS ignore_ambiguous_dual_pivots must be boolean")
         if not (0 < self.zone_lower <= self.fib_entry <= self.zone_upper < 1):
             raise ValueError("Fib entry must lie within 0<Golden Zone<1")
         if not (self.reward_risk > 0 and math.isfinite(self.reward_risk)):
@@ -46,8 +57,6 @@ class BosFibSettings:
             self.sl_buffer_usd, self.min_break_usd, self.min_impulse_usd
         )):
             raise ValueError("Buffers/minimum impulse must be finite positive")
-        if self.expiry_minutes < 1 or self.max_bos_waves_per_regime < 1:
-            raise ValueError("Expiry and max waves must be positive")
         if not math.isfinite(self.min_gross_reward_fee_multiple) or self.min_gross_reward_fee_multiple < 0:
             raise ValueError("Minimum reward/fee multiple must be finite nonnegative")
         if not math.isfinite(self.all_in_cost_per_ounce) or self.all_in_cost_per_ounce < 0:
