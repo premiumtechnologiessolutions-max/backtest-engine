@@ -141,7 +141,9 @@ def run(minutes: pd.DataFrame, signals: Iterable[Signal], settings: Settings) ->
                     stop, target = op + item.stop_distance, op - item.target_distance
                 position = Position(
                     entry_at=start,
-                    signal_at=confirmed,
+                    # Normalize explicit-offset signals to canonical UTC so
+                    # reference and fast ledgers have identical timezone dtypes.
+                    signal_at=confirmed.tz_convert("UTC"),
                     side=item.side,
                     entry_price=op,
                     stop=stop,
