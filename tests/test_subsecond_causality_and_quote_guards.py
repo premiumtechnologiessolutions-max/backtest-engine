@@ -78,3 +78,27 @@ def test_risk_settings_reject_nonfinite_numbers(kwargs):
 def test_signal_risk_distances_must_be_finite(stop, target):
     with pytest.raises(ValueError):
         Signal(pd.Timestamp("2024-01-02", tz="UTC"), 1, stop, target)
+
+
+def test_explicit_offset_signal_is_canonical_utc_in_both_ledgers():
+    # Signal accepts explicit non-UTC offsets. They identify the same instant
+    # as UTC, but the reference executor previously preserved the +02:00
+    # dtype while the fast executor emitted UTC, breaking strict parity.
+    market = flat_bars()
+    offset_signal = Signal(
+        pd.Timestamp("2024-01-02T02:01:00+02:00"), 1, 1, 2, "offset"
+    )
+    settings = Settings()
+    reference = run(market, [offset_signal], settings)
+    fast = run_fast(market, [offset_signal], settings)
+    expected = pd.Timestamp("2024-01-02T00:01:00Z")
+    assert reference.trades.iloc[0]["signal_at"] == expected
+    assert fast.trades.iloc[0]["signal_at"] == expected
+    assert str(reference.trades["signal_at"].dtype) == "datetime64[ns, UTC]"
+    pd.testing.assert_series_equal(
+        reference.trades["signal_at"], fast.trades["signal_at"]
+    )
+    pd.testing.assert_frame_equal(
+        reference.trades, fast.trades, check_dtype=False
+    )
+    pd.testing.assert_frame_equal(reference.equity, fast.equity)
