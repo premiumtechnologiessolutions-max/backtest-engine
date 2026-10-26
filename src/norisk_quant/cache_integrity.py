@@ -31,6 +31,12 @@ def read_cache_manifest(directory: Path) -> dict[int, dict] | None:
     if (not isinstance(document, dict) or document.get("instrument") != "XAUUSD"
             or not isinstance(document.get("annual_partitions"), list)):
         raise ValueError("Invalid XAUUSD cache manifest structure")
+    # Version-2 imports promise BOTH file-byte and semantic quote digests.
+    # Never silently downgrade a damaged v2 manifest into legacy/unverified.
+    # Version 1 (or absent version) remains loadable but is marked unverified.
+    version = document.get("format_version", 1)
+    if type(version) is not int or version not in (1, 2):
+        raise ValueError("Unsupported XAUUSD cache manifest version")
     entries = {}
     for item in document["annual_partitions"]:
         if (not isinstance(item, dict) or type(item.get("year")) is not int
@@ -40,6 +46,13 @@ def read_cache_manifest(directory: Path) -> dict[int, dict] | None:
         year = item["year"]
         if year in entries:
             raise ValueError("Duplicate XAUUSD cache manifest year")
+        if version == 2 and item["accepted"]:
+            for field in ("parquet_sha256", "loaded_m1_bidask_sha256"):
+                digest = item.get(field)
+                if not isinstance(digest, str) or re.fullmatch(r"[0-9a-f]{64}", digest) is None:
+                    raise ValueError(
+                        f"Missing or invalid version-2 XAUUSD cache digest {field} for {year}"
+                    )
         entries[year] = item
     return entries
 
