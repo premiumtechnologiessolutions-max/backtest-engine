@@ -76,3 +76,29 @@ def test_duplicate_tick_string_sequences_use_numeric_not_lexical_order():
     ticks["seq"] = ["1", "10", "2"]
     with pytest.raises(ValueError, match="already be sorted"):
         compare_bid_ask_ticks_to_m1(ticks, bars)
+
+
+@pytest.mark.parametrize("source,column", [
+    ("tick", "bid"), ("tick", "ask"),
+    ("M1", "o"), ("M1", "h"), ("M1", "l"), ("M1", "c"),
+    ("M1", "ao"), ("M1", "ah"), ("M1", "al"), ("M1", "ac"),
+])
+@pytest.mark.parametrize("bad_type", ["boolean", "numeric_text"])
+def test_parity_rejects_boolean_or_text_quote_dtype(source, column, bad_type):
+    """Do not certify malformed quotes by silently coercing them to float."""
+    ticks, bars = fixture()
+    frame = ticks if source == "tick" else bars
+    if bad_type == "boolean":
+        frame[column] = True
+    else:
+        frame[column] = frame[column].astype(str)
+    with pytest.raises(ValueError, match="numeric non-boolean BID/ASK"):
+        compare_bid_ask_ticks_to_m1(ticks, bars)
+
+
+def test_parity_still_accepts_valid_integer_and_float_quote_dtypes():
+    ticks, bars = fixture()
+    ticks["bid"] = ticks["bid"].astype(int)
+    bars["o"] = bars["o"].astype(int)
+    report = compare_bid_ask_ticks_to_m1(ticks, bars)
+    assert bool(report.iloc[0]["both_quotes_match"])
