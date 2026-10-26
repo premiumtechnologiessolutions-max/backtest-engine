@@ -103,10 +103,16 @@ def exact_ledger_check(ours: pd.DataFrame, reference: pd.DataFrame) -> dict:
                 and np.array_equal(lhs_ns // 1_000_000_000, rhs_seconds)
             )
         elif current == "exit_reason":
-            equals = np.array_equal(
-                ours[current].to_numpy(dtype=str),
-                reference[expected].to_numpy(dtype=str),
-            )
+            # dtype=str would turn numeric reason codes into text, allowing
+            # invalid schema values to masquerade as matching exit labels.
+            actual_reasons = ours[current].tolist()
+            archived_reasons = reference[expected].tolist()
+            if not all(isinstance(value, str) and value for value in
+                       actual_reasons + archived_reasons):
+                raise AssertionError(
+                    "First differing field: exit_reason (expected nonempty text)"
+                )
+            equals = actual_reasons == archived_reasons
         elif current in {"side", "gap_minutes"}:
             # np.array_equal(True, 1) and np.array_equal(1.0, 1) are True.
             # A 13-field *exact* replay must reject boolean/floating values
@@ -129,6 +135,15 @@ def exact_ledger_check(ours: pd.DataFrame, reference: pd.DataFrame) -> dict:
 
             equals = strict_values(ours[current]) == strict_values(reference[expected])
         else:
+            # to_numpy(dtype=float) would silently turn True into 1.0 and
+            # numeric-looking strings into prices/P&L. Both are schema drift
+            # even if the resulting numbers happen to match.
+            for series in (ours[current], reference[expected]):
+                if (not pd.api.types.is_numeric_dtype(series.dtype)
+                        or pd.api.types.is_bool_dtype(series.dtype)):
+                    raise AssertionError(
+                        f"First differing field: {current} (invalid numeric dtype)"
+                    )
             # np.allclose(inf, inf) is True. Nonfinite prices, fees or P/L
             # must never certify a supposedly exact historical replay.
             try:
