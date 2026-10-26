@@ -197,24 +197,27 @@
       "maximum_positive_months_out_of_24": 20,
       "configs_24_of_24": 0,
       "configs_passing_frozen_joint_gate": 0,
-      "canonical_replay_parity_samples": 0,
+      "canonical_replay_parity_samples": 14,
       "independent_slow_m1_reference_parity_samples": 10,
       "frozen_spec_commit": "bee2e7f072b9a44a2592d007f2dd3fb7d41c23f7",
       "verified_ci_code_commit": "db551c0a5bb20995a61895ef4e7e37d2cfeed57a",
       "verified_ci_run": 40411959894,
       "verified_ci_tests": 721,
       "original_source_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
-      "status": "REJECTED_DESIGN_EXPOSED_OFFICIAL_PRIVATE_CHECKOUT_PARITY_PENDING",
-      "notes": "48k actual annual parameter-year executions; not 24k independent hypotheses; 0 passed >=80 fills/year and >=18/24 etc; 10 independent local slow M1 parity samples, not official canonical checkout.",
+      "status": "REJECTED_DESIGN_EXPOSED_OFFICIAL_CHECKOUT_CANONICAL_PARITY_VERIFIED",
+      "notes": "48k actual active annual replays, 24k correlated parameter specs, 0 passed frozen monthly gate. Official CI source artifact db551c full checkout + original private SHA-verified M1: 14 canonical run_fast and independent slow M1 parity samples, 4,937,044 equity marks, 2,497 trades, max metric delta 9.38e-13. Not clean OOS.",
       "file": "scripts/batch_compression_h1_grid.py",
-      "report": "docs/FAC012B_48000_ANNUAL_COMPRESSION_REJECTION_2026-10-27.md"
+      "report": "docs/FAC012B_48000_ANNUAL_COMPRESSION_REJECTION_2026-10-27.md",
+      "official_checkout_original_source_canonical_parity_samples": 14,
+      "official_checkout_verified_m1_equity_marks": 4937044,
+      "official_checkout_verified_trades": 2497
     }
   ],
   "totals": {
     "distinct_parameter_specs": 183936,
     "yearly_backtests": 367272,
     "exit_booked_monthly_points": 4407264,
-    "canonical_replay_parity_samples": 48,
+    "canonical_replay_parity_samples": 62,
     "independent_hypothesis_families": 8,
     "strictly_positive_every_month_in_both_years": 0,
     "zero_trade_parameter_specs_excluded": 25700,
@@ -232,15 +235,18 @@
     "latest_fac011_ci_verified_code_commit": "52cb21e031187862c013ffe2c7e18147c821fd66",
     "latest_fac011_ci_verified_run": 40405257053,
     "latest_fac011_ci_pytest_passed": 713,
-    "annual_replays_pending_official_private_checkout_parity": 127872,
+    "annual_replays_pending_official_private_checkout_parity": 79872,
     "note_ci": "FAC011 and FAC010 code included in 713/713 successful CI on 52cb21e; subsequent metadata-only commits require independent current-head CI verification; official private-source full checkout parity remains pending.",
     "latest_fac012b_ci_verified_code_commit": "db551c0a5bb20995a61895ef4e7e37d2cfeed57a",
     "latest_fac012b_ci_verified_run": 40411959894,
     "latest_fac012b_ci_pytest_passed": 721,
     "fac012b_local_independent_slow_m1_parity_samples": 10,
-    "fac012b_official_full_checkout_original_source_parity_samples": 0,
+    "fac012b_official_full_checkout_original_source_parity_samples": 14,
     "fac012a_zero_trade_feasibility_annual_replays": 100,
-    "note_fac012b": "FAC012 original 100 zero-trade 2012 feasibility executions excluded; FAC012B 48,000 completed active annual replays with 576,000 monthly P/L values, 10 independent slow M1 parity samples. Original-data official complete GitHub checkout canonical run_fast parity remains pending."
+    "note_fac012b": "FAC012A original 100 zero-trade feasibility executions excluded. FAC012B 48k active original-data annual replays, 576k monthly values, 10 initial independent slow M1 parity samples plus 14 official complete GitHub CI artifact original-source run_fast/independent slow checks, 4,937,044 M1 equity marks and 2,497 fills. No clean OOS.",
+    "fac012b_official_verified_m1_equity_marks": 4937044,
+    "fac012b_official_verified_trade_count": 2497,
+    "fac012b_official_max_all_metric_error": 9.379164112033322e-13
   },
   "next_priorities": [
     {
@@ -270,8 +276,9 @@
     },
     {
       "id": "NRF-FAC-012B-OFFICIAL-CHECKOUT-PARITY",
-      "status": "PENDING",
-      "hypothesis": "Execute the frozen FAC012B runner from a complete official GitHub checkout against private original ZIP and verify canonical run_fast full-year samples. Do not repeat the 48k grid solely to select more parameters."
+      "status": "COMPLETED_14_OFFICIAL_ORIGINAL_SOURCE_PARITY_SAMPLES",
+      "hypothesis": "Execute the frozen FAC012B runner from a complete official GitHub checkout against private original ZIP and verify canonical run_fast full-year samples. Do not repeat the 48k grid solely to select more parameters.",
+      "evidence": "docs/FAC012B_48000_ANNUAL_COMPRESSION_REJECTION_2026-10-27.md"
     }
   ],
   "rules": [
