@@ -117,6 +117,22 @@ def acceptance(*, gold_zip: Path | None, reference_root: Path | None,
             "trades_matched": verified["trades_matched"],
             "fields_per_trade": verified["fields_per_trade"],
         })
+        # Recheck the exact checkout AFTER pytest and market replay. Otherwise
+        # tests/scripts could modify tracked files or create untracked modules
+        # after the initial clean check, yet the old commit would be certified.
+        final_revision = command_step("git_revision", ["git", "rev-parse", "HEAD"])
+        final_revision["name"] = "git_revision_after_replay"
+        report["steps"].append(final_revision)
+        if (final_revision["status"] != "PASSED"
+                or final_revision.get("stdout_tail", "").strip() != report["git_commit"]):
+            raise AssertionError("Git HEAD changed during acceptance replay")
+        final_clean = command_step(
+            "git_clean", ["git", "status", "--porcelain=v1", "--untracked-files=all"]
+        )
+        final_clean["name"] = "git_clean_after_replay"
+        report["steps"].append(final_clean)
+        if final_clean["status"] != "PASSED":
+            raise AssertionError("Checkout became dirty during acceptance replay")
         report["status"] = "PASSED_RESEARCH_GATE_NOT_BROKER_CERTIFIED"
         return report, 0
     except (Exception,) as exc:
