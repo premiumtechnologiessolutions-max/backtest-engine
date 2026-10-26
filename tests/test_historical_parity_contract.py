@@ -238,3 +238,20 @@ def test_replay_accepts_valid_two_row_chronology_and_accounting():
         pd.concat([archive, second_archive], ignore_index=True),
     )
     assert result["trades"] == 2 and result["fields"] == 13
+
+
+
+@pytest.mark.parametrize("current_field,archive_field", [
+    ("signal_at", "signal_time"), ("entry_at", "entry_time"),
+    ("closed_at", "exit_time"),
+])
+def test_replay_accepts_matching_timezone_aware_second_unit_timestamps(
+    current_field, archive_field
+):
+    """Pandas may use datetime64[s, UTC]; its raw int64 values are seconds."""
+    current, archive = _case()
+    same_instant = current[current_field].iloc[0].as_unit("s")
+    current[current_field] = same_instant
+    assert str(current[current_field].dtype).startswith("datetime64[s,")
+    assert int(same_instant.timestamp()) == int(archive[archive_field].iloc[0])
+    assert exact_ledger_check(current, archive)["trades"] == 1
