@@ -390,6 +390,70 @@ def write_portfolio_report(result: PortfolioResult, settings: PortfolioSettings,
         realized["period_end_floating_pnl"] = eq["floating_pnl"].resample(rule).last().to_numpy()
         realized.index.name = "period"
         realized.to_csv(dest / f"{label}.csv")
+    # Strategy contribution comes from trades filled by ONE shared-capacity
+    # portfolio. Never sum independent single-strategy backtests as executable.
+    all_months = pd.period_range(start.to_period("M"), end.to_period("M"), freq="M")
+    all_strategies = sorted(settings.ounces_by_strategy)
+    full_index = pd.MultiIndex.from_product(
+        [all_months, all_strategies], names=["period", "strategy"]
+    )
+    if tr.empty:
+        per_strategy = pd.DataFrame(index=full_index)
+    else:
+        booked = tr.assign(
+            period=pd.to_datetime(tr["closed_at"], utc=True)
+            .dt.tz_localize(None).dt.to_period("M")
+        )
+        per_strategy = booked.groupby(["period", "strategy"]).agg(
+            trades=("net_pnl", "size"),
+            gross_pnl=("gross_pnl", "sum"),
+            costs=("cost", "sum"),
+            net_pnl=("net_pnl", "sum"),
+            wins=("net_pnl", lambda values: (values > 0).sum()),
+        )
+    per_strategy = per_strategy.reindex(full_index, fill_value=0)
+    for name in ("trades", "gross_pnl", "costs", "net_pnl", "wins"):
+        if name not in per_strategy:
+            per_strategy[name] = 0
+    per_strategy["trades"] = per_strategy["trades"].astype(int)
+    per_strategy["wins"] = per_strategy["wins"].astype(int)
+    observed_by_month = coverage["monthly"].copy()
+    observed_by_month.index = observed_by_month.index.tz_localize(None).to_period("M")
+    observed_by_month = observed_by_month.reindex(all_months, fill_value=False).astype(bool)
+    per_strategy["has_observed_m1"] = observed_by_month.reindex(
+        per_strategy.index.get_level_values("period")
+    ).to_numpy(dtype=bool)
+    per_strategy["month_status"] = "FLAT"
+    per_strategy.loc[per_strategy["net_pnl"] > 0, "month_status"] = "PROFIT"
+    per_strategy.loc[per_strategy["net_pnl"] < 0, "month_status"] = "LOSS"
+    per_strategy.loc[~per_strategy["has_observed_m1"], "month_status"] = "NO_M1_OBSERVATIONS"
+    per_strategy.reset_index().to_csv(dest / "strategy_monthly.csv", index=False)
+
+    matrix = per_strategy["net_pnl"].unstack("strategy").reindex(
+        index=all_months, columns=all_strategies, fill_value=0.0
+    )
+    matrix["PORTFOLIO_TOTAL_REALIZED"] = matrix[all_strategies].sum(axis=1)
+    matrix["has_observed_m1"] = observed_by_month.to_numpy(dtype=bool)
+    matrix.index.name = "period"
+    portfolio_monthly = pd.read_csv(dest / "monthly.csv", index_col="period")
+    if (not np.allclose(matrix["PORTFOLIO_TOTAL_REALIZED"].to_numpy(dtype=float),
+                        portfolio_monthly["net_pnl"].to_numpy(dtype=float), rtol=0, atol=1e-7)
+            or not np.isclose(matrix["PORTFOLIO_TOTAL_REALIZED"].sum(),
+                              tr["net_pnl"].sum(), rtol=0, atol=1e-7)):
+        raise AssertionError("Strategy monthly allocation does not reconcile to portfolio")
+    matrix.to_csv(dest / "strategy_monthly_matrix.csv")
+    strategy_scores = {}
+    for name in all_strategies:
+        rows = per_strategy.xs(name, level="strategy")
+        observed = rows.loc[rows["has_observed_m1"]]
+        strategy_scores[name] = {
+            "trades": int(rows["trades"].sum()),
+            "net_pnl": float(rows["net_pnl"].sum()),
+            "fees": float(rows["costs"].sum()),
+            "profitable_observed_months": int((observed["net_pnl"] > 0).sum()),
+            "nonprofitable_observed_months": int((observed["net_pnl"] <= 0).sum()),
+            "observed_months": int(len(observed)),
+        }
     eq.to_csv(dest / "equity_m1.csv")
     tr.to_csv(dest / "trades.csv", index=False)
     peak = eq["equity"].cummax().clip(lower=0)
@@ -403,6 +467,19 @@ def write_portfolio_report(result: PortfolioResult, settings: PortfolioSettings,
         "capacity_rejected": result.capacity_rejected,
         "duplicate_strategy_rejected": result.duplicate_strategy_rejected,
         "open_positions_before_optional_end_close": result.open_positions_at_end,
+        "strategy_monthly_realized": strategy_scores,
+        "portfolio_profitable_observed_months": int((matrix.loc[
+            matrix["has_observed_m1"], "PORTFOLIO_TOTAL_REALIZED"] > 0).sum()),
+        "portfolio_nonprofitable_observed_months": int((matrix.loc[
+            matrix["has_observed_m1"], "PORTFOLIO_TOTAL_REALIZED"] <= 0).sum()),
+        "strategy_monthly_caveat": (
+            "strategy_monthly.csv and strategy_monthly_matrix.csv show realized P/L "
+            "booked on trade EXIT within one shared-capacity execution. They are "
+            "NOT per-strategy mark-to-market monthly equity, nor independently "
+            "backtested strategies added together. Flat months are nonprofitable; "
+            "months without M1 observations are labelled unknown. Historical "
+            "monthly profits do not guarantee future profitability."
+        ),
         "months_observed": int(len(coverage["monthly"])),
         "months_with_m1_observations": int(coverage["monthly"].sum()),
         "calendar_months_without_m1": int((~coverage["monthly"]).sum()),
