@@ -211,22 +211,53 @@
       "official_checkout_original_source_canonical_parity_samples": 14,
       "official_checkout_verified_m1_equity_marks": 4937044,
       "official_checkout_verified_trades": 2497
+    },
+    {
+      "id": "NRF-FAC-013",
+      "family": "M15 prior-extreme liquidity sweep rejection + completed H1 trend/volatility, DST-aware sessions, M15 normalized risk",
+      "status": "REJECTED_EXPOSED_DESIGN_ORIGINAL_PRIVATE_SOURCE_FAST_AND_SLOW_PARITY_CI_PENDING",
+      "preregistration_commit": "d1efaa8dc43b61583f0c2aee45460ea59123bd1f",
+      "unique_parameter_specs": 21600,
+      "years": [
+        2012,
+        2013
+      ],
+      "completed_annual_replays": 43200,
+      "active_annual_replays": 43200,
+      "completed_monthly_pnl_values": 518400,
+      "unique_signal_streams_by_year": [
+        215,
+        216
+      ],
+      "configs_annual_net_positive_both_years": 1435,
+      "maximum_positive_months_out_of_24": 18,
+      "configs_24_of_24": 0,
+      "configs_passing_frozen_joint_gate": 0,
+      "canonical_replay_parity_samples": 8,
+      "independent_slow_full_year_parity_samples": 2,
+      "independent_slow_verified_trades": 102,
+      "independent_slow_verified_m1_equity_marks": 705292,
+      "original_source_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
+      "note": "21,600 correlated parameter specs x2 exposed years, 43,200 actually completed active annual replays; no passing frozen gates. Max 18/24 winner had 53/49 trades vs frozen >=80 each-year gate. 8 official run_fast parity samples and 2 full-year independent slow run exact equity/ledger. New-head CI pending.",
+      "file": "scripts/batch_liquidity_sweep_h1_grid.py",
+      "frozen_spec": "docs/FAC013_FROZEN_M15_LIQUIDITY_SWEEP_H1_2026-10-27.md",
+      "report": "docs/FAC013_43200_ANNUAL_LIQUIDITY_SWEEP_REJECTED_2026-10-27.md"
     }
   ],
   "totals": {
-    "distinct_parameter_specs": 183936,
-    "yearly_backtests": 367272,
-    "exit_booked_monthly_points": 4407264,
-    "canonical_replay_parity_samples": 62,
-    "independent_hypothesis_families": 8,
+    "distinct_parameter_specs": 205536,
+    "yearly_backtests": 410472,
+    "exit_booked_monthly_points": 4925664,
+    "canonical_replay_parity_samples": 70,
+    "independent_hypothesis_families": 9,
     "strictly_positive_every_month_in_both_years": 0,
     "zero_trade_parameter_specs_excluded": 25700,
     "zero_trade_yearly_parameter_executions_excluded": 51900,
     "zero_trade_canonical_parity_samples_excluded": 12,
-    "total_yearly_parameter_executions_including_zero_trade_negative_control": 419172,
+    "total_yearly_parameter_executions_including_zero_trade_negative_control": 462372,
     "local_copy_fast_engine_parity_samples": 18,
     "independent_slow_m1_parity_samples": 28,
-    "annual_replays_pending_new_head_ci": 0,
+    "annual_replays_pending_new_head_ci": 43200,
     "canonical_replay_parity_samples_note": "Previous 48 full-repository canonical parity samples; FAC010 6 local fast_engine source-copy checks tracked separately until full-checkout verification.",
     "fac011_zero_trade_annual_executions": 600,
     "fac011_local_locked_chronology_parity_years": 3,
@@ -246,7 +277,11 @@
     "note_fac012b": "FAC012A original 100 zero-trade feasibility executions excluded. FAC012B 48k active original-data annual replays, 576k monthly values, 10 initial independent slow M1 parity samples plus 14 official complete GitHub CI artifact original-source run_fast/independent slow checks, 4,937,044 M1 equity marks and 2,497 fills. No clean OOS.",
     "fac012b_official_verified_m1_equity_marks": 4937044,
     "fac012b_official_verified_trade_count": 2497,
-    "fac012b_official_max_all_metric_error": 9.379164112033322e-13
+    "fac012b_official_max_all_metric_error": 9.379164112033322e-13,
+    "fac013_independent_slow_full_year_parity_samples": 2,
+    "fac013_independent_slow_verified_m1_equity_marks": 705292,
+    "fac013_independent_slow_verified_trades": 102,
+    "note_fac013": "FAC013 original private SHA-verified M1 2012/2013: 21,600 correlated specs, 43,200 active annual replays, 518,400 monthly P/L, max 18/24, 0 frozen passes. 8 fast and 2 full-year independent slow parity samples. New HEAD CI pending."
   },
   "next_priorities": [
     {
@@ -279,6 +314,11 @@
       "status": "COMPLETED_14_OFFICIAL_ORIGINAL_SOURCE_PARITY_SAMPLES",
       "hypothesis": "Execute the frozen FAC012B runner from a complete official GitHub checkout against private original ZIP and verify canonical run_fast full-year samples. Do not repeat the 48k grid solely to select more parameters.",
       "evidence": "docs/FAC012B_48000_ANNUAL_COMPRESSION_REJECTION_2026-10-27.md"
+    },
+    {
+      "id": "NRF-FAC-013-PROSPECTIVE",
+      "status": "NOT_STARTED",
+      "hypothesis": "No FAC013 frozen joint gate passed. Do not retune exposed years; future embargoed prospective test only with a newly frozen rule, no posthoc winner labeling."
     }
   ],
   "rules": [
