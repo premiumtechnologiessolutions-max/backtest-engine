@@ -92,3 +92,27 @@ def test_nonzero_realized_without_any_trade_is_rejected():
     result.equity["equity"] += 3.0
     with pytest.raises(ValueError, match="Realized P/L timeline"):
         validate_execution(result, settings)
+
+
+@pytest.mark.parametrize("atol", [
+    float("inf"), float("-inf"), float("nan"), 0.0, -1.0,
+])
+def test_audit_rejects_invalid_absolute_tolerances(atol):
+    """An infinite tolerance would otherwise bless arbitrary ledger drift."""
+    bars, sig = _fixture()
+    settings = Settings()
+    result = run(bars, [sig], settings)
+    with pytest.raises(ValueError, match="atol must be finite and positive"):
+        validate_execution(result, settings, atol=atol)
+
+
+def test_infinite_tolerance_cannot_bless_corrupted_fee_and_net_pnl():
+    bars, sig = _fixture()
+    settings = Settings()
+    result = run(bars, [sig], settings)
+    result.trades.loc[0, "cost"] += 999.0
+    result.trades.loc[0, "net_pnl"] += 999.0
+    # Before the guard, np.allclose(..., atol=inf) accepted these
+    # arbitrarily large discrepancies. Never return PASSED.
+    with pytest.raises(ValueError, match="atol must be finite and positive"):
+        validate_execution(result, settings, atol=float("inf"))
