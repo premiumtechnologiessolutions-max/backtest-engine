@@ -90,3 +90,24 @@ def test_cross_year_zip_still_includes_next_year_when_explicitly_requested(tmp_p
     result = load_market(archive, "2024-12-31", "2025-01-01")
     assert len(result) == 2
     assert result.index.year.tolist() == [2024, 2025]
+
+@pytest.mark.parametrize("start,end", [
+    ("2024-01-01T00:00:00", "2024-12-31"),
+    ("2024-01-01", "2024-12-31T12:00:00"),
+    ("2024-01-01", "2024-12-31T00:00:00Z"),
+    ("2024-01-01", "2024-12-31 12:00:00"),
+])
+def test_date_only_api_rejects_silent_24h_intraday_expansion(tmp_path, start, end):
+    # Validate before source I/O. A timestamp end would otherwise add a whole
+    # day and contaminate the intended research interval with later quotes.
+    with pytest.raises(ValueError, match="UTC calendar date in YYYY-MM-DD format"):
+        load_market(tmp_path / "not-present.zip", start, end)
+
+
+@pytest.mark.parametrize("start,end", [
+    ("2024-02-30", "2024-12-31"),
+    ("2024-01-01", "2024-02-30"),
+])
+def test_date_only_api_rejects_invalid_calendar_days(tmp_path, start, end):
+    with pytest.raises(ValueError, match="not a valid UTC calendar date"):
+        load_market(tmp_path / "not-present.zip", start, end)
