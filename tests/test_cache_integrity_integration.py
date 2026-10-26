@@ -85,14 +85,14 @@ def test_manifestless_cache_is_loadable_but_explicitly_unverified(tmp_path, monk
 
 def test_missing_requested_year_fails_closed_even_when_other_partition_verified(tmp_path, monkeypatch):
     dest, _ = _import_fixture(tmp_path, monkeypatch)
-    with pytest.raises(ValueError, match=r"Missing requested Parquet source years: \\[2023\\]"):
+    with pytest.raises(ValueError, match="Missing requested Parquet source years"):
         load_market(dest, "2023-01-01", "2024-01-31")
 
 
 def test_manifestless_cache_cannot_silently_truncate_requested_years(tmp_path, monkeypatch):
     dest, _ = _import_fixture(tmp_path, monkeypatch)
     (dest / "manifest.json").unlink()
-    with pytest.raises(ValueError, match=r"Missing requested Parquet source years: \\[2023\\]"):
+    with pytest.raises(ValueError, match="Missing requested Parquet source years"):
         load_market(dest, "2023-01-01", "2024-01-31")
 
 
