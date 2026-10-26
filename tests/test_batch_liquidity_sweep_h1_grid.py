@@ -19,7 +19,7 @@ def _bars(gap=False):
 
 def test_frozen_grid_and_signal_confirmation():
     assert TOTAL==21600
-    assert SPEC['roundtrip_all_in_usd_per_oz']==.4
+    assert SPEC['roundtrip_all_in_usd_oz']==.4
     stamps,sides,baseline=sweep_rejections(_bars(),6,0.)
     assert len(stamps)==1 and int(sides[0])==1 and baseline[0]==4.
     assert pd.Timestamp(int(stamps[0]),unit='s',tz='UTC')==pd.Timestamp('2026-01-05 10:15Z')
