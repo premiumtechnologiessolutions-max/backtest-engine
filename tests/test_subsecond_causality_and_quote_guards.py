@@ -112,3 +112,32 @@ def test_both_engines_reject_non_utc_m1_index():
     for engine in (run, run_fast):
         with pytest.raises(ValueError, match="UTC"):
             engine(market, [], Settings())
+
+
+@pytest.mark.parametrize("delay", [
+    float("nan"), float("inf"), float("-inf"), 0.5, 1.5,
+    True, False, "1",
+])
+def test_single_position_settings_reject_invalid_entry_delay_types(delay):
+    # PortfolioSettings already enforces an integral nonnegative delay.
+    # The single-position reference and fast engines must not allow NaN or
+    # Infinity to silently disable the stale-signal expiration gate.
+    with pytest.raises(ValueError, match="max entry delay must be a nonnegative integer"):
+        Settings(max_entry_delay_minutes=delay)
+
+
+@pytest.mark.parametrize("delay", [0, 1, 120])
+def test_single_position_settings_allow_integer_entry_delays(delay):
+    assert Settings(max_entry_delay_minutes=delay).max_entry_delay_minutes == delay
+
+
+@pytest.mark.parametrize("side", [True, False, 1.0, -1.0, float("nan"), "1"])
+def test_signal_rejects_noninteger_trade_side(side):
+    # True == 1 in Python, but bool is not a valid directional trade side.
+    with pytest.raises(ValueError, match="side must be integer"):
+        Signal(pd.Timestamp("2024-01-02T00:01:00Z"), side, 1, 2)
+
+
+@pytest.mark.parametrize("side", [1, -1])
+def test_signal_allows_integer_trade_side(side):
+    assert Signal(pd.Timestamp("2024-01-02T00:01:00Z"), side, 1, 2).side == side
