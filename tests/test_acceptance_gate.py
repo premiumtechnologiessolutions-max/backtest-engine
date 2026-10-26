@@ -11,7 +11,10 @@ def safe_environment(monkeypatch):
     monkeypatch.setattr(gate, "check_pins", lambda: {"python": "3.12", "packages": gate.PINNED})
     monkeypatch.setattr(
         gate, "command_step",
-        lambda name, argv: {"name": name, "status": "PASSED", "exit_code": 0},
+        lambda name, argv: {
+            "name": name, "status": "PASSED", "exit_code": 0,
+            "stdout_tail": "a" * 40 if name == "git_revision" else "",
+        },
     )
 
 
@@ -20,13 +23,16 @@ def test_no_private_inputs_cannot_pass(safe_environment):
     assert code == 2
     assert result["status"] == "BLOCKED_PRIVATE_ARCHIVE_AND_REFERENCE_NOT_PROVIDED"
     assert [s["name"] for s in result["steps"]] == [
-        "pinned_environment", "compile", "pip_check", "full_pytest", "cli_smoke",
+        "pinned_environment", "git_revision", "git_clean", "compile", "pip_check", "full_pytest", "cli_smoke",
     ]
 
 
 def test_failed_full_pytest_prevents_parity_claim(monkeypatch, safe_environment):
     def fail_pytest(name, argv):
-        return {"name": name, "status": "FAILED" if name == "full_pytest" else "PASSED"}
+        return {
+            "name": name, "status": "FAILED" if name == "full_pytest" else "PASSED",
+            "stdout_tail": "a" * 40 if name == "git_revision" else "",
+        }
     monkeypatch.setattr(gate, "command_step", fail_pytest)
     result, code = gate.acceptance(gold_zip=None, reference_root=None, years=[2012])
     assert code == 1
