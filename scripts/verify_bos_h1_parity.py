@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+from datetime import datetime
 from pathlib import Path
 
 import numpy as np
@@ -73,8 +74,30 @@ def exact_ledger_check(ours: pd.DataFrame, reference: pd.DataFrame) -> dict:
         if current in TIMES:
             # Archived timestamps are integral Unix seconds. Flooring current
             # nanoseconds would incorrectly accept subsecond execution drift.
+            # Neither side may silently coerce timestamps: utc=True on a
+            # naive engine timestamp assumes UTC, and dtype=int64 on an
+            # archived fractional Unix second truncates the fraction.
+            actual_values = ours[current].tolist()
+            archived_values = reference[expected].tolist()
+            if any(
+                not isinstance(value, datetime)
+                or pd.isna(value)
+                or value.tzinfo is None
+                for value in actual_values
+            ):
+                raise AssertionError(
+                    f"First differing field: {current} (invalid or naive timestamp)"
+                )
+            if any(
+                isinstance(value, (bool, np.bool_))
+                or not isinstance(value, (int, np.integer))
+                for value in archived_values
+            ):
+                raise AssertionError(
+                    f"First differing field: {current} (archived Unix seconds must be integers)"
+                )
             lhs_ns = pd.to_datetime(ours[current], utc=True).astype("int64").to_numpy()
-            rhs_seconds = reference[expected].to_numpy(dtype="int64")
+            rhs_seconds = np.asarray(archived_values, dtype="int64")
             equals = bool(
                 np.all(lhs_ns % 1_000_000_000 == 0)
                 and np.array_equal(lhs_ns // 1_000_000_000, rhs_seconds)
@@ -106,11 +129,24 @@ def exact_ledger_check(ours: pd.DataFrame, reference: pd.DataFrame) -> dict:
 
             equals = strict_values(ours[current]) == strict_values(reference[expected])
         else:
+            # np.allclose(inf, inf) is True. Nonfinite prices, fees or P/L
+            # must never certify a supposedly exact historical replay.
+            try:
+                actual_numbers = ours[current].to_numpy(dtype=float)
+                archived_numbers = reference[expected].to_numpy(dtype=float)
+            except (TypeError, ValueError) as exc:
+                raise AssertionError(
+                    f"First differing field: {current} (nonnumeric value)"
+                ) from exc
+            if not (
+                np.isfinite(actual_numbers).all()
+                and np.isfinite(archived_numbers).all()
+            ):
+                raise AssertionError(
+                    f"First differing field: {current} (nonfinite value)"
+                )
             equals = np.allclose(
-                ours[current].to_numpy(dtype=float),
-                reference[expected].to_numpy(dtype=float),
-                rtol=0,
-                atol=1e-7,
+                actual_numbers, archived_numbers, rtol=0, atol=1e-7,
             )
         if not equals:
             raise AssertionError(f"First differing field: {current}")
