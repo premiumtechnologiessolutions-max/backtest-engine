@@ -179,7 +179,23 @@ def exact_ledger_check(ours: pd.DataFrame, reference: pd.DataFrame) -> dict:
     }
 
 
+def validate_replay_years(years: list[int]) -> None:
+    """Never report PASSED when no scenarios were requested or years repeat."""
+    if not isinstance(years, (list, tuple)) or not years:
+        raise ValueError("Select at least one archived calendar year")
+    if any(
+        isinstance(year, (bool, np.bool_))
+        or not isinstance(year, (int, np.integer))
+        or not 2010 <= year <= 2026
+        for year in years
+    ):
+        raise ValueError("Replay years must be integer calendar years 2010–2026")
+    if len(years) != len(set(years)):
+        raise ValueError("Duplicate replay years would double-count scenarios")
+
+
 def verify(gold_zip: Path, reference_root: Path, years: list[int]) -> dict:
+    validate_replay_years(years)
     sha = file_sha256(gold_zip)
     if sha != EXPECTED_MARKET_SHA256:
         raise ValueError("Dataset SHA-256 differs from archived reference gold source")
