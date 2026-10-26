@@ -7,6 +7,7 @@ signal's confirmation. No future H1 candle is used.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from numbers import Integral
 import numpy as np
 import pandas as pd
 
@@ -20,10 +21,20 @@ class H1RegimeSettings:
     max_regime_age_minutes: int | None = None
 
     def __post_init__(self) -> None:
-        if self.ema_span < 2 or self.slope_lag_bars < 1:
-            raise ValueError("H1 EMA span >= 2 and slope lag >= 1 required")
-        if self.max_regime_age_minutes is not None and self.max_regime_age_minutes < 0:
-            raise ValueError("H1 regime maximum age must be nonnegative")
+        # A NaN maximum age would make every stale-age comparison False,
+        # silently disabling the predeclared freshness gate. Fractional,
+        # infinite, and boolean bar counts are likewise not valid settings.
+        for name, value, minimum in (
+            ("ema_span", self.ema_span, 2),
+            ("slope_lag_bars", self.slope_lag_bars, 1),
+        ):
+            if isinstance(value, bool) or not isinstance(value, Integral) or value < minimum:
+                raise ValueError(f"H1 {name} must be an integer >= {minimum}")
+        age = self.max_regime_age_minutes
+        if age is not None and (
+            isinstance(age, bool) or not isinstance(age, Integral) or age < 0
+        ):
+            raise ValueError("H1 regime maximum age must be a nonnegative integer or None")
 
 
 def complete_h1_regimes(
