@@ -64,3 +64,37 @@ def test_joint_portfolio_one_slot_and_three_slot_canonical_parity(tmp_path):
 def test_reject_nonfrozen_year(tmp_path):
     with pytest.raises(ValueError):
         run_frozen(fixture(),year=2017,out=tmp_path/"wrong")
+
+
+def test_pending_same_strategy_m1_signal_enters_next_minute_not_same_minute():
+    """An at-close signal can fill one minute later after existing stop."""
+    from norisk_quant.model import Settings, Signal
+    from norisk_quant.fast_engine import run_fast
+    from norisk_quant.portfolio import PortfolioSettings, run_portfolio
+
+    idx = pd.date_range("2012-01-09T00:00:00Z", periods=3, freq="min")
+    bars = pd.DataFrame(
+        {"o": [100., 100., 100.], "h": [100., 100., 102.],
+         "l": [100., 98., 100.], "c": [100., 100., 101.]},
+        index=idx,
+    )
+    signals = [
+        Signal(idx[0], 1, 1., 2., "same"),
+        Signal(idx[1], 1, 1., 2., "same"),
+    ]
+    reference = run_fast(
+        bars, signals, Settings(ounces=1., roundtrip_cost_per_ounce=.40)
+    )
+    portfolio = run_portfolio(
+        bars, signals, PortfolioSettings(
+            {"same": 1.}, max_open_positions=1, max_total_ounces=1.,
+            defer_same_strategy_market_signals=True,
+        ),
+    )
+    assert len(reference.trades) == len(portfolio.trades) == 2
+    assert portfolio.trades.iloc[1]["entry_at"] == idx[2]
+    assert portfolio.trades.iloc[1]["signal_at"] == idx[1]
+    pd.testing.assert_frame_equal(
+        reference.trades, portfolio.trades, check_dtype=False,
+        check_exact=False, atol=1e-9, rtol=0,
+    )
