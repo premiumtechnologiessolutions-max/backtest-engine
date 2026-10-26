@@ -65,6 +65,9 @@ def test_missing_accepted_partition_rejected(tmp_path, monkeypatch):
 
 def test_legacy_cache_is_loadable_but_explicitly_unverified(tmp_path, monkeypatch):
     dest, manifest = _import_fixture(tmp_path, monkeypatch)
+    # Genuine v1 manifests predate both hashes; removing them from v2 is
+    # corruption, not a legitimate reason to claim a legacy cache.
+    manifest["format_version"] = 1
     entry = manifest["annual_partitions"][0]
     entry.pop("parquet_sha256")
     entry.pop("loaded_m1_bidask_sha256")
@@ -84,3 +87,15 @@ def test_partial_year_coverage_is_not_claimed_complete(tmp_path, monkeypatch):
     dest, _ = _import_fixture(tmp_path, monkeypatch)
     loaded = load_market(dest, "2023-01-01", "2024-01-31")
     assert loaded.attrs["cache_integrity"].endswith("_PARTIAL_YEAR_COVERAGE")
+
+
+@pytest.mark.parametrize("missing_field", ["parquet_sha256", "loaded_m1_bidask_sha256"])
+def test_version2_digest_downgrade_rejected_before_parquet_read(tmp_path, monkeypatch, missing_field):
+    dest, manifest = _import_fixture(tmp_path, monkeypatch)
+    manifest["annual_partitions"][0].pop(missing_field)
+    (dest / "manifest.json").write_text(json.dumps(manifest))
+    def forbidden_read(path):
+        raise AssertionError("Must reject damaged manifest before opening Parquet")
+    monkeypatch.setattr(pd, "read_parquet", forbidden_read)
+    with pytest.raises(ValueError, match="version-2 XAUUSD cache digest"):
+        load_market(dest, "2024-01-01", "2024-01-31")
