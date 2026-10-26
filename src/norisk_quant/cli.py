@@ -120,6 +120,29 @@ def main() -> None:
         args.timeframe != "M1" or args.ounces != 1.0
     ):
         parser.error("Frozen QS01 requires --timeframe M1 and --ounces 1")
+    # A requested engine must be the engine that actually executes the run.
+    # Limit strategies use run_limits() regardless of --execution; previously
+    # --execution fast was silently accepted and recorded in run_parameters.
+    if args.command == "backtest" and args.execution == "fast" and args.strategy in ("bos-fib", "fvg"):
+        parser.error(
+            "--execution fast is not implemented for limit strategies "
+            "(bos-fib, fvg); use --execution reference"
+        )
+    # Never record H1/BOS controls that were silently ignored. These
+    # validation errors occur before opening private market data.
+    if args.command == "backtest":
+        if args.strategy != "bos-fib" and (
+            args.bos_require_h1_trend or args.bos_h1_max_age_minutes is not None
+            or args.bos_ignore_dual_pivots
+        ):
+            parser.error("BOS/H1 filters require --strategy bos-fib")
+        if args.bos_h1_max_age_minutes is not None:
+            if args.bos_h1_max_age_minutes < 0:
+                parser.error("--bos-h1-max-age-minutes must be nonnegative")
+            if not args.bos_require_h1_trend:
+                parser.error(
+                    "--bos-h1-max-age-minutes requires --bos-require-h1-trend"
+                )
     if args.command == "import-gold":
         manifest = import_gold_zip(args.zip_file, args.out)
         print(json.dumps(manifest, ensure_ascii=False, indent=2))
