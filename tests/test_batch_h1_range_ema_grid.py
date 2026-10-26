@@ -58,7 +58,7 @@ def test_daily_H1_gap_is_not_filled_but_followup_has_valid_regime():
     m1 = m1.drop(m1.index[100*60:101*60])
     _, h1, ratio, _ = prepared(m1)
     assert not (h1.index == pd.Timestamp("2012-01-13T04:00:00Z")).any()
-    after_gap = np.where(h1.index == m1.index[100*60])[0] if False else np.flatnonzero(
+    after_gap = np.flatnonzero(
         h1.index > pd.Timestamp("2012-01-13T04:00:00Z")
     )
     assert len(after_gap)
