@@ -15,8 +15,11 @@ def validate_execution(result: Result, settings: Settings, *, atol: float = 1e-7
 
     Does NOT assert that synthetic OHLC prices were executable broker fills.
     """
-    if atol <= 0:
-        raise ValueError("atol must be positive")
+    # An infinite absolute tolerance makes np.allclose accept arbitrary
+    # discrepancies in fees, gross/net P/L and the realized equity ledger.
+    # NaN is likewise not a meaningful audit tolerance. Fail closed.
+    if not math.isfinite(atol) or atol <= 0:
+        raise ValueError("atol must be finite and positive")
     trades = result.trades
     equity = result.equity
     if equity.empty or not {"realized_pnl", "floating_pnl", "equity"}.issubset(equity.columns):
