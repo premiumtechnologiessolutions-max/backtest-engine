@@ -90,3 +90,50 @@ def test_frozen_runner_rejects_missing_month_before_strategy_or_report(tmp_path,
         frozen.execute(source, [2012], output)
     assert not (output / "2012").exists()
     assert not (output / "frozen_sensitivity_summary.json").exists()
+
+
+def test_frozen_runner_synthetic_end_to_end_writes_reconciled_reports(tmp_path, monkeypatch):
+    """Exercise the ACTUAL runner stack on artificial M1, never claim real-ZIP parity.
+
+    Only the immutable private ZIP SHA precondition is mocked; the loader,
+    BOS builder, H1 filter, execution simulator and reporting are real.
+    Eight contiguous minutes per calendar month intentionally yield zero
+    BOS trades; this tests no-trade accounting and complete report writing.
+    """
+    import json
+    import zipfile
+
+    source = tmp_path / "SYNTHETIC_NOT_REAL_GOLD.zip"
+    rows = []
+    for month in range(1, 13):
+        start = pd.Timestamp(year=2012, month=month, day=2, tz="UTC")
+        for minute in range(8):
+            timestamp = int((start + pd.Timedelta(minutes=minute)).timestamp())
+            rows.append({
+                "ts": timestamp,
+                "o": 100.0, "h": 101.0, "l": 99.0, "c": 100.0,
+                "ao": 100.4, "ah": 101.4, "al": 99.4, "ac": 100.4,
+            })
+    with zipfile.ZipFile(source, "w") as archive:
+        archive.writestr("2012.json", json.dumps(rows))
+    monkeypatch.setattr(frozen, "sha256_file", lambda _: SOURCE_SHA)
+    output = tmp_path / "reports"
+    result = frozen.execute(source, [2012], output)
+    assert result["status"] == "ACCOUNTING_RECONCILED_NOT_BROKER_CERTIFIED"
+    assert result["years_visited_independently"] == [2012]
+    assert result["sampled_months"] == 12
+    assert result["trades_total"] == 0
+    assert result["sum_of_separate_annual_net_usd_1oz"] == 0
+    assert result["not_clean_out_of_sample"] is True
+    assert result["broker_tick_execution_verification"] is False
+    annual = json.loads((output / "2012" / "summary.json").read_text())
+    assert annual["trades"] == 0
+    assert annual["months_observed"] == 12
+    assert annual["months_with_m1_observations"] == 12
+    assert annual["source_fingerprints"]["loaded_m1_rows"] == 96
+    assert len(annual["source_fingerprints"]["loaded_m1_bidask_sha256"]) == 64
+    assert len(pd.read_csv(output / "2012" / "monthly.csv")) == 12
+    assert (output / "2012" / "weekly.csv").is_file()
+    assert (output / "2012" / "equity_m1.csv").is_file()
+    assert (output / "2012" / "trades.csv").is_file()
+    assert (output / "frozen_sensitivity_summary.json").is_file()
