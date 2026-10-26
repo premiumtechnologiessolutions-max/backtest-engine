@@ -103,6 +103,24 @@ def test_single_year_cache_does_not_require_unrequested_adjacent_year(tmp_path, 
     assert result.attrs["cache_integrity"] == "MATCHED_IMPORT_MANIFEST_SHA256"
 
 
+def test_missing_intermediate_parquet_year_rejected(tmp_path, monkeypatch):
+    """A 2024–2026 study must not silently skip absent 2025 data."""
+    directory = tmp_path / "cache"
+    directory.mkdir()
+    for year in (2024, 2026):
+        (directory / f"xauusd_{year}.parquet").write_bytes(b"synthetic fixture")
+
+    def read_partition(path):
+        frame = normalize(pd.DataFrame(_rows()))
+        if path.name == "xauusd_2026.parquet":
+            frame.index = frame.index + pd.DateOffset(years=2)
+        return frame
+
+    monkeypatch.setattr(pd, "read_parquet", read_partition)
+    with pytest.raises(ValueError, match="Missing requested Parquet source years"):
+        load_market(directory, "2024-01-01", "2026-12-31")
+
+
 @pytest.mark.parametrize("missing_field", ["parquet_sha256", "loaded_m1_bidask_sha256"])
 def test_version2_digest_downgrade_rejected_before_parquet_read(tmp_path, monkeypatch, missing_field):
     dest, manifest = _import_fixture(tmp_path, monkeypatch)
