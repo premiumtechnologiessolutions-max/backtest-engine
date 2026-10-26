@@ -96,4 +96,18 @@ jobs:
                 f"net={summaries[0]['net_pnl']:.5f}, fee=$0.40/oz/cycle, "
                 "reference-fast parity verified")
           PY
+      - name: Package public source snapshot for offline private-data verification
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: verified-code-${{ github.sha }}
+          path: |
+            src/
+            scripts/
+            tests/
+            pyproject.toml
+            constraints-ci.txt
+            README.md
+          retention-days: 1
+          if-no-files-found: error
 # Do not upload raw Gold data, historical quotes, or secrets.
