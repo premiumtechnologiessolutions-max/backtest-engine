@@ -27,8 +27,9 @@ def run(minutes: pd.DataFrame, signals: Iterable[Signal], settings: Settings) ->
     """
     if minutes.empty:
         raise ValueError("No minute bars")
-    if not isinstance(minutes.index, pd.DatetimeIndex) or minutes.index.tz is None:
-        raise ValueError("Market data needs timezone-aware UTC DatetimeIndex")
+    if (not isinstance(minutes.index, pd.DatetimeIndex)
+            or minutes.index.tz is None or str(minutes.index.tz) != "UTC"):
+        raise ValueError("Market data needs a UTC DatetimeIndex")
     if minutes.index.has_duplicates or not minutes.index.is_monotonic_increasing:
         raise ValueError("M1 index must be sorted and unique")
     if (minutes.index.asi8 % 60_000_000_000 != 0).any():
