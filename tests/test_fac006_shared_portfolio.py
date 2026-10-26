@@ -13,7 +13,9 @@ def fixture(hours=220):
     idx = pd.date_range("2012-01-09T00:00:00Z", periods=hours*60, freq="min")
     step = np.arange(len(idx), dtype=float)
     price = 1650 + 5*np.sin(step*2*np.pi/(15*22)) + .004*step/60
-    return pd.DataFrame({"o":price,"h":price+.30,"l":price-.30,"c":price},index=idx)
+    return pd.DataFrame({"o":price,"h":price+.30,"l":price-.30,"c":price,
+                         "ao":price+.10,"ah":price+.40,
+                         "al":price-.20,"ac":price+.10},index=idx)
 
 
 def test_immutable_signal_names_and_frozen_capacity():
