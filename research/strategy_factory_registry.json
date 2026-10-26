@@ -39,29 +39,65 @@
       "canonical_replay_parity_samples": 6,
       "notes": "Frozen countertrend research; correlated specs not independent hypotheses",
       "file": "scripts/batch_channel_fade_grid.py"
-    }
-  ],
-  "totals": {
-    "distinct_parameter_specs": 40000,
-    "yearly_backtests": 80000,
-    "exit_booked_monthly_points": 960000,
-    "canonical_replay_parity_samples": 12
-  },
-  "next_priorities": [
+    },
     {
       "id": "NRF-FAC-003",
-      "status": "NOT_STARTED",
-      "hypothesis": "RSI mean-reversion with fully closed M5/M15 confirmation, predeclared regimes and holdout plan"
+      "family": "M15 strong rejection wick reversal",
+      "unique_parameter_specs": 28800,
+      "years": [
+        2012,
+        2013
+      ],
+      "completed_annual_replays": 57600,
+      "maximum_positive_months_out_of_24": 18,
+      "configs_24_of_24": 0,
+      "configs_annual_net_positive_both_years": 8,
+      "canonical_replay_parity_samples": 12,
+      "notes": "72 causal signal-rule sequences/year; no qualifying 24/24 and high-month-count top config loses both years",
+      "file": "scripts/batch_wick_rejection_grid.py",
+      "report": "docs/FAC003_BATCH_57600_RESEARCH_2026-10-26.md"
     },
     {
       "id": "NRF-FAC-004",
-      "status": "NOT_STARTED",
-      "hypothesis": "EMA crossover trend confirmation across M15/H1 with causal volatility conditioning"
-    },
+      "family": "M15 Wilder RSI oversold/overbought recovery recross",
+      "unique_parameter_specs": 25600,
+      "years": [
+        2012,
+        2013
+      ],
+      "completed_annual_replays": 51200,
+      "maximum_positive_months_out_of_24": 18,
+      "configs_24_of_24": 0,
+      "configs_annual_net_positive_both_years": 63,
+      "canonical_replay_parity_samples": 12,
+      "notes": "64 causal signal-rule sequences/year; 13 variants scored >=16/24 months, only one also net positive both years",
+      "file": "scripts/batch_rsi_recross_grid.py",
+      "report": "docs/FAC004_BATCH_51200_RESEARCH_2026-10-26.md"
+    }
+  ],
+  "totals": {
+    "distinct_parameter_specs": 94400,
+    "yearly_backtests": 188800,
+    "exit_booked_monthly_points": 2265600,
+    "canonical_replay_parity_samples": 36,
+    "independent_hypothesis_families": 4,
+    "strictly_positive_every_month_in_both_years": 0
+  },
+  "next_priorities": [
     {
       "id": "NRF-FAC-005",
       "status": "NOT_STARTED",
-      "hypothesis": "Liquidity/BOS/FVG conditional combinations executed in ONE shared-capacity portfolio"
+      "hypothesis": "Causal M15/H1 volatility-conditioned trend or mean-reversion; preregister before any result, then offline original market data"
+    },
+    {
+      "id": "NRF-FAC-006",
+      "status": "NOT_STARTED",
+      "hypothesis": "Shared-capacity multi-family portfolio with real concurrent positions, risk sizing and monthly attributable equity"
+    },
+    {
+      "id": "NRF-FAC-007",
+      "status": "NOT_STARTED",
+      "hypothesis": "Forward/out-of-sample prospective research with strict freeze/embargo and temporal selection correction"
     }
   ],
   "rules": [
