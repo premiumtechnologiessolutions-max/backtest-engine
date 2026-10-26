@@ -127,9 +127,9 @@
   },
   "next_priorities": [
     {
-      "id": "NRF-FAC-007",
+      "id": "NRF-FAC-007-PROSPECTIVE",
       "status": "NOT_STARTED",
-      "hypothesis": "Truly prospective temporal embargo/holdout and predeclared strategy selection with no historical peeking; avoid reusing exposed 2012-2013 as independent OOS."
+      "hypothesis": "Truly prospective forward evaluation; distinct from completed FAC007 locked historical 2014-2016 test."
     },
     {
       "id": "NRF-FAC-008",
@@ -202,6 +202,47 @@
       "ci_pytest_passed": 660,
       "notes": "New default-off same-strategy signal deferral opt-in; exact independent run_fast 3-slot trade/monthly/M1 equity parity. 2012/13 exposed and two components historically selected. Not independent OOS.",
       "report": "docs/FAC006B_ORIGINAL_SHARED_CAPACITY_2012_2013_RESEARCH_2026-10-26.md"
+    }
+  ],
+  "chronological_validation_experiments": [
+    {
+      "id": "NRF-FAC-007-LOCKED",
+      "parent": "NRF-FAC-005B",
+      "candidate_id": "RANGEH1_EMA15_F08_S72_G1.00_SL6.50_TP1.00",
+      "years": [
+        2014,
+        2015,
+        2016
+      ],
+      "status": "REJECTED_HISTORICALLY_EXPOSED_NOT_INDEPENDENT_OOS",
+      "original_source_yearly_replays": 3,
+      "trades_by_year": [
+        27,
+        41,
+        50
+      ],
+      "positive_months_by_year": [
+        8,
+        6,
+        5
+      ],
+      "net_usd_oz_by_year": [
+        -6.3,
+        -12.9,
+        -30
+      ],
+      "max_observed_m1_dd_by_year": [
+        20.58,
+        19.76,
+        35.8
+      ],
+      "total_positive_months": 19,
+      "total_months": 36,
+      "summed_net_separate_years_usd_oz": -49.2,
+      "full_year_canonical_reference_fast_ledger_and_equity_parity": 3,
+      "frozen_spec": "docs/FAC007_LOCKED_FAC005B_2014_2016_FOLLOWUP_2026-10-26.md",
+      "report": "docs/FAC007_2014_2016_LOCKED_CANDIDATE_REJECTION_2026-10-26.md",
+      "note": "Historical candidate stress selected on 2012-13; excluded from bulk annual-grid totals."
     }
   ]
 }
