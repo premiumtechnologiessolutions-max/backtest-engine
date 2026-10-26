@@ -85,11 +85,26 @@ def exact_ledger_check(ours: pd.DataFrame, reference: pd.DataFrame) -> dict:
                 reference[expected].to_numpy(dtype=str),
             )
         elif current in {"side", "gap_minutes"}:
-            # These are discrete ledger fields, not prices or P/L.
-            equals = np.array_equal(
-                ours[current].to_numpy(),
-                reference[expected].to_numpy(),
-            )
+            # np.array_equal(True, 1) and np.array_equal(1.0, 1) are True.
+            # A 13-field *exact* replay must reject boolean/floating values
+            # masquerading as the discrete side and gap-minute fields.
+            def strict_values(series: pd.Series) -> list[int]:
+                values = series.tolist()
+                if any(
+                    isinstance(value, (bool, np.bool_))
+                    or not isinstance(value, (int, np.integer))
+                    for value in values
+                ):
+                    raise AssertionError(
+                        f"First differing field: {current} (not a strict integer)"
+                    )
+                if current == "side" and any(value not in (-1, 1) for value in values):
+                    raise AssertionError(f"First differing field: {current} (invalid side)")
+                if current == "gap_minutes" and any(value < 0 for value in values):
+                    raise AssertionError(f"First differing field: {current} (negative gap)")
+                return values
+
+            equals = strict_values(ours[current]) == strict_values(reference[expected])
         else:
             equals = np.allclose(
                 ours[current].to_numpy(dtype=float),
