@@ -96,13 +96,14 @@ def test_nonzero_realized_without_any_trade_is_rejected():
 
 @pytest.mark.parametrize("atol", [
     float("inf"), float("-inf"), float("nan"), 0.0, -1.0,
+    1.0, 1e-5, 1e100,
 ])
 def test_audit_rejects_invalid_absolute_tolerances(atol):
     """An infinite tolerance would otherwise bless arbitrary ledger drift."""
     bars, sig = _fixture()
     settings = Settings()
     result = run(bars, [sig], settings)
-    with pytest.raises(ValueError, match="atol must be finite and positive"):
+    with pytest.raises(ValueError, match=r"atol must be finite and within"):
         validate_execution(result, settings, atol=atol)
 
 
@@ -114,5 +115,12 @@ def test_infinite_tolerance_cannot_bless_corrupted_fee_and_net_pnl():
     result.trades.loc[0, "net_pnl"] += 999.0
     # Before the guard, np.allclose(..., atol=inf) accepted these
     # arbitrarily large discrepancies. Never return PASSED.
-    with pytest.raises(ValueError, match="atol must be finite and positive"):
+    with pytest.raises(ValueError, match=r"atol must be finite and within"):
         validate_execution(result, settings, atol=float("inf"))
+
+
+def test_bounded_accounting_tolerance_remains_usable():
+    bars, sig = _fixture()
+    settings = Settings()
+    result = run(bars, [sig], settings)
+    assert validate_execution(result, settings, atol=1e-6)["accounting_checks"] == "PASSED"
