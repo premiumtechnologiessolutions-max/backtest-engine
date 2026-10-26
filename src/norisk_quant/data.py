@@ -301,14 +301,22 @@ def load_market(path: str | Path, start: str, end: str) -> pd.DataFrame:
         parts = []
         entries = read_cache_manifest(path)
         cache_statuses = []
-        missing_years = []
-        for year in range(begin.year, last_included_year + 1):
+        requested_years = range(begin.year, last_included_year + 1)
+        # Fail before reading any potentially large Parquet partitions. An
+        # incomplete requested interval is not a valid research sample.
+        missing_years = [
+            year for year in requested_years
+            if not (path / f"xauusd_{year}.parquet").is_file()
+        ]
+        for year in missing_years:
+            if entries is not None and entries.get(year, {}).get("accepted") is True:
+                raise ValueError(f"Accepted XAUUSD cache partition {year} is missing")
+        if len(missing_years) == len(requested_years):
+            raise ValueError("No year partitions for requested range; import data first")
+        if missing_years:
+            raise ValueError(f"Missing requested Parquet source years: {missing_years}")
+        for year in requested_years:
             candidate = path / f"xauusd_{year}.parquet"
-            if not candidate.is_file():
-                if entries is not None and entries.get(year, {}).get("accepted") is True:
-                    raise ValueError(f"Accepted XAUUSD cache partition {year} is missing")
-                missing_years.append(year)
-                continue
             cache_statuses.append(verify_cached_partition(path, year, entries))
             part = validate_loaded_m1(pd.read_parquet(candidate))
             if (part.index.year != year).any():
@@ -323,11 +331,6 @@ def load_market(path: str | Path, start: str, end: str) -> pd.DataFrame:
             parts.append(part)
         if not parts:
             raise ValueError("No year partitions for requested range; import data first")
-        # Parquet and direct ZIP must enforce the same annual coverage contract.
-        # Merely tagging a truncated multi-year run as PARTIAL is not enough:
-        # downstream research could still calculate misleading performance.
-        if missing_years:
-            raise ValueError(f"Missing requested Parquet source years: {missing_years}")
         frame = pd.concat(parts).sort_index()
         cache_integrity = (
             "MATCHED_IMPORT_MANIFEST_SHA256"
