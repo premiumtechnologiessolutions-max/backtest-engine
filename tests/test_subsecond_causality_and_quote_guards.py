@@ -102,3 +102,13 @@ def test_explicit_offset_signal_is_canonical_utc_in_both_ledgers():
         reference.trades, fast.trades, check_dtype=False
     )
     pd.testing.assert_frame_equal(reference.equity, fast.equity)
+
+
+def test_both_engines_reject_non_utc_m1_index():
+    # load_market() guarantees UTC. Direct executor callers must not
+    # bypass that contract and produce different ledger timezone dtypes.
+    market = flat_bars()
+    market.index = market.index.tz_convert("Europe/Athens")
+    for engine in (run, run_fast):
+        with pytest.raises(ValueError, match="UTC"):
+            engine(market, [], Settings())
