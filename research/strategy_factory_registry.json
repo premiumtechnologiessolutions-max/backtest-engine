@@ -111,19 +111,53 @@
       "notes": "64 causal signal sequences/year. Max 22/24 monthly positive loses 2012; best both-years annual positive 21/24 with 69 total trades, fee-fragile. Adapted after FAC005 data-coverage failure, not independent OOS.",
       "file": "scripts/batch_h1_range_ema_grid.py",
       "report": "docs/FAC005B_51200_ACTIVE_ANNUAL_RESEARCH_2026-10-26.md"
+    },
+    {
+      "id": "NRF-FAC-010",
+      "family": "M15 robust median/MAD deviation recovery conditioned on last closed H1 relative range and fixed UTC session",
+      "status": "LOCALLY_COMPLETED_FROZEN_SCREEN_REJECTED_CI_AND_OFFICIAL_CHECKOUT_PENDING",
+      "preregistration_commit": "042b0619c0c9ab510a22a7770794b1d0d1117517",
+      "unique_parameter_specs": 20736,
+      "years": [
+        2012,
+        2013
+      ],
+      "completed_annual_replays": 41472,
+      "completed_monthly_pnl_values": 497664,
+      "unique_entry_signal_sequences_per_year": [
+        144,
+        144
+      ],
+      "zero_trade_parameter_specs": 0,
+      "maximum_positive_months_out_of_24": 21,
+      "configs_24_of_24": 0,
+      "configs_annual_net_positive_both_years": 343,
+      "configs_passing_preregistered_screen": 0,
+      "local_copy_fast_engine_parity_samples": 6,
+      "independent_slow_m1_parity_samples": 6,
+      "official_repository_checkout_private_data_parity_samples": 0,
+      "github_actions_status": "NOT_VERIFIED_FOR_NEW_HEAD",
+      "notes": "Original ZIP SHA authenticated locally; full annual/monthly fee reconciliation passed; target GitHub script reproduced all 20,736 rows/year in locally reconstructed imports. Frozen acceptance rejects all. 2012-2013 exposed, no independent OOS or shared portfolio. Public CI and official full-checkout replay pending.",
+      "file": "scripts/batch_mad_h1_session_grid.py",
+      "frozen_spec": "docs/FAC010_FROZEN_MAD_H1_SESSION_2026-10-26.md",
+      "report": "docs/FAC010_41472_ANNUAL_MAD_H1_SESSION_RESEARCH_2026-10-26.md"
     }
   ],
   "totals": {
-    "distinct_parameter_specs": 120000,
-    "yearly_backtests": 240000,
-    "exit_booked_monthly_points": 2880000,
+    "distinct_parameter_specs": 140736,
+    "yearly_backtests": 281472,
+    "exit_booked_monthly_points": 3377664,
     "canonical_replay_parity_samples": 48,
-    "independent_hypothesis_families": 5,
+    "independent_hypothesis_families": 6,
     "strictly_positive_every_month_in_both_years": 0,
     "zero_trade_parameter_specs_excluded": 25600,
     "zero_trade_yearly_parameter_executions_excluded": 51200,
     "zero_trade_canonical_parity_samples_excluded": 12,
-    "total_yearly_parameter_executions_including_zero_trade_negative_control": 291200
+    "total_yearly_parameter_executions_including_zero_trade_negative_control": 291200,
+    "local_copy_fast_engine_parity_samples": 6,
+    "independent_slow_m1_parity_samples": 6,
+    "annual_replays_pending_new_head_ci": 41472,
+    "canonical_replay_parity_samples_note": "Previous 48 full-repository canonical parity samples; FAC010 6 local fast_engine source-copy checks tracked separately until full-checkout verification."
   },
   "next_priorities": [
     {
@@ -140,6 +174,11 @@
       "id": "NRF-FAC-009",
       "status": "NOT_STARTED",
       "hypothesis": "Robust shared-capacity portfolio hypotheses without selecting parameters on evaluation years; capital/risk limits and portfolio-level worst-month and floating DD constraints."
+    },
+    {
+      "id": "NRF-FAC-010-CI-AND-CANONICAL",
+      "status": "PENDING",
+      "hypothesis": "Verify full GitHub Actions head, execute FAC010 official repository checkout against private archive, then update parity/status without re-grid or rerun entire search."
     }
   ],
   "rules": [
