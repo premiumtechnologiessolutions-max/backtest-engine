@@ -82,3 +82,36 @@ def test_manifest_wrong_instrument_fails(tmp_path):
     (tmp_path / "manifest.json").write_text(json.dumps({"instrument": "EURUSD", "annual_partitions": []}))
     with pytest.raises(ValueError, match="Invalid XAUUSD cache manifest"):
         read_cache_manifest(tmp_path)
+
+
+@pytest.mark.parametrize("missing_field", ["parquet_sha256", "loaded_m1_bidask_sha256"])
+def test_version2_manifest_cannot_silently_drop_a_digest(tmp_path, missing_field):
+    digests = {"parquet_sha256": "a" * 64, "loaded_m1_bidask_sha256": "b" * 64}
+    digests.pop(missing_field)
+    _cache(tmp_path)
+    (tmp_path / "manifest.json").write_text(json.dumps({
+        "format_version": 2, "instrument": "XAUUSD",
+        "annual_partitions": [{"year": 2024, "accepted": True, **digests}],
+    }))
+    with pytest.raises(ValueError, match="version-2 XAUUSD cache digest"):
+        read_cache_manifest(tmp_path)
+
+
+@pytest.mark.parametrize("version", [0, 3, True, "2"])
+def test_unsupported_or_invalid_manifest_version_rejected(tmp_path, version):
+    _cache(tmp_path)
+    (tmp_path / "manifest.json").write_text(json.dumps({
+        "format_version": version, "instrument": "XAUUSD",
+        "annual_partitions": [],
+    }))
+    with pytest.raises(ValueError, match="Unsupported XAUUSD cache manifest version"):
+        read_cache_manifest(tmp_path)
+
+
+def test_version2_rejected_partition_needs_no_hashes(tmp_path):
+    _cache(tmp_path, entries=[{"year": 2024, "accepted": False}])
+    (tmp_path / "manifest.json").write_text(json.dumps({
+        "format_version": 2, "instrument": "XAUUSD",
+        "annual_partitions": [{"year": 2024, "accepted": False}],
+    }))
+    assert read_cache_manifest(tmp_path)[2024]["accepted"] is False
