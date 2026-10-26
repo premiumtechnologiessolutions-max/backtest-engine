@@ -127,20 +127,19 @@
   },
   "next_priorities": [
     {
-      "id": "NRF-FAC-006",
-      "status": "BLOCKED_ON_ORIGINAL_SOURCE_PARITY",
-      "hypothesis": "3-strategy shared-capacity portfolio. 2012 canonical run_fast 739 vs three-slot 737 trades because same-strategy pending signal policy differs; must fix via opt-in and independently revalidate before counting results.",
-      "report": "docs/FAC006_ORIGINAL_2012_PARITY_BLOCKER_2026-10-26.md"
-    },
-    {
-      "id": "NRF-FAC-006B",
-      "status": "NOT_STARTED",
-      "hypothesis": "Explicit opt-in one-minute same-strategy signal deferral in shared portfolio, preserving default behavior; freeze separately and verify 3-slot parity to independent run_fast original 2012/2013 before evaluating one-slot."
-    },
-    {
       "id": "NRF-FAC-007",
       "status": "NOT_STARTED",
-      "hypothesis": "Prospective holdout or forward testing; prior historical 2012-2013 are exposed and cannot become clean OOS."
+      "hypothesis": "Truly prospective temporal embargo/holdout and predeclared strategy selection with no historical peeking; avoid reusing exposed 2012-2013 as independent OOS."
+    },
+    {
+      "id": "NRF-FAC-008",
+      "status": "NOT_STARTED",
+      "hypothesis": "Independent BID/ASK tick source and spread/slippage execution reconciliation against M1 synthetic stop-first model, after data rights/source verified."
+    },
+    {
+      "id": "NRF-FAC-009",
+      "status": "NOT_STARTED",
+      "hypothesis": "Robust shared-capacity portfolio hypotheses without selecting parameters on evaluation years; capital/risk limits and portfolio-level worst-month and floating DD constraints."
     }
   ],
   "rules": [
@@ -151,5 +150,58 @@
     "Monthly stability, worst month, M1 floating drawdown, cost and true jointly constrained capital are mandatory",
     "Do not modify closed batches to force 12/12; create separately tagged new research family",
     "Stay Draft PR until full independent research acceptance; no live trade recommendation"
+  ],
+  "portfolio_experiments": [
+    {
+      "id": "NRF-FAC-006",
+      "status": "BLOCKED_ORIGINAL_CANONICAL_PARITY",
+      "year_checked": 2012,
+      "canonical_trades": 739,
+      "shared_three_slot_trades": 737,
+      "notes": "Default conservative same-strategy occupied signal rejection differs from run_fast pending <=60s; no accepted one-slot results.",
+      "report": "docs/FAC006_ORIGINAL_2012_PARITY_BLOCKER_2026-10-26.md"
+    },
+    {
+      "id": "NRF-FAC-006B",
+      "status": "COMPLETED_ENGINE_PARITY_PASSED_STRATEGY_REJECTED_NOT_OOS",
+      "years": [
+        2012,
+        2013
+      ],
+      "canonical_three_slot_trades": [
+        739,
+        715
+      ],
+      "shared_three_slot_trades": [
+        739,
+        715
+      ],
+      "max_m1_equity_delta": 1.2789769243681803e-12,
+      "primary_one_slot_trades": [
+        601,
+        583
+      ],
+      "primary_one_slot_positive_months": [
+        6,
+        4
+      ],
+      "primary_one_slot_net_usd_oz": [
+        -50.69,
+        -189.89
+      ],
+      "primary_one_slot_max_annual_floating_dd_usd_oz": [
+        214.74,
+        206.24
+      ],
+      "primary_one_slot_capacity_rejections": [
+        173,
+        161
+      ],
+      "original_source_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
+      "ci_verified_commit": "a1a7d46412a10022c5494868c84ddc7abbef16c2",
+      "ci_pytest_passed": 660,
+      "notes": "New default-off same-strategy signal deferral opt-in; exact independent run_fast 3-slot trade/monthly/M1 equity parity. 2012/13 exposed and two components historically selected. Not independent OOS.",
+      "report": "docs/FAC006B_ORIGINAL_SHARED_CAPACITY_2012_2013_RESEARCH_2026-10-26.md"
+    }
   ]
 }
