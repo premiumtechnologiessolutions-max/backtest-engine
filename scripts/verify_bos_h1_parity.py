@@ -62,19 +62,33 @@ def exact_ledger_check(ours: pd.DataFrame, reference: pd.DataFrame) -> dict:
         raise AssertionError(
             f"Trade count mismatch: actual={len(ours)} archived={len(reference)}"
         )
-    if ours.empty:
-        return {"trades": 0, "fields": len(FIELDS), "max_abs_pnl_delta": 0.0}
+    # Even zero-trade scenarios must prove the full reference schema exists.
+    # Otherwise a truncated/empty CSV could silently pass replay acceptance.
     for current, expected in FIELDS.items():
         if current not in ours or expected not in reference:
             raise AssertionError(f"Missing ledger field {current}/{expected}")
+    if ours.empty:
+        return {"trades": 0, "fields": len(FIELDS), "max_abs_pnl_delta": 0.0}
+    for current, expected in FIELDS.items():
         if current in TIMES:
-            lhs = pd.to_datetime(ours[current], utc=True).astype("int64").to_numpy() // 10**9
-            rhs = reference[expected].to_numpy(dtype="int64")
-            equals = np.array_equal(lhs, rhs)
+            # Archived timestamps are integral Unix seconds. Flooring current
+            # nanoseconds would incorrectly accept subsecond execution drift.
+            lhs_ns = pd.to_datetime(ours[current], utc=True).astype("int64").to_numpy()
+            rhs_seconds = reference[expected].to_numpy(dtype="int64")
+            equals = bool(
+                np.all(lhs_ns % 1_000_000_000 == 0)
+                and np.array_equal(lhs_ns // 1_000_000_000, rhs_seconds)
+            )
         elif current == "exit_reason":
             equals = np.array_equal(
                 ours[current].to_numpy(dtype=str),
                 reference[expected].to_numpy(dtype=str),
+            )
+        elif current in {"side", "gap_minutes"}:
+            # These are discrete ledger fields, not prices or P/L.
+            equals = np.array_equal(
+                ours[current].to_numpy(),
+                reference[expected].to_numpy(),
             )
         else:
             equals = np.allclose(
