@@ -83,10 +83,24 @@ def test_manifestless_cache_is_loadable_but_explicitly_unverified(tmp_path, monk
     assert loaded.attrs["cache_integrity"] == "UNVERIFIED_LEGACY_OR_NO_MANIFEST"
 
 
-def test_partial_year_coverage_is_not_claimed_complete(tmp_path, monkeypatch):
+def test_missing_requested_year_fails_closed_even_when_other_partition_verified(tmp_path, monkeypatch):
     dest, _ = _import_fixture(tmp_path, monkeypatch)
-    loaded = load_market(dest, "2023-01-01", "2024-01-31")
-    assert loaded.attrs["cache_integrity"].endswith("_PARTIAL_YEAR_COVERAGE")
+    with pytest.raises(ValueError, match=r"Missing requested Parquet source years: \\[2023\\]"):
+        load_market(dest, "2023-01-01", "2024-01-31")
+
+
+def test_manifestless_cache_cannot_silently_truncate_requested_years(tmp_path, monkeypatch):
+    dest, _ = _import_fixture(tmp_path, monkeypatch)
+    (dest / "manifest.json").unlink()
+    with pytest.raises(ValueError, match=r"Missing requested Parquet source years: \\[2023\\]"):
+        load_market(dest, "2023-01-01", "2024-01-31")
+
+
+def test_single_year_cache_does_not_require_unrequested_adjacent_year(tmp_path, monkeypatch):
+    dest, _ = _import_fixture(tmp_path, monkeypatch)
+    result = load_market(dest, "2024-01-01", "2024-12-31")
+    assert len(result) == 2
+    assert result.attrs["cache_integrity"] == "MATCHED_IMPORT_MANIFEST_SHA256"
 
 
 @pytest.mark.parametrize("missing_field", ["parquet_sha256", "loaded_m1_bidask_sha256"])
