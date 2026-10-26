@@ -35,6 +35,13 @@ The CLI includes this status as
 `summary.json -> source_fingerprints -> cache_integrity_status`.
 A direct standalone Parquet read is marked `UNVERIFIED_DIRECT_PARQUET`.
 
+Version-2 manifests are now **fail-closed**: for each accepted year,
+both `parquet_sha256` and `loaded_m1_bidask_sha256` must exist as valid
+lowercase 64-character hexadecimal digests. Removing either field or using
+an unsupported/non-integer `format_version` rejects the manifest **before
+Parquet reading**. This prevents silently interpreting a damaged v2 import
+as a legacy cache. Rejected-year entries do not need data digests.
+
 Legacy version-1 caches remain usable **but must not be described as
 hash-verified**. We do not invent or backfill a digest and call it original.
 If a manifest explicitly accepts a year but its partition is missing, or
@@ -80,3 +87,19 @@ import one real original year from the canonical private archive, verify
 that the imported partition has both digests, reload it, and compare its
 M1 Bid/Ask fingerprint and 13-field trade replay to the independent ledger.
 Then enable CI only after Actions capacity is available.
+
+
+## Version downgrade regression gate (2026-10-26)
+
+- Added unit tests for missing v2 digests, unsupported version values and
+  rejected-year compatibility.
+- Added integration regression tests that remove each v2 digest from a
+  synthetic import and require rejection before any Parquet read.
+- Genuine legacy v1 test now declares `format_version=1` rather than
+  deleting digest fields from a v2 manifest.
+- An isolated local reproduction of the exact new manifest-validation
+  predicate passed 11/11 controlled cases. **The complete committed GitHub
+  pytest suite and the new integration tests have not been executed in this
+  runtime**; do not interpret these checks as CI acceptance.
+- A manifest can be edited or removed by a privileged actor. This is a
+  consistency check, not cryptographic authentication of the market feed.
