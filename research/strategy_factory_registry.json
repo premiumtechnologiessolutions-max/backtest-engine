@@ -73,31 +73,74 @@
       "notes": "64 causal signal-rule sequences/year; 13 variants scored >=16/24 months, only one also net positive both years",
       "file": "scripts/batch_rsi_recross_grid.py",
       "report": "docs/FAC004_BATCH_51200_RESEARCH_2026-10-26.md"
+    },
+    {
+      "id": "NRF-FAC-005",
+      "family": "H1 ATR/previous-24 median gated M15 EMA crossover with 40 contiguous H1 bars",
+      "status": "REJECTED_DATA_COVERAGE_ALL_ZERO_TRADE",
+      "unique_parameter_specs": 25600,
+      "years": [
+        2012,
+        2013
+      ],
+      "completed_annual_parameter_executions": 51200,
+      "annual_replays_with_filled_trades": 0,
+      "maximum_positive_months_out_of_24": 0,
+      "configs_24_of_24": 0,
+      "configs_annual_net_positive_both_years": 0,
+      "zero_trade_canonical_parity_samples": 12,
+      "notes": "Original feed daily H1 breaks: max 23 consecutive complete H1 bars. Exclude all 51,200 zero-trade executions from meaningful strategy backtest totals.",
+      "file": "scripts/batch_atr_ema_regime_grid.py",
+      "report": "docs/FAC005_SESSION_GAP_ZERO_TRADE_REJECTION_2026-10-26.md"
+    },
+    {
+      "id": "NRF-FAC-005B",
+      "family": "Gap-aware H1 completed high-low range relative to prior24 median gated M15 EMA crossover",
+      "status": "COMPLETED_HISTORICALLY_EXPOSED_POSTHOC_FOLLOWUP_NOT_OOS",
+      "unique_parameter_specs": 25600,
+      "years": [
+        2012,
+        2013
+      ],
+      "completed_annual_replays": 51200,
+      "annual_replays_with_filled_trades": 51200,
+      "maximum_positive_months_out_of_24": 22,
+      "configs_24_of_24": 0,
+      "configs_annual_net_positive_both_years": 4712,
+      "canonical_replay_parity_samples": 12,
+      "notes": "64 causal signal sequences/year. Max 22/24 monthly positive loses 2012; best both-years annual positive 21/24 with 69 total trades, fee-fragile. Adapted after FAC005 data-coverage failure, not independent OOS.",
+      "file": "scripts/batch_h1_range_ema_grid.py",
+      "report": "docs/FAC005B_51200_ACTIVE_ANNUAL_RESEARCH_2026-10-26.md"
     }
   ],
   "totals": {
-    "distinct_parameter_specs": 94400,
-    "yearly_backtests": 188800,
-    "exit_booked_monthly_points": 2265600,
-    "canonical_replay_parity_samples": 36,
-    "independent_hypothesis_families": 4,
-    "strictly_positive_every_month_in_both_years": 0
+    "distinct_parameter_specs": 120000,
+    "yearly_backtests": 240000,
+    "exit_booked_monthly_points": 2880000,
+    "canonical_replay_parity_samples": 48,
+    "independent_hypothesis_families": 5,
+    "strictly_positive_every_month_in_both_years": 0,
+    "zero_trade_parameter_specs_excluded": 25600,
+    "zero_trade_yearly_parameter_executions_excluded": 51200,
+    "zero_trade_canonical_parity_samples_excluded": 12,
+    "total_yearly_parameter_executions_including_zero_trade_negative_control": 291200
   },
   "next_priorities": [
     {
-      "id": "NRF-FAC-005",
-      "status": "NOT_STARTED",
-      "hypothesis": "Causal M15/H1 volatility-conditioned trend or mean-reversion; preregister before any result, then offline original market data"
+      "id": "NRF-FAC-006",
+      "status": "BLOCKED_ON_ORIGINAL_SOURCE_PARITY",
+      "hypothesis": "3-strategy shared-capacity portfolio. 2012 canonical run_fast 739 vs three-slot 737 trades because same-strategy pending signal policy differs; must fix via opt-in and independently revalidate before counting results.",
+      "report": "docs/FAC006_ORIGINAL_2012_PARITY_BLOCKER_2026-10-26.md"
     },
     {
-      "id": "NRF-FAC-006",
+      "id": "NRF-FAC-006B",
       "status": "NOT_STARTED",
-      "hypothesis": "Shared-capacity multi-family portfolio with real concurrent positions, risk sizing and monthly attributable equity"
+      "hypothesis": "Explicit opt-in one-minute same-strategy signal deferral in shared portfolio, preserving default behavior; freeze separately and verify 3-slot parity to independent run_fast original 2012/2013 before evaluating one-slot."
     },
     {
       "id": "NRF-FAC-007",
       "status": "NOT_STARTED",
-      "hypothesis": "Forward/out-of-sample prospective research with strict freeze/embargo and temporal selection correction"
+      "hypothesis": "Prospective holdout or forward testing; prior historical 2012-2013 are exposed and cannot become clean OOS."
     }
   ],
   "rules": [
