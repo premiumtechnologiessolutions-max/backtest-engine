@@ -251,13 +251,24 @@ def validate_loaded_m1(frame: pd.DataFrame) -> pd.DataFrame:
     return frame
 
 
+def _calendar_day_utc(value: str, *, label: str) -> pd.Timestamp:
+    """A full UTC calendar day, never a timestamp silently extended by 24h."""
+    if not isinstance(value, str) or re.fullmatch(r"\\d{4}-\\d{2}-\\d{2}", value) is None:
+        raise ValueError(f"{label} must be a UTC calendar date in YYYY-MM-DD format")
+    try:
+        return pd.Timestamp(value, tz="UTC")
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{label} is not a valid UTC calendar date") from exc
+
+
 def load_market(path: str | Path, start: str, end: str) -> pd.DataFrame:
-    """End is inclusive UTC. Prefer an imported Parquet directory."""
+    """Load inclusive UTC calendar dates (YYYY-MM-DD); reject intraday bounds."""
     path = Path(path)
-    begin = pd.Timestamp(start, tz="UTC")
-    finish = pd.Timestamp(end, tz="UTC") + pd.Timedelta(days=1)
-    if finish <= begin:
+    begin = _calendar_day_utc(start, label="Start date")
+    inclusive_end = _calendar_day_utc(end, label="End date")
+    if inclusive_end < begin:
         raise ValueError("End date must not precede start date")
+    finish = inclusive_end + pd.Timedelta(days=1)
     # finish is EXCLUSIVE. A Dec 31 end produces Jan 1 of the next
     # year; do not read, validate, or mark that unrelated year missing.
     last_included_year = (finish - pd.Timedelta(nanoseconds=1)).year
