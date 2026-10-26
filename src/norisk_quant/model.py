@@ -4,6 +4,7 @@ from dataclasses import asdict, dataclass
 import pandas as pd
 import math
 from typing import Literal
+from numbers import Integral
 
 Side = Literal[1, -1]
 
@@ -36,8 +37,12 @@ class Settings:
             raise ValueError("ounces must be finite positive")
         if not math.isfinite(self.roundtrip_cost_per_ounce) or self.roundtrip_cost_per_ounce < 0:
             raise ValueError("roundtrip cost must be finite nonnegative")
-        if self.max_entry_delay_minutes < 0:
-            raise ValueError("max entry delay cannot be negative")
+        # NaN, Infinity, fractions and bool must not silently bypass stale
+        # signal expiry in reference or fast execution.
+        if (isinstance(self.max_entry_delay_minutes, bool)
+                or not isinstance(self.max_entry_delay_minutes, Integral)
+                or self.max_entry_delay_minutes < 0):
+            raise ValueError("max entry delay must be a nonnegative integer")
         if self.max_holding_minutes is not None and (
             isinstance(self.max_holding_minutes, bool)
             or not isinstance(self.max_holding_minutes, int)
@@ -59,8 +64,10 @@ class Signal:
         at = pd.Timestamp(self.confirmed_at)
         if pd.isna(at) or at.tzinfo is None:
             raise ValueError("Signal confirmation requires an explicit timezone")
-        if self.side not in (1, -1):
-            raise ValueError("side must be +1 or -1")
+        # bool compares equal to 1 in Python, but it is not a trade side.
+        if (isinstance(self.side, bool) or not isinstance(self.side, Integral)
+                or self.side not in (1, -1)):
+            raise ValueError("side must be integer +1 or -1")
         if (
             not math.isfinite(self.stop_distance) or self.stop_distance <= 0
             or not math.isfinite(self.target_distance) or self.target_distance <= 0
