@@ -276,6 +276,18 @@ def load_market(path: str | Path, start: str, end: str) -> pd.DataFrame:
                     if year in selected_members:
                         raise ValueError(f"Duplicate year {year} within ZIP")
                     selected_members[year] = member
+            # A multi-year request must not silently omit an entire annual
+            # JSON member and then report a truncated sample as the full
+            # requested interval. Preserve the legacy no-data error when
+            # none of the requested years is present.
+            missing_years = [
+                year for year in range(begin.year, last_included_year + 1)
+                if year not in selected_members
+            ]
+            if selected_members and missing_years:
+                raise ValueError(
+                    f"Missing requested ZIP source years: {missing_years}"
+                )
             for year in range(begin.year, last_included_year + 1):
                 if year in selected_members:
                     part = normalize(_records_from_bytes(archive.read(selected_members[year])))
