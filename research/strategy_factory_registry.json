@@ -145,7 +145,7 @@
     {
       "id": "NRF-FAC-011",
       "family": "M15 exact directional-run normalized by prior32 median M15 range, closed H1 range regime, DST-aware local sessions",
-      "status": "LOCALLY_COMPLETED_HISTORICALLY_EXPOSED_LOCKED_CANDIDATE_REJECTED_OFFICIAL_CHECKOUT_PARITY_PENDING",
+      "status": "LOCALLY_COMPLETED_HISTORICALLY_EXPOSED_LOCKED_CANDIDATE_REJECTED_CI_PASSED_OFFICIAL_CHECKOUT_PARITY_PENDING",
       "preregistration_commit": "4dc11184bc6118aab8e97450bc0c0c884cd23d85",
       "unique_parameter_specs": 19200,
       "years": [
@@ -165,13 +165,18 @@
       "configs_24_of_24": 0,
       "configs_annual_net_positive_both_years": 918,
       "configs_passing_preregistered_screen": 1,
-      "local_independent_slow_m1_parity_samples": 8,
+      "local_independent_slow_m1_parity_samples": 12,
       "official_repository_checkout_private_data_parity_samples": 0,
-      "github_actions_status": "PENDING_NEW_HEAD",
-      "notes": "Exactly 19,200 correlated specs; 38,400 annual parameter executions of which 600 zero-trade. Sole screen pass locked and rejected on historically exposed 2014-16. Local slow M1 parity only; no official checkout canonical yet.",
+      "github_actions_status": "PASSED_713_TESTS_ON_CODE_COMMIT_52cb21e031187862c013ffe2c7e18147c821fd66",
+      "notes": "19,200 correlated specs; 38,400 executed annual parameter runs incl 600 zero-trade; 37,800 active. Sole screen pass locked and rejected 2014-16. 713-test CI passed on code commit 52cb21e; 12 design + 3 locked local source-copy/slow M1 checks, official full checkout still pending.",
       "file": "scripts/batch_directional_run_h1_grid.py",
       "frozen_spec": "docs/FAC011_FROZEN_DIRECTIONAL_RUN_H1_LOCAL_SESSIONS_2026-10-26.md",
-      "report": "docs/FAC011_38400_ANNUAL_RUN_H1_DST_LOCKED_REJECTION_2026-10-26.md"
+      "report": "docs/FAC011_38400_ANNUAL_RUN_H1_DST_LOCKED_REJECTION_2026-10-26.md",
+      "ci_verified_code_commit": "52cb21e031187862c013ffe2c7e18147c821fd66",
+      "ci_verified_workflow_run": 40405257053,
+      "ci_pytest_passed": 713,
+      "local_github_fast_engine_source_copy_parity_samples": 12,
+      "local_locked_chronological_source_copy_parity_years": 3
     }
   ],
   "totals": {
@@ -185,13 +190,19 @@
     "zero_trade_yearly_parameter_executions_excluded": 51800,
     "zero_trade_canonical_parity_samples_excluded": 12,
     "total_yearly_parameter_executions_including_zero_trade_negative_control": 371072,
-    "local_copy_fast_engine_parity_samples": 6,
-    "independent_slow_m1_parity_samples": 14,
-    "annual_replays_pending_new_head_ci": 79872,
+    "local_copy_fast_engine_parity_samples": 18,
+    "independent_slow_m1_parity_samples": 18,
+    "annual_replays_pending_new_head_ci": 0,
     "canonical_replay_parity_samples_note": "Previous 48 full-repository canonical parity samples; FAC010 6 local fast_engine source-copy checks tracked separately until full-checkout verification.",
     "fac011_zero_trade_annual_executions": 600,
     "fac011_local_locked_chronology_parity_years": 3,
-    "note_fac011": "FAC011 38,400 annual executions include 600 zero-trade, so 37,800 added to active yearly_backtests; 460,800 monthly P/L values generated including zero-trade; active monthly total excludes 7,200 zero-trade rows."
+    "note_fac011": "FAC011 38,400 annual executions include 600 zero-trade, so 37,800 added to active yearly_backtests; 460,800 monthly P/L values generated including zero-trade; active monthly total excludes 7,200 zero-trade rows.",
+    "fac011_source_copy_locked_chronology_parity_years": 3,
+    "latest_fac011_ci_verified_code_commit": "52cb21e031187862c013ffe2c7e18147c821fd66",
+    "latest_fac011_ci_verified_run": 40405257053,
+    "latest_fac011_ci_pytest_passed": 713,
+    "annual_replays_pending_official_private_checkout_parity": 79872,
+    "note_ci": "FAC011 and FAC010 code included in 713/713 successful CI on 52cb21e; subsequent metadata-only commits require independent current-head CI verification; official private-source full checkout parity remains pending."
   },
   "next_priorities": [
     {
@@ -366,7 +377,8 @@
       "official_repository_checkout_private_data_parity_years": 0,
       "frozen_spec": "docs/FAC011_LOCKED_CHRONOLOGY_2026-10-26.md",
       "report": "docs/FAC011_38400_ANNUAL_RUN_H1_DST_LOCKED_REJECTION_2026-10-26.md",
-      "note": "Sole preregistered-screen candidate selected on exposed 2012-13; locked before this 2014-16 replay; rejected; years exposed elsewhere; not clean OOS. Excluded from bulk annual-grid totals."
+      "note": "Sole preregistered-screen candidate selected on exposed 2012-13; locked before this 2014-16 replay; rejected; years exposed elsewhere; not clean OOS. Excluded from bulk annual-grid totals.",
+      "local_source_copy_fast_engine_parity_years": 3
     }
   ]
 }
