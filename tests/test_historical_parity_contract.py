@@ -51,3 +51,24 @@ def test_reference_trade_count_drift_is_not_hidden():
     current, archive = _case()
     with pytest.raises(AssertionError, match="Trade count mismatch"):
         exact_ledger_check(current.iloc[0:0], archive)
+
+
+
+@pytest.mark.parametrize("field,value", [
+    ("entry_at", pd.Timestamp("2024-01-02T00:02:00.500Z")),
+    ("side", 1.000000001),
+    ("gap_minutes", 0.000000001),
+])
+def test_replay_contract_rejects_subsecond_or_discrete_field_drift(field, value):
+    current, archive = _case()
+    current.loc[0, field] = value
+    with pytest.raises(AssertionError, match=f"First differing field: {field}"):
+        exact_ledger_check(current, archive)
+
+
+def test_zero_trade_replay_still_requires_all_thirteen_columns():
+    current, archive = _case()
+    assert exact_ledger_check(current.iloc[:0], archive.iloc[:0])["trades"] == 0
+    current = current.iloc[:0].drop(columns=["entry_at"])
+    with pytest.raises(AssertionError, match="Missing ledger field entry_at/entry_time"):
+        exact_ledger_check(current, archive.iloc[:0])
