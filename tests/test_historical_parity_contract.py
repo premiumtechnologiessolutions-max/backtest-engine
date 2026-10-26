@@ -61,6 +61,10 @@ def test_reference_trade_count_drift_is_not_hidden():
 ])
 def test_replay_contract_rejects_subsecond_or_discrete_field_drift(field, value):
     current, archive = _case()
+    if field in {"side", "gap_minutes"}:
+        # Preserve compatibility with future pandas versions that reject
+        # assigning a fractional float into an int64 column.
+        current[field] = current[field].astype(float)
     current.loc[0, field] = value
     with pytest.raises(AssertionError, match=f"First differing field: {field}"):
         exact_ledger_check(current, archive)
