@@ -92,3 +92,48 @@ def test_monthly_realized_differs_from_mark_to_market_across_month_end(tmp_path)
     assert monthly.loc[1,'trades']==1
     assert monthly.loc[1,'net_pnl']==pytest.approx(3.6)
     assert monthly.loc[1,'equity_change']==pytest.approx(3.0)
+
+
+def test_monthly_strategy_matrix_matches_shared_executed_ledger(tmp_path):
+    idx = pd.to_datetime([
+        "2024-01-31T23:58:00Z", "2024-01-31T23:59:00Z",
+        "2024-02-01T00:00:00Z", "2024-02-01T00:01:00Z",
+    ])
+    market = bars([[100, 100, 100, 100], [100, 101, 99, 100],
+                   [100, 102, 99, 101], [101, 103, 99, 102]], idx)
+    # Shared capacity rejects 'b'; standalone sum would overcount exposure.
+    signals = [Signal(idx[1], 1, 1, 10, "a"),
+               Signal(idx[1], -1, 1, 10, "b")]
+    settings = PortfolioSettings({"a": 1, "b": 1}, max_open_positions=1,
+                                 max_total_ounces=1)
+    result = run_portfolio(market, signals, settings)
+    assert result.capacity_rejected == 1
+    summary = write_portfolio_report(result, settings, tmp_path)
+    matrix = pd.read_csv(tmp_path / "strategy_monthly_matrix.csv")
+    detail = pd.read_csv(tmp_path / "strategy_monthly.csv")
+    assert list(matrix["period"]) == ["2024-01", "2024-02"]
+    assert len(detail) == 4
+    assert (detail.loc[detail["strategy"] == "b", "trades"] == 0).all()
+    assert matrix["PORTFOLIO_TOTAL_REALIZED"].sum() == pytest.approx(
+        result.trades.net_pnl.sum())
+    assert (matrix[["a", "b"]].sum(axis=1) ==
+            matrix["PORTFOLIO_TOTAL_REALIZED"]).all()
+    assert sum(entry["net_pnl"] for entry in
+               summary["strategy_monthly_realized"].values()) == pytest.approx(
+                   summary["net_pnl_closed"])
+    assert "strategy_monthly_caveat" in summary
+
+
+def test_strategy_monthly_matrix_when_no_trades_or_unobserved_month(tmp_path):
+    idx = pd.to_datetime(["2024-01-31T23:59:00Z", "2024-03-01T00:00:00Z"])
+    market = bars([[100, 100, 100, 100], [100, 100, 100, 100]], idx)
+    settings = PortfolioSettings({"inactive": 1}, max_open_positions=1,
+                                 max_total_ounces=1)
+    result = run_portfolio(market, [], settings)
+    summary = write_portfolio_report(result, settings, tmp_path)
+    detail = pd.read_csv(tmp_path / "strategy_monthly.csv")
+    assert detail["period"].tolist() == ["2024-01", "2024-02", "2024-03"]
+    assert detail["month_status"].tolist() == [
+        "FLAT", "NO_M1_OBSERVATIONS", "FLAT"]
+    assert summary["portfolio_profitable_observed_months"] == 0
+    assert summary["months_with_m1_observations"] == 2
