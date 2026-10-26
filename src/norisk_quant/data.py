@@ -10,6 +10,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from .cache_integrity import read_cache_manifest, verify_cached_partition
+
 RAW_COLUMNS = ("ts", "o", "h", "l", "c", "ao", "ah", "al", "ac")
 PRICE_COLUMNS = ("o", "h", "l", "c", "ao", "ah", "al", "ac")
 
@@ -143,7 +145,9 @@ def read_source(path: str | Path) -> pd.DataFrame:
         if isinstance(frame.index, pd.DatetimeIndex):
             # read_source() is also a public ingestion entry point. Do not
             # allow direct Parquet callers to bypass the load_market() gate.
-            return validate_loaded_m1(frame)
+            verified = validate_loaded_m1(frame)
+            verified.attrs["cache_integrity"] = "UNVERIFIED_DIRECT_PARQUET"
+            return verified
     else:
         raise ValueError("Expected .json, .csv, or .parquet")
     return normalize(frame)
@@ -196,9 +200,12 @@ def import_gold_zip(source: str | Path, destination: str | Path) -> dict:
             entries.append(row)
             if not accepted:
                 continue
-            frame.to_parquet(destination / f"xauusd_{year}.parquet", compression="zstd")
+            partition_path = destination / f"xauusd_{year}.parquet"
+            frame.to_parquet(partition_path, compression="zstd")
+            row["parquet_sha256"] = sha256_file(partition_path)
+            row["loaded_m1_bidask_sha256"] = fingerprint_loaded_m1(frame)
     manifest = {
-        "format_version": 1,
+        "format_version": 2,
         "instrument": "XAUUSD",
         "source_sha256": sha256_file(source),
         "timezone": "UTC",
@@ -275,16 +282,45 @@ def load_market(path: str | Path, start: str, end: str) -> pd.DataFrame:
         frame = pd.concat(parts).sort_index()
     elif path.is_dir():
         parts = []
+        entries = read_cache_manifest(path)
+        cache_statuses = []
+        missing_years = []
         for year in range(begin.year, finish.year + 1):
             candidate = path / f"xauusd_{year}.parquet"
-            if candidate.is_file():
-                parts.append(pd.read_parquet(candidate))
+            if not candidate.is_file():
+                if entries is not None and entries.get(year, {}).get("accepted") is True:
+                    raise ValueError(f"Accepted XAUUSD cache partition {year} is missing")
+                missing_years.append(year)
+                continue
+            cache_statuses.append(verify_cached_partition(path, year, entries))
+            part = validate_loaded_m1(pd.read_parquet(candidate))
+            if (part.index.year != year).any():
+                raise ValueError(f"XAUUSD cache partition {year} contains another year")
+            if entries is not None:
+                entry = entries[year]
+                if entry.get("rows") is not None and len(part) != entry["rows"]:
+                    raise ValueError(f"XAUUSD cache partition {year} row count mismatch")
+                expected_m1 = entry.get("loaded_m1_bidask_sha256")
+                if expected_m1 is not None and fingerprint_loaded_m1(part) != expected_m1:
+                    raise ValueError(f"XAUUSD cache partition {year} BID/ASK fingerprint mismatch")
+            parts.append(part)
         if not parts:
             raise ValueError("No year partitions for requested range; import data first")
         frame = pd.concat(parts).sort_index()
+        cache_integrity = (
+            "MATCHED_IMPORT_MANIFEST_SHA256"
+            if all(status == "MATCHED_IMPORT_MANIFEST_SHA256" for status in cache_statuses)
+            else "UNVERIFIED_LEGACY_OR_NO_MANIFEST"
+        )
+        if missing_years:
+            cache_integrity += "_PARTIAL_YEAR_COVERAGE"
+        frame.attrs["cache_integrity"] = cache_integrity
     else:
         frame = read_source(path)
     selected = frame.loc[(frame.index >= begin) & (frame.index < finish)].copy()
     if selected.empty:
         raise ValueError("No data in requested period")
-    return validate_loaded_m1(selected)
+    validated = validate_loaded_m1(selected)
+    if path.is_dir():
+        validated.attrs["cache_integrity"] = frame.attrs["cache_integrity"]
+    return validated
