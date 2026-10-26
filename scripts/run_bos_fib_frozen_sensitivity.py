@@ -36,10 +36,37 @@ EXECUTION_SETTINGS = Settings(
 
 
 def validate_year_selection(years: list[int]) -> None:
-    if not years or len(years) != len(set(years)):
+    # A float such as 2012.0 or a bool must not silently identify a year.
+    if not isinstance(years, (list, tuple)) or not years:
+        raise ValueError("Specify at least one selected calendar year")
+    if any(type(year) is not int or not 2010 <= year <= 2026 for year in years):
+        raise ValueError("Years must be integer calendar years within 2010–2026")
+    if len(years) != len(set(years)):
         raise ValueError("Specify distinct selected years without duplicates")
-    if any(year < 2010 or year > 2026 for year in years):
-        raise ValueError("Years outside source archive 2010–2026")
+
+
+def validate_annual_month_coverage(quotes: pd.DataFrame, year: int) -> None:
+    """Fail before backtesting when a nominal annual run omits whole months.
+
+    This is a necessary coverage check, NOT proof of complete minutes,
+    broker sessions, genuine ticks, or an independently held-out year.
+    """
+    index = quotes.index
+    if (
+        not isinstance(index, pd.DatetimeIndex) or index.empty
+        or index.tz is None or str(index.tz) != "UTC"
+        or index.hasnans or index.has_duplicates
+        or not index.is_monotonic_increasing
+    ):
+        raise ValueError("Frozen annual M1 requires sorted unique UTC timestamps")
+    if (index.year != year).any():
+        raise ValueError(f"Annual M1 contains timestamps outside {year}")
+    missing = sorted(set(range(1, 13)) - set(index.month.tolist()))
+    if missing:
+        raise ValueError(
+            f"Frozen annual sample {year} omits calendar months: {missing}; "
+            "do not report it as a 12-month study"
+        )
 
 
 def execute(gold_zip: Path, years: list[int], destination: Path) -> dict:
@@ -53,8 +80,7 @@ def execute(gold_zip: Path, years: list[int], destination: Path) -> dict:
     records = []
     for year in years:
         quotes = load_market(gold_zip, f"{year}-01-01", f"{year}-12-31")
-        if (quotes.index.year != year).any():
-            raise ValueError("Annual window contains a different calendar year")
+        validate_annual_month_coverage(quotes, year)
         setups = bos_fib_limit_orders(quotes, settings=YEARLY_SETTINGS)
         eligible = filter_orders_h1(quotes, setups, cfg=H1_SETTINGS)
         result = run_limits(quotes, eligible, EXECUTION_SETTINGS)
@@ -83,6 +109,12 @@ def execute(gold_zip: Path, years: list[int], destination: Path) -> dict:
         if abs(summary["total_fees"] - .40 * trades) > 1e-7:
             raise AssertionError("Fee reconciliation mismatch")
         monthly = pd.read_csv(subdirectory / "monthly.csv")
+        if (
+            len(monthly) != 12
+            or summary["months_observed"] != 12
+            or summary["months_with_m1_observations"] != 12
+        ):
+            raise AssertionError("Frozen annual report must contain 12 observed calendar months")
         if abs(float(monthly["net_pnl"].sum()) - total) > 1e-7:
             raise AssertionError("Monthly P/L differs from executed trades")
         weekly = pd.read_csv(subdirectory / "weekly.csv")
