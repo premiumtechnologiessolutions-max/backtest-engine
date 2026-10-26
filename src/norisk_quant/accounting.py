@@ -18,8 +18,10 @@ def validate_execution(result: Result, settings: Settings, *, atol: float = 1e-7
     # An infinite absolute tolerance makes np.allclose accept arbitrary
     # discrepancies in fees, gross/net P/L and the realized equity ledger.
     # NaN is likewise not a meaningful audit tolerance. Fail closed.
-    if not math.isfinite(atol) or atol <= 0:
-        raise ValueError("atol must be finite and positive")
+    # Cap overrides as well: a huge *finite* tolerance could mask a
+    # completely wrong fee or P/L just as an infinite one would.
+    if not math.isfinite(atol) or not (0 < atol <= 1e-6):
+        raise ValueError("atol must be finite and within (0, 1e-6]")
     trades = result.trades
     equity = result.equity
     if equity.empty or not {"realized_pnl", "floating_pnl", "equity"}.issubset(equity.columns):
