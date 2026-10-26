@@ -16,6 +16,27 @@ RAW_COLUMNS = ("ts", "o", "h", "l", "c", "ao", "ah", "al", "ac")
 PRICE_COLUMNS = ("o", "h", "l", "c", "ao", "ah", "al", "ac")
 
 
+def _require_numeric_quote_columns(frame: pd.DataFrame, *, context: str) -> None:
+    """Reject bool/object quote dtypes before float coercion can hide schema drift.
+
+    Ingested JSON/CSV text is converted by normalize() first; a cached
+    Parquet frame and a fingerprint input must already contain true numeric
+    BID/ASK columns. In particular, float(True) and float("2000.0") must
+    not certify malformed cached quotes as authentic market observations.
+    """
+    invalid = [
+        name for name in PRICE_COLUMNS
+        if name in frame.columns and (
+            not pd.api.types.is_numeric_dtype(frame[name].dtype)
+            or pd.api.types.is_bool_dtype(frame[name].dtype)
+        )
+    ]
+    if invalid:
+        raise ValueError(
+            f"{context} requires numeric non-boolean BID/ASK quote columns: {invalid}"
+        )
+
+
 def normalize(raw: pd.DataFrame, *, strict: bool = True) -> pd.DataFrame:
     """Normalize original gold BID/ASK candles. Index is UTC candle OPEN."""
     missing = set(RAW_COLUMNS) - set(raw.columns)
@@ -27,6 +48,7 @@ def normalize(raw: pd.DataFrame, *, strict: bool = True) -> pd.DataFrame:
     frame["ts"] = pd.to_datetime(numeric_ts, unit="s", utc=True, errors="raise")
     for column in PRICE_COLUMNS:
         frame[column] = pd.to_numeric(frame[column], errors="raise")
+    _require_numeric_quote_columns(frame, context="Source M1")
     frame = frame.sort_values("ts")
     if frame["ts"].duplicated().any():
         raise ValueError("Duplicate candle timestamps: quarantine the source")
@@ -105,6 +127,7 @@ def fingerprint_loaded_m1(frame: pd.DataFrame) -> str:
         raise ValueError("M1 timestamps must align exactly to minute opens")
     if not set(required).issubset(frame.columns):
         raise ValueError("Missing original Bid/Ask price columns")
+    _require_numeric_quote_columns(frame, context="Fingerprint M1")
     prices = frame[required].to_numpy(dtype="<f8", copy=True)
     if not np.isfinite(prices).all():
         raise ValueError("Missing or invalid prices")
@@ -237,6 +260,7 @@ def validate_loaded_m1(frame: pd.DataFrame) -> pd.DataFrame:
     missing = set(PRICE_COLUMNS) - set(frame.columns)
     if missing:
         raise ValueError(f"Loaded M1 missing BID/ASK columns: {sorted(missing)}")
+    _require_numeric_quote_columns(frame, context="Loaded M1")
     prices = frame[list(PRICE_COLUMNS)].to_numpy(dtype=float)
     if not np.isfinite(prices).all() or (prices <= 0).any():
         raise ValueError("Loaded M1 contains nonfinite or nonpositive BID/ASK")
