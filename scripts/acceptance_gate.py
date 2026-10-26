@@ -28,7 +28,7 @@ PINNED = {
 }
 STEPS = (
     ("git_revision", ["git", "rev-parse", "HEAD"]),
-    ("git_clean", ["git", "diff", "--quiet", "HEAD"]),
+    ("git_clean", ["git", "status", "--porcelain=v1", "--untracked-files=all"]),
     ("compile", [sys.executable, "-m", "compileall", "-q", "src", "tests", "scripts"]),
     ("pip_check", [sys.executable, "-m", "pip", "check"]),
     ("full_pytest", [sys.executable, "-m", "pytest", "-q"]),
@@ -54,7 +54,7 @@ def command_step(name: str, argv: list[str]) -> dict:
             timeout=1200, check=False,
         )
         return {
-            "name": name, "status": "PASSED" if result.returncode == 0 else "FAILED",
+            "name": name, "status": "PASSED" if (result.returncode == 0 and (name != "git_clean" or not result.stdout.strip())) else "FAILED",
             "exit_code": result.returncode,
             "stdout_tail": result.stdout[-3000:],
             "stderr_tail": result.stderr[-3000:],
