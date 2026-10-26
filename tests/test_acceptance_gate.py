@@ -111,3 +111,39 @@ def test_valid_2012_replay_contract_passes_research_gate_only(safe_environment, 
     assert result["status"] == "PASSED_RESEARCH_GATE_NOT_BROKER_CERTIFIED"
     assert result["broker_tick_fill_certified"] is False
     assert result["clean_out_of_sample_certified"] is False
+
+def test_git_clean_rejects_untracked_source_even_with_zero_exit(monkeypatch):
+    # git diff --quiet HEAD misses new untracked source modules. Git status
+    # exits 0 for a dirty checkout, so its porcelain output must be checked.
+    from types import SimpleNamespace
+
+    def fake_run(*args, **kwargs):
+        return SimpleNamespace(returncode=0, stdout="?? src/norisk_quant/new_module.py\\n", stderr="")
+
+    monkeypatch.setattr(gate.subprocess, "run", fake_run)
+    step = gate.command_step("git_clean", ["git", "status", "--porcelain=v1", "--untracked-files=all"])
+    assert step["status"] == "FAILED"
+    assert step["exit_code"] == 0
+    assert "new_module.py" in step["stdout_tail"]
+
+
+def test_git_clean_accepts_clean_porcelain_status(monkeypatch):
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(
+        gate.subprocess, "run",
+        lambda *args, **kwargs: SimpleNamespace(returncode=0, stdout="", stderr=""),
+    )
+    step = gate.command_step("git_clean", ["git", "status", "--porcelain=v1", "--untracked-files=all"])
+    assert step["status"] == "PASSED"
+
+
+def test_git_clean_rejects_tracked_modification_even_with_zero_exit(monkeypatch):
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(
+        gate.subprocess, "run",
+        lambda *args, **kwargs: SimpleNamespace(returncode=0, stdout=" M src/norisk_quant/data.py\\n", stderr=""),
+    )
+    step = gate.command_step("git_clean", ["git", "status", "--porcelain=v1", "--untracked-files=all"])
+    assert step["status"] == "FAILED"
