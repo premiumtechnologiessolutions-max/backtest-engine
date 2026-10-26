@@ -323,14 +323,17 @@ def load_market(path: str | Path, start: str, end: str) -> pd.DataFrame:
             parts.append(part)
         if not parts:
             raise ValueError("No year partitions for requested range; import data first")
+        # Parquet and direct ZIP must enforce the same annual coverage contract.
+        # Merely tagging a truncated multi-year run as PARTIAL is not enough:
+        # downstream research could still calculate misleading performance.
+        if missing_years:
+            raise ValueError(f"Missing requested Parquet source years: {missing_years}")
         frame = pd.concat(parts).sort_index()
         cache_integrity = (
             "MATCHED_IMPORT_MANIFEST_SHA256"
             if all(status == "MATCHED_IMPORT_MANIFEST_SHA256" for status in cache_statuses)
             else "UNVERIFIED_LEGACY_OR_NO_MANIFEST"
         )
-        if missing_years:
-            cache_integrity += "_PARTIAL_YEAR_COVERAGE"
         frame.attrs["cache_integrity"] = cache_integrity
     else:
         frame = read_source(path)
