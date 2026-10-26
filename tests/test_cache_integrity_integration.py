@@ -116,9 +116,18 @@ def test_missing_intermediate_parquet_year_rejected(tmp_path, monkeypatch):
             frame.index = frame.index + pd.DateOffset(years=2)
         return frame
 
-    monkeypatch.setattr(pd, "read_parquet", read_partition)
+    # A missing annual partition must be detected BEFORE reading either
+    # existing year (the production data can be very large).
+    reads = []
+
+    def counted_read(path):
+        reads.append(path.name)
+        return read_partition(path)
+
+    monkeypatch.setattr(pd, "read_parquet", counted_read)
     with pytest.raises(ValueError, match="Missing requested Parquet source years"):
         load_market(directory, "2024-01-01", "2026-12-31")
+    assert reads == []
 
 
 @pytest.mark.parametrize("missing_field", ["parquet_sha256", "loaded_m1_bidask_sha256"])
