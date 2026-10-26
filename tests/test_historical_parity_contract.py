@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from scripts.verify_bos_h1_parity import exact_ledger_check
+from scripts.verify_bos_h1_parity import exact_ledger_check, validate_replay_years
 
 
 def _case():
@@ -176,3 +176,16 @@ def test_replay_rejects_nontext_or_empty_exit_reasons(ledger, bad):
 def test_replay_still_accepts_numeric_and_text_fields_without_coercion():
     current, archive = _case()
     assert exact_ledger_check(current, archive)["trades"] == 1
+
+
+@pytest.mark.parametrize("years", [
+    [], [2012, 2012], [2012, 2017, 2012], [True],
+    [2012.0], [float("nan")], ["2012"], [2009], [2027],
+])
+def test_replay_rejects_empty_duplicate_or_noninteger_years(years):
+    with pytest.raises(ValueError):
+        validate_replay_years(years)
+
+
+def test_replay_year_validation_accepts_distinct_archived_years():
+    validate_replay_years([2012, 2013, 2017])
