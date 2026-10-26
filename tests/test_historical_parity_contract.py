@@ -143,3 +143,36 @@ def test_replay_rejects_invalid_reference_timestamp_type():
     archive["signal_time"] = archive["signal_time"].astype(str)
     with pytest.raises(AssertionError, match="First differing field: signal_at"):
         exact_ledger_check(current, archive)
+
+
+@pytest.mark.parametrize("field,archive_field", [
+    ("entry_price", "entry"), ("net_pnl", "net"), ("cost", "fee"),
+])
+@pytest.mark.parametrize("invalid", [True, "100.0"])
+@pytest.mark.parametrize("ledger", ["actual", "reference"])
+def test_replay_rejects_numeric_bool_or_string_coercion(
+    field, archive_field, invalid, ledger
+):
+    """Even values that float() can parse are not valid numeric ledger cells."""
+    current, archive = _case()
+    if ledger == "actual":
+        current[field] = pd.Series([invalid], dtype=object)
+    else:
+        archive[archive_field] = pd.Series([invalid], dtype=object)
+    with pytest.raises(AssertionError, match=f"First differing field: {field}"):
+        exact_ledger_check(current, archive)
+
+
+@pytest.mark.parametrize("ledger", ["actual", "reference"])
+@pytest.mark.parametrize("bad", [1, "", None])
+def test_replay_rejects_nontext_or_empty_exit_reasons(ledger, bad):
+    current, archive = _case()
+    target = current if ledger == "actual" else archive
+    target["exit_reason"] = pd.Series([bad], dtype=object)
+    with pytest.raises(AssertionError, match="First differing field: exit_reason"):
+        exact_ledger_check(current, archive)
+
+
+def test_replay_still_accepts_numeric_and_text_fields_without_coercion():
+    current, archive = _case()
+    assert exact_ledger_check(current, archive)["trades"] == 1
