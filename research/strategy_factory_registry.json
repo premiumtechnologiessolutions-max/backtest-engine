@@ -153,7 +153,7 @@
     "zero_trade_parameter_specs_excluded": 25600,
     "zero_trade_yearly_parameter_executions_excluded": 51200,
     "zero_trade_canonical_parity_samples_excluded": 12,
-    "total_yearly_parameter_executions_including_zero_trade_negative_control": 291200,
+    "total_yearly_parameter_executions_including_zero_trade_negative_control": 332672,
     "local_copy_fast_engine_parity_samples": 6,
     "independent_slow_m1_parity_samples": 6,
     "annual_replays_pending_new_head_ci": 41472,
