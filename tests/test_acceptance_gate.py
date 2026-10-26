@@ -147,3 +147,43 @@ def test_git_clean_rejects_tracked_modification_even_with_zero_exit(monkeypatch)
     )
     step = gate.command_step("git_clean", ["git", "status", "--porcelain=v1", "--untracked-files=all"])
     assert step["status"] == "FAILED"
+
+@pytest.mark.parametrize("failure", ["head_moved", "untracked_after_replay"])
+def test_successful_parity_cannot_certify_mutated_checkout(
+    safe_environment, tmp_path, monkeypatch, failure,
+):
+    import scripts.verify_bos_h1_parity as parity
+
+    source = tmp_path / "Gold data.zip"
+    source.write_bytes(b"synthetic only")
+    archive = tmp_path / "reference"
+    archive.mkdir()
+    monkeypatch.setattr(parity, "verify", lambda *args: {
+        "status": "PASSED", "source_sha256": gate.MARKET_SHA256,
+        "fields_per_trade": 13, "scenarios_verified": 2,
+        "trades_matched": 689,
+    })
+    calls = {"git_revision": 0, "git_clean": 0}
+
+    def fake_step(name, argv):
+        if name in calls:
+            calls[name] += 1
+        sha = "a" * 40
+        if name == "git_revision" and calls[name] > 1 and failure == "head_moved":
+            sha = "b" * 40
+        status = "PASSED"
+        if name == "git_clean" and calls[name] > 1 and failure == "untracked_after_replay":
+            status = "FAILED"
+        return {
+            "name": name, "status": status, "exit_code": 0,
+            "stdout_tail": sha if name == "git_revision" else "",
+        }
+
+    monkeypatch.setattr(gate, "command_step", fake_step)
+    report, code = gate.acceptance(gold_zip=source, reference_root=archive, years=[2012])
+    assert code == 1
+    assert report["status"] == "FAILED"
+    assert "during acceptance replay" in report["error"]
+    assert calls["git_revision"] == 2
+    if failure == "untracked_after_replay":
+        assert calls["git_clean"] == 2
