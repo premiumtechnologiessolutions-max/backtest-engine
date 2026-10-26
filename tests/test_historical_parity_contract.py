@@ -189,3 +189,52 @@ def test_replay_rejects_empty_duplicate_or_noninteger_years(years):
 
 def test_replay_year_validation_accepts_distinct_archived_years():
     validate_replay_years([2012, 2013, 2017])
+
+
+
+@pytest.mark.parametrize("violation", [
+    "entry_before_signal", "exit_before_entry", "negative_entry_price",
+    "zero_stop", "matching_wrong_fee", "matching_wrong_net",
+])
+def test_matching_but_impossible_13_field_ledgers_fail_closed(violation):
+    """Two equally corrupted ledgers must never certify a historical replay."""
+    current, archive = _case()
+    if violation == "entry_before_signal":
+        timestamp = pd.Timestamp("2024-01-01T23:59:00Z")
+        current["entry_at"] = timestamp
+        archive["entry_time"] = int(timestamp.timestamp())
+    elif violation == "exit_before_entry":
+        timestamp = pd.Timestamp("2024-01-02T00:01:00Z")
+        current["closed_at"] = timestamp
+        archive["exit_time"] = int(timestamp.timestamp())
+    elif violation == "negative_entry_price":
+        current["entry_price"] = -100.0
+        archive["entry"] = -100.0
+    elif violation == "zero_stop":
+        current["stop"] = 0.0
+        archive["stop"] = 0.0
+    elif violation == "matching_wrong_fee":
+        current["cost"] = 0.5
+        archive["fee"] = 0.5
+        current["net_pnl"] = 1.5
+        archive["net"] = 1.5
+    elif violation == "matching_wrong_net":
+        current["net_pnl"] = 1.7
+        archive["net"] = 1.7
+    with pytest.raises(AssertionError, match="Ledger invariant:"):
+        exact_ledger_check(current, archive)
+
+
+def test_replay_accepts_valid_two_row_chronology_and_accounting():
+    current, archive = _case()
+    second_current = current.copy()
+    second_archive = archive.copy()
+    for field in ("signal_at", "entry_at", "closed_at"):
+        second_current[field] += pd.Timedelta(days=1)
+    for field in ("signal_time", "entry_time", "exit_time"):
+        second_archive[field] += 86400
+    result = exact_ledger_check(
+        pd.concat([current, second_current], ignore_index=True),
+        pd.concat([archive, second_archive], ignore_index=True),
+    )
+    assert result["trades"] == 2 and result["fields"] == 13
