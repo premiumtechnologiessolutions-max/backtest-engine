@@ -1,6 +1,6 @@
 {
   "format_version": 1,
-  "updated_utc": "2026-10-26",
+  "updated_utc": "2026-10-27",
   "project": "No Risk FX XAUUSD quant research factory",
   "branch": "feat/quant-engine-foundation",
   "original_private_zip_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
@@ -177,21 +177,52 @@
       "ci_pytest_passed": 713,
       "local_github_fast_engine_source_copy_parity_samples": 12,
       "local_locked_chronological_source_copy_parity_years": 3
+    },
+    {
+      "id": "NRF-FAC-012B",
+      "family": "M15 prior-bar compression -> completed-close breakout with gap-aware completed H1 EMA trend and volatility halt, DST local sessions, normalized risk",
+      "unique_parameter_specs": 24000,
+      "years": [
+        2012,
+        2013
+      ],
+      "completed_annual_replays": 48000,
+      "active_annual_replays": 48000,
+      "completed_exit_booked_monthly_values": 576000,
+      "unique_signal_streams_by_year": [
+        229,
+        230
+      ],
+      "configs_annual_net_positive_both_years": 962,
+      "maximum_positive_months_out_of_24": 20,
+      "configs_24_of_24": 0,
+      "configs_passing_frozen_joint_gate": 0,
+      "canonical_replay_parity_samples": 0,
+      "independent_slow_m1_reference_parity_samples": 10,
+      "frozen_spec_commit": "bee2e7f072b9a44a2592d007f2dd3fb7d41c23f7",
+      "verified_ci_code_commit": "db551c0a5bb20995a61895ef4e7e37d2cfeed57a",
+      "verified_ci_run": 40411959894,
+      "verified_ci_tests": 721,
+      "original_source_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
+      "status": "REJECTED_DESIGN_EXPOSED_OFFICIAL_PRIVATE_CHECKOUT_PARITY_PENDING",
+      "notes": "48k actual annual parameter-year executions; not 24k independent hypotheses; 0 passed >=80 fills/year and >=18/24 etc; 10 independent local slow M1 parity samples, not official canonical checkout.",
+      "file": "scripts/batch_compression_h1_grid.py",
+      "report": "docs/FAC012B_48000_ANNUAL_COMPRESSION_REJECTION_2026-10-27.md"
     }
   ],
   "totals": {
-    "distinct_parameter_specs": 159936,
-    "yearly_backtests": 319272,
-    "exit_booked_monthly_points": 3831264,
+    "distinct_parameter_specs": 183936,
+    "yearly_backtests": 367272,
+    "exit_booked_monthly_points": 4407264,
     "canonical_replay_parity_samples": 48,
-    "independent_hypothesis_families": 7,
+    "independent_hypothesis_families": 8,
     "strictly_positive_every_month_in_both_years": 0,
-    "zero_trade_parameter_specs_excluded": 25600,
-    "zero_trade_yearly_parameter_executions_excluded": 51800,
+    "zero_trade_parameter_specs_excluded": 25700,
+    "zero_trade_yearly_parameter_executions_excluded": 51900,
     "zero_trade_canonical_parity_samples_excluded": 12,
-    "total_yearly_parameter_executions_including_zero_trade_negative_control": 371072,
+    "total_yearly_parameter_executions_including_zero_trade_negative_control": 419172,
     "local_copy_fast_engine_parity_samples": 18,
-    "independent_slow_m1_parity_samples": 18,
+    "independent_slow_m1_parity_samples": 28,
     "annual_replays_pending_new_head_ci": 0,
     "canonical_replay_parity_samples_note": "Previous 48 full-repository canonical parity samples; FAC010 6 local fast_engine source-copy checks tracked separately until full-checkout verification.",
     "fac011_zero_trade_annual_executions": 600,
@@ -201,8 +232,15 @@
     "latest_fac011_ci_verified_code_commit": "52cb21e031187862c013ffe2c7e18147c821fd66",
     "latest_fac011_ci_verified_run": 40405257053,
     "latest_fac011_ci_pytest_passed": 713,
-    "annual_replays_pending_official_private_checkout_parity": 79872,
-    "note_ci": "FAC011 and FAC010 code included in 713/713 successful CI on 52cb21e; subsequent metadata-only commits require independent current-head CI verification; official private-source full checkout parity remains pending."
+    "annual_replays_pending_official_private_checkout_parity": 127872,
+    "note_ci": "FAC011 and FAC010 code included in 713/713 successful CI on 52cb21e; subsequent metadata-only commits require independent current-head CI verification; official private-source full checkout parity remains pending.",
+    "latest_fac012b_ci_verified_code_commit": "db551c0a5bb20995a61895ef4e7e37d2cfeed57a",
+    "latest_fac012b_ci_verified_run": 40411959894,
+    "latest_fac012b_ci_pytest_passed": 721,
+    "fac012b_local_independent_slow_m1_parity_samples": 10,
+    "fac012b_official_full_checkout_original_source_parity_samples": 0,
+    "fac012a_zero_trade_feasibility_annual_replays": 100,
+    "note_fac012b": "FAC012 original 100 zero-trade 2012 feasibility executions excluded; FAC012B 48,000 completed active annual replays with 576,000 monthly P/L values, 10 independent slow M1 parity samples. Original-data official complete GitHub checkout canonical run_fast parity remains pending."
   },
   "next_priorities": [
     {
@@ -229,6 +267,11 @@
       "id": "NRF-FAC-011-OFFICIAL-CHECKOUT-REPLAY",
       "status": "PENDING",
       "hypothesis": "Run existing frozen FAC011 script on private archive from official complete checkout, check >=3 canonical run_fast samples/year and 3 locked chronology years, then mark CI/parity; DO NOT rerun parameter grid or retune rejected candidate."
+    },
+    {
+      "id": "NRF-FAC-012B-OFFICIAL-CHECKOUT-PARITY",
+      "status": "PENDING",
+      "hypothesis": "Execute the frozen FAC012B runner from a complete official GitHub checkout against private original ZIP and verify canonical run_fast full-year samples. Do not repeat the 48k grid solely to select more parameters."
     }
   ],
   "rules": [
@@ -379,6 +422,18 @@
       "report": "docs/FAC011_38400_ANNUAL_RUN_H1_DST_LOCKED_REJECTION_2026-10-26.md",
       "note": "Sole preregistered-screen candidate selected on exposed 2012-13; locked before this 2014-16 replay; rejected; years exposed elsewhere; not clean OOS. Excluded from bulk annual-grid totals.",
       "local_source_copy_fast_engine_parity_years": 3
+    }
+  ],
+  "feasibility_negative_controls": [
+    {
+      "id": "NRF-FAC-012-A-INFEASIBLE-H1-CONTIGUOUS",
+      "preregistration_commit": "56e645c8fb98a3cc2b00df775aa8c7328bea1626",
+      "year": 2012,
+      "actual_parameter_year_executions": 100,
+      "zero_trade_executions": 100,
+      "active_annual_replays": 0,
+      "reason": "Frozen >=26 consecutive complete H1 bars infeasible on 2012 original: max contiguous H1 23; FAC012B separately preregistered feasibility fix before opening its results.",
+      "report": "docs/FAC012B_48000_ANNUAL_COMPRESSION_REJECTION_2026-10-27.md"
     }
   ]
 }
