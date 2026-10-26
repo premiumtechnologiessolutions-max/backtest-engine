@@ -215,7 +215,7 @@
     {
       "id": "NRF-FAC-013",
       "family": "M15 prior-extreme liquidity sweep rejection + completed H1 trend/volatility, DST-aware sessions, M15 normalized risk",
-      "status": "REJECTED_EXPOSED_DESIGN_ORIGINAL_PRIVATE_SOURCE_FAST_AND_SLOW_PARITY_CI_PENDING",
+      "status": "REJECTED_EXPOSED_DESIGN_ORIGINAL_PRIVATE_SOURCE_PARITY_VERIFIED_CI_PASSED",
       "preregistration_commit": "d1efaa8dc43b61583f0c2aee45460ea59123bd1f",
       "unique_parameter_specs": 21600,
       "years": [
@@ -238,10 +238,13 @@
       "independent_slow_verified_trades": 102,
       "independent_slow_verified_m1_equity_marks": 705292,
       "original_source_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
-      "note": "21,600 correlated parameter specs x2 exposed years, 43,200 actually completed active annual replays; no passing frozen gates. Max 18/24 winner had 53/49 trades vs frozen >=80 each-year gate. 8 official run_fast parity samples and 2 full-year independent slow run exact equity/ledger. New-head CI pending.",
+      "note": "21,600 correlated parameter specs x2 exposed years, 43,200 actually completed active annual replays; no passing frozen gates. Max 18/24 winner had 53/49 trades vs frozen >=80 each-year gate. 8 official run_fast parity samples and 2 full-year independent slow run exact equity/ledger. New-head CI pending. First FAC013 CI 734 passed/1 failed due test-only fee key typo; fixed in 7d1b8b5; 735/735 CI successful. No strategy retuning.",
       "file": "scripts/batch_liquidity_sweep_h1_grid.py",
       "frozen_spec": "docs/FAC013_FROZEN_M15_LIQUIDITY_SWEEP_H1_2026-10-27.md",
-      "report": "docs/FAC013_43200_ANNUAL_LIQUIDITY_SWEEP_REJECTED_2026-10-27.md"
+      "report": "docs/FAC013_43200_ANNUAL_LIQUIDITY_SWEEP_REJECTED_2026-10-27.md",
+      "verified_ci_code_commit": "7d1b8b5d4071a3338b6eb14b450f36ddf6b4f137",
+      "verified_ci_run": 40419755915,
+      "verified_ci_tests": 735
     }
   ],
   "totals": {
@@ -257,7 +260,7 @@
     "total_yearly_parameter_executions_including_zero_trade_negative_control": 462372,
     "local_copy_fast_engine_parity_samples": 18,
     "independent_slow_m1_parity_samples": 28,
-    "annual_replays_pending_new_head_ci": 43200,
+    "annual_replays_pending_new_head_ci": 0,
     "canonical_replay_parity_samples_note": "Previous 48 full-repository canonical parity samples; FAC010 6 local fast_engine source-copy checks tracked separately until full-checkout verification.",
     "fac011_zero_trade_annual_executions": 600,
     "fac011_local_locked_chronology_parity_years": 3,
@@ -281,7 +284,10 @@
     "fac013_independent_slow_full_year_parity_samples": 2,
     "fac013_independent_slow_verified_m1_equity_marks": 705292,
     "fac013_independent_slow_verified_trades": 102,
-    "note_fac013": "FAC013 original private SHA-verified M1 2012/2013: 21,600 correlated specs, 43,200 active annual replays, 518,400 monthly P/L, max 18/24, 0 frozen passes. 8 fast and 2 full-year independent slow parity samples. New HEAD CI pending."
+    "note_fac013": "FAC013 original private SHA-verified M1 2012/2013: 21,600 correlated specs, 43,200 active annual replays, 518,400 monthly P/L, max 18/24, 0 frozen passes. 8 fast and 2 full-year independent slow parity samples. New HEAD CI pending. New FAC013 code CI 735/735 passed on 7d1b8b5, metadata-only commits afterwards need separate head CI.",
+    "latest_fac013_ci_verified_code_commit": "7d1b8b5d4071a3338b6eb14b450f36ddf6b4f137",
+    "latest_fac013_ci_verified_run": 40419755915,
+    "latest_fac013_ci_pytest_passed": 735
   },
   "next_priorities": [
     {
