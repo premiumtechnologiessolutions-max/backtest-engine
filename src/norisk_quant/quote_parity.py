@@ -110,21 +110,61 @@ def compare_bid_ask_ticks_to_m1(
 
 
 def summarize_bid_ask_parity(report: pd.DataFrame) -> dict:
-    """A strict audit passes only when every requested M1 has both matching sides."""
-    required = {"tick_present", "bid_mismatch", "ask_mismatch", "both_quotes_match"}
+    """Fail closed on contradictory audit flags before reporting any PASS.
+
+    This checks the *report's internal consistency*, not tick provenance,
+    source completeness, or whether its declared tolerance was appropriate.
+    """
+    flags = ("tick_present", "bid_mismatch", "ask_mismatch", "both_quotes_match")
+    diffs = ("bid_max_abs_diff", "ask_max_abs_diff")
+    required = set(flags + diffs + ("status",))
     if report.empty or not required.issubset(report.columns):
-        raise ValueError("Nonempty quote parity report required")
+        raise ValueError("Nonempty complete quote parity report required")
+
+    for name in flags:
+        series = report[name]
+        if not pd.api.types.is_bool_dtype(series.dtype) or series.isna().any():
+            raise ValueError(f"Quote parity {name} must be nonnull boolean")
+
+    present = report["tick_present"].to_numpy(dtype=bool)
+    bid_bad = report["bid_mismatch"].to_numpy(dtype=bool)
+    ask_bad = report["ask_mismatch"].to_numpy(dtype=bool)
+    matched = report["both_quotes_match"].to_numpy(dtype=bool)
+
+    if np.any((~present) & (bid_bad | ask_bad | matched)):
+        raise ValueError("Quote parity report marks missing ticks as matching/mismatching")
+    if not np.array_equal(matched, present & ~bid_bad & ~ask_bad):
+        raise ValueError("Quote parity report has contradictory match flags")
+
+    expected_status = np.select(
+        [~present, bid_bad | ask_bad],
+        ["NO_TICKS", "QUOTE_MISMATCH"],
+        default="MATCHED_OBSERVED_OHLC",
+    )
+    if not np.array_equal(report["status"].to_numpy(), expected_status):
+        raise ValueError("Quote parity report status contradicts match flags")
+
+    for name in diffs:
+        series = report[name]
+        if (not pd.api.types.is_numeric_dtype(series.dtype)
+                or pd.api.types.is_bool_dtype(series.dtype)):
+            raise ValueError(f"Quote parity {name} must be numeric")
+        values = series.to_numpy(dtype=float, na_value=np.nan)
+        if (np.any(present & (~np.isfinite(values) | (values < 0)))
+                or np.any((~present) & ~np.isnan(values))):
+            raise ValueError(f"Quote parity {name} has invalid present/missing differences")
+
     count = len(report)
-    present = int(report["tick_present"].sum())
-    matching = int(report["both_quotes_match"].sum())
-    mismatching = int((report["bid_mismatch"] | report["ask_mismatch"]).sum())
+    observed = int(present.sum())
+    matching = int(matched.sum())
+    mismatching = int((bid_bad | ask_bad).sum())
     return {
         "status": "PASSED_OBSERVED_OHLC_ONLY" if matching == count else "FAILED_OR_INCOMPLETE",
         "source_m1_minutes": count,
-        "observed_tick_minutes": present,
-        "missing_tick_minutes": count - present,
+        "observed_tick_minutes": observed,
+        "missing_tick_minutes": count - observed,
         "quote_mismatch_minutes": mismatching,
         "both_sides_matching_minutes": matching,
-        "coverage_fraction": present / count,
+        "coverage_fraction": observed / count,
         "warning": "Matching OHLC cannot prove tick feed completeness, fill accuracy, or broker authenticity.",
     }
