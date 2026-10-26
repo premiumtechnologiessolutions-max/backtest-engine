@@ -256,6 +256,11 @@ def load_market(path: str | Path, start: str, end: str) -> pd.DataFrame:
     path = Path(path)
     begin = pd.Timestamp(start, tz="UTC")
     finish = pd.Timestamp(end, tz="UTC") + pd.Timedelta(days=1)
+    if finish <= begin:
+        raise ValueError("End date must not precede start date")
+    # finish is EXCLUSIVE. A Dec 31 end produces Jan 1 of the next
+    # year; do not read, validate, or mark that unrelated year missing.
+    last_included_year = (finish - pd.Timedelta(nanoseconds=1)).year
     if path.suffix.lower() == ".zip":
         parts = []
         with zipfile.ZipFile(path) as archive:
@@ -267,11 +272,11 @@ def load_market(path: str | Path, start: str, end: str) -> pd.DataFrame:
                 if not match:
                     continue
                 year = int(match.group(1))
-                if begin.year <= year <= finish.year:
+                if begin.year <= year <= last_included_year:
                     if year in selected_members:
                         raise ValueError(f"Duplicate year {year} within ZIP")
                     selected_members[year] = member
-            for year in range(begin.year, finish.year + 1):
+            for year in range(begin.year, last_included_year + 1):
                 if year in selected_members:
                     part = normalize(_records_from_bytes(archive.read(selected_members[year])))
                     if (part.index.year != year).any():
@@ -285,7 +290,7 @@ def load_market(path: str | Path, start: str, end: str) -> pd.DataFrame:
         entries = read_cache_manifest(path)
         cache_statuses = []
         missing_years = []
-        for year in range(begin.year, finish.year + 1):
+        for year in range(begin.year, last_included_year + 1):
             candidate = path / f"xauusd_{year}.parquet"
             if not candidate.is_file():
                 if entries is not None and entries.get(year, {}).get("accepted") is True:
