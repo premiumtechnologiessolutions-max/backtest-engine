@@ -9,8 +9,8 @@ from scripts import batch_h1_h4_fib_confluence_grid as fac
 def bars(freq='h', n=50, start='2012-01-02'):
     idx = pd.date_range(start, periods=n, freq=freq, tz='UTC')
     x = np.arange(n)
-    center = 100.+4.*np.sin(2*np.pi*x/10)
-    width = pd.Timedelta(freq)
+    center = 100.+4.*np.sin(2*np.pi*x/11)
+    width = pd.Timedelta(1, unit='h') if freq == 'h' else pd.Timedelta(freq)
     return pd.DataFrame({'h': center+1., 'l': center-1.,
                          'close_at': idx+width}, index=idx)
 
