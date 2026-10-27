@@ -94,3 +94,40 @@ def test_git_head_fails_closed_if_git_unavailable(tmp_path, monkeypatch):
     monkeypatch.setattr(gate.subprocess, "run", fail)
     with pytest.raises(ValueError, match="Cannot verify"):
         gate._git_head(tmp_path)
+
+
+def test_git_head_rejects_dirty_tracked_checkout(tmp_path, monkeypatch):
+    calls = []
+    def fake_run(argv, **kwargs):
+        calls.append(argv)
+        assert kwargs["cwd"] == tmp_path
+        assert kwargs["check"] is True and kwargs["timeout"] == 5
+        if argv == ["git", "rev-parse", "--verify", "HEAD"]:
+            return SimpleNamespace(stdout="a" * 40 + "\\n")
+        assert argv == ["git", "status", "--porcelain", "--untracked-files=no"]
+        return SimpleNamespace(stdout=" M src/norisk_quant/execution.py\\n")
+    monkeypatch.setattr(gate.subprocess, "run", fake_run)
+    with pytest.raises(ValueError, match="Tracked checkout differs"):
+        gate._git_head(tmp_path)
+    assert len(calls) == 2
+
+
+def test_git_head_accepts_clean_tracked_checkout(tmp_path, monkeypatch):
+    def fake_run(argv, **kwargs):
+        if argv == ["git", "rev-parse", "--verify", "HEAD"]:
+            return SimpleNamespace(stdout="a" * 40 + "\\n")
+        assert argv == ["git", "status", "--porcelain", "--untracked-files=no"]
+        return SimpleNamespace(stdout="")
+    monkeypatch.setattr(gate.subprocess, "run", fake_run)
+    assert gate._git_head(tmp_path) == "a" * 40
+
+
+def test_git_head_rejects_failed_cleanliness_probe(tmp_path, monkeypatch):
+    def fake_run(argv, **kwargs):
+        if argv == ["git", "rev-parse", "--verify", "HEAD"]:
+            return SimpleNamespace(stdout="a" * 40 + "\\n")
+        raise subprocess.TimeoutExpired(cmd="git status", timeout=5)
+    monkeypatch.setattr(gate.subprocess, "run", fake_run)
+    with pytest.raises(ValueError, match="Cannot verify tracked checkout cleanliness"):
+        gate._git_head(tmp_path)
+
