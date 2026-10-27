@@ -16,10 +16,13 @@ def _registry():
 
 def test_real_registry_reconciles_without_touching_private_quotes():
     result = audit_registry(_registry())
-    assert result["yearly_backtests"] == 553196
-    assert result["exit_booked_monthly_points"] == 6638352
-    assert result["total_yearly_parameter_executions_including_zero_trade_negative_control"] == 625668
-    assert result["zero_trade_yearly_parameter_executions_excluded"] == 72472
+    assert result["distinct_parameter_specs"] == 305616
+    assert result["independent_hypothesis_families"] == 13
+    assert result["zero_trade_parameter_specs_excluded"] == 32088
+    assert result["yearly_backtests"] == 587820
+    assert result["exit_booked_monthly_points"] == 7053840
+    assert result["total_yearly_parameter_executions_including_zero_trade_negative_control"] == 662532
+    assert result["zero_trade_yearly_parameter_executions_excluded"] == 74712
     assert result["strictly_positive_every_month_in_both_years"] == 0
 
 
