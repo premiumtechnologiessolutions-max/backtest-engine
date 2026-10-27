@@ -69,8 +69,23 @@ def validate_annual_month_coverage(quotes: pd.DataFrame, year: int) -> None:
         )
 
 
+
+def validate_output_destination(destination: Path) -> None:
+    """Do not overwrite earlier frozen replay evidence or follow output symlinks."""
+    if destination.is_symlink():
+        raise FileExistsError("Frozen report destination must not be a symlink")
+    if destination.exists():
+        if not destination.is_dir():
+            raise FileExistsError("Frozen report destination exists and is not a directory")
+        if any(destination.iterdir()):
+            raise FileExistsError(
+                "Frozen report destination is nonempty; choose a fresh output path"
+            )
+
+
 def execute(gold_zip: Path, years: list[int], destination: Path) -> dict:
     validate_year_selection(years)
+    validate_output_destination(destination)
     if not gold_zip.is_file() or gold_zip.suffix.lower() != ".zip":
         raise ValueError("Private source must be the original annual JSON ZIP")
     actual_sha = sha256_file(gold_zip)
