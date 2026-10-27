@@ -29,7 +29,7 @@ def test_mixed_boolean_raw_cells_rejected_before_numeric_coercion(
     raw = _raw()
     raw[column] = raw[column].astype(object)
     raw.at[0, column] = boolean
-    with pytest.raises(ValueError, match="Source M1 contains boolean"):
+    with pytest.raises(ValueError, match="numeric non-boolean"):
         normalize(raw, strict=strict)
 
 
@@ -40,7 +40,7 @@ def test_json_mixed_boolean_source_is_rejected(tmp_path, column):
     rows[0][column] = False
     path = tmp_path / "source.json"
     path.write_text(json.dumps(rows), encoding="utf-8")
-    with pytest.raises(ValueError, match="Source M1 contains boolean"):
+    with pytest.raises(ValueError, match="numeric non-boolean"):
         read_source(path)
 
 
@@ -51,7 +51,7 @@ def test_zip_import_rejects_mixed_boolean_before_parquet_cache(tmp_path):
     with zipfile.ZipFile(archive, "w") as z:
         z.writestr("2020.json", json.dumps(rows))
     out = tmp_path / "cache"
-    with pytest.raises(ValueError, match="Source M1 contains boolean"):
+    with pytest.raises(ValueError, match="numeric non-boolean"):
         import_gold_zip(archive, out)
     assert not list(out.glob("*.parquet"))
 
