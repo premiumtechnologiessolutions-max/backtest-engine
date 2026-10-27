@@ -32,6 +32,13 @@ def run(minutes: pd.DataFrame, signals: Iterable[Signal], settings: Settings) ->
         raise ValueError("Market data needs a UTC DatetimeIndex")
     if minutes.index.has_duplicates or not minutes.index.is_monotonic_increasing:
         raise ValueError("M1 index must be sorted and unique")
+    # DatetimeIndex.asi8 uses the index storage unit (s/ms/us/ns).
+    # Canonicalize to ns before checking exact M1 boundaries or producing
+    # the execution/equity ledger; second-unit indexes otherwise fail
+    # valid minute alignment and disagree with the optimized executor.
+    if minutes.index.unit != "ns":
+        minutes = minutes.copy(deep=False)
+        minutes.index = minutes.index.as_unit("ns")
     if (minutes.index.asi8 % 60_000_000_000 != 0).any():
         raise ValueError("M1 candle opens must align to exact minute boundaries")
     required = {"o", "h", "l", "c"}
