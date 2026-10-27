@@ -1,0 +1,53 @@
+{
+  "id": "NRF-FAC-014",
+  "status": "REJECTED_FROZEN_JOINT_GATE_ORIGINAL_SHA_VERIFIED_LOCAL_SLOW_M1_PARITY_PASSED_OFFICIAL_CANONICAL_PENDING",
+  "preregistration_commit": "15b7083b13b4d434036612b509d189eb742ae339",
+  "source_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
+  "distinct_parameter_specs": 27648,
+  "executed_annual_parameter_replays": 55296,
+  "active_annual_replays": 39424,
+  "zero_trade_annual_executions": 15872,
+  "zero_trade_specs_both_years": 5376,
+  "completed_monthly_values_including_zero_trade": 663552,
+  "active_monthly_values": 473088,
+  "unique_entry_signal_streams_per_year": [
+    169,
+    163
+  ],
+  "annual_positive_net_specs": [
+    6355,
+    4933
+  ],
+  "net_positive_both_years": 1564,
+  "maximum_positive_months_24": 17,
+  "configs_24_of_24": 0,
+  "configs_passing_frozen_joint_gate": 0,
+  "max_trades_any_spec_by_year": [
+    74,
+    67
+  ],
+  "best_exploratory_monthly_id": "PDR15_K0.00_W4_FOLLOW_ALIGNED_HOT_ALL_SL1.25_TP1.00",
+  "best_exploratory_positive_months_24": 17,
+  "best_exploratory_annual_net": [
+    18.78875000000112,
+    -23.33500000000021
+  ],
+  "best_exploratory_trades": [
+    63,
+    53
+  ],
+  "best_exploratory_fees": [
+    25.19999999999997,
+    21.19999999999999
+  ],
+  "best_exploratory_worst_month": -17.49375000000005,
+  "best_exploratory_max_annual_floating_dd": 31.90875000000078,
+  "independent_slow_m1_parity_samples": 8,
+  "independent_slow_m1_marks_checked": 2821168,
+  "independent_slow_m1_filled_trades_checked": 149,
+  "independent_slow_m1_max_metric_delta": 7.105427357601002e-15,
+  "official_repository_canonical_parity_samples": 0,
+  "note": "Original private archive local only; historically exposed 2012/13; no clean OOS, no actual broker tick fills; no portfolio authorized.",
+  "csv_2012_sha256": "683a36732d46f1ac69986c6aed19f714f3909efac6b367b72e923c6d1abdf9a9",
+  "csv_2013_sha256": "c6ec7b1975ea355446e1b9b96a7fafda58a7470828bffc0c5d484fefddcab3f8"
+}
