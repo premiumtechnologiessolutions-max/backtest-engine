@@ -120,7 +120,7 @@ def test_both_year_zero_trade_spec_corruption_fails_closed(batch_id, zero_both, 
     (lambda d: d["completed_batches"][0].__setitem__(
         "completed_annual_parameter_executions", 40000)
      or d["completed_batches"][0].__setitem__("completed_annual_replays", 39999),
-     "annual executions"),
+     "completed_annual_replays reconciliation"),
     (lambda d: next(b for b in d["completed_batches"] if b["id"] == "NRF-FAC-005B")
      .__setitem__("active_annual_replays", 51199), "annual_replays_with_filled_trades"),
 ])
