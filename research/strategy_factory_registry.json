@@ -450,6 +450,20 @@
       "status": "COMPLETED_9_OFFICIAL_FAST_PARITY_2_REFERENCE_FULL_YEARS",
       "hypothesis": "Completed full official GitHub Actions source private original ZIP run_fast and independent slow M1 parity plus reference run. Do not repeat grid or retune rejected FAC014.",
       "evidence": "docs/FAC014_55296_ANNUAL_PRIOR_DAY_RECLAIM_REJECTED_2026-10-27.md"
+    },
+    {
+      "id": "NRF-FAC-016",
+      "status": "PREREGISTERED_IMPLEMENTED_NOT_EXECUTED_PRIVATE_SOURCE_UNAVAILABLE_IN_CURRENT_RUNTIME",
+      "hypothesis": "Confirmed H1/H4 pivot Fibonacci same-ratio confluence, strictly causal right-side confirmation, M15 median-range normalized stops, DST-aware sessions; 18,000 correlated parameter specs/year x 2 exposed design years PLANNED ONLY.",
+      "frozen_spec": "docs/FAC016_FROZEN_H1_H4_FIB_CONFLUENCE_2026-10-27.md",
+      "preregistration_commit": "1bd21fd6dee8f5b283deaeb5e698ed71aa319ab5",
+      "runner": "scripts/batch_h1_h4_fib_confluence_grid.py",
+      "synthetic_tests": "tests/test_batch_h1_h4_fib_confluence_grid.py",
+      "planned_specs_per_year": 18000,
+      "executed_annual_replays": 0,
+      "observed_monthly_values": 0,
+      "original_source_status": "Gold data.zip not discoverable in available Library files; /gold data empty. No raw quotes fetched/uploaded.",
+      "notes": "Do not add to completed_batches/totals until SHA-verified local original-data replay, monthly fee reconciliation and canonical parity. Do not claim independent OOS."
     }
   ],
   "rules": [
