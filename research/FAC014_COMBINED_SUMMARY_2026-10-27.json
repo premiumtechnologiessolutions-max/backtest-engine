@@ -1,6 +1,6 @@
 {
   "id": "NRF-FAC-014",
-  "status": "REJECTED_FROZEN_JOINT_GATE_ORIGINAL_SHA_VERIFIED_LOCAL_SLOW_M1_PARITY_PASSED_OFFICIAL_CANONICAL_PENDING",
+  "status": "REJECTED_FROZEN_JOINT_GATE_ORIGINAL_SHA_VERIFIED_OFFICIAL_CHECKOUT_CANONICAL_PARITY_PASSED_CI_PASSED",
   "preregistration_commit": "15b7083b13b4d434036612b509d189eb742ae339",
   "source_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
   "distinct_parameter_specs": 27648,
@@ -46,8 +46,21 @@
   "independent_slow_m1_marks_checked": 2821168,
   "independent_slow_m1_filled_trades_checked": 149,
   "independent_slow_m1_max_metric_delta": 7.105427357601002e-15,
-  "official_repository_canonical_parity_samples": 0,
+  "official_repository_canonical_parity_samples": 9,
   "note": "Original private archive local only; historically exposed 2012/13; no clean OOS, no actual broker tick fills; no portfolio authorized.",
   "csv_2012_sha256": "683a36732d46f1ac69986c6aed19f714f3909efac6b367b72e923c6d1abdf9a9",
-  "csv_2013_sha256": "c6ec7b1975ea355446e1b9b96a7fafda58a7470828bffc0c5d484fefddcab3f8"
+  "csv_2013_sha256": "c6ec7b1975ea355446e1b9b96a7fafda58a7470828bffc0c5d484fefddcab3f8",
+  "official_checkout_code_commit": "5bf6cacb559a4915c25b02e94cd5a715dc54965e",
+  "official_checkout_ci_run": 40426165331,
+  "official_checkout_ci_tests_passed": 752,
+  "initial_registry_head_ci_run": 40426353377,
+  "initial_registry_head_ci_tests_passed": 752,
+  "official_canonical_m1_marks_checked": 3173485,
+  "official_canonical_trades_checked": 202,
+  "official_canonical_max_m1_equity_mark_delta": 0,
+  "official_canonical_max_aggregate_metric_delta": 1.7763568394002505e-14,
+  "official_independent_reference_years": 2,
+  "official_independent_reference_trades_checked": 116,
+  "official_independent_reference_m1_marks_checked": 705292,
+  "official_independent_reference_max_ledger_or_equity_delta": 0
 }
