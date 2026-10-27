@@ -248,6 +248,38 @@ def validate_replay_years(years: list[int]) -> None:
         raise ValueError("Duplicate replay years would double-count scenarios")
 
 
+
+def validate_reference_summary_row(row: pd.Series) -> tuple[int, int, float]:
+    """Reject archived yearly.csv counts that would be silently truncated.
+
+    int(689.9), int(True), and int("689") all succeed in Python but must
+    never certify a 13-field source replay. Annual net must also be finite,
+    native numeric data rather than a string or boolean.
+    """
+    counts = []
+    for name in ("trades", "orders"):
+        value = row[name]
+        if (
+            isinstance(value, (bool, np.bool_))
+            or not isinstance(value, (int, np.integer))
+            or value < 0
+        ):
+            raise AssertionError(
+                f"Archived yearly summary {name} must be a nonnegative integer"
+            )
+        counts.append(int(value))
+    if counts[0] > counts[1]:
+        raise AssertionError("Archived yearly summary trades exceed orders")
+    net = row["net_usd_oz"]
+    if (
+        isinstance(net, (bool, np.bool_))
+        or not isinstance(net, (int, float, np.integer, np.floating))
+        or not np.isfinite(net)
+    ):
+        raise AssertionError("Archived yearly summary net_usd_oz must be finite numeric")
+    return counts[0], counts[1], float(net)
+
+
 def verify(gold_zip: Path, reference_root: Path, years: list[int]) -> dict:
     validate_replay_years(years)
     sha = file_sha256(gold_zip)
@@ -280,12 +312,13 @@ def verify(gold_zip: Path, reference_root: Path, years: list[int]) -> dict:
             ]
             if len(summary_row) != 1:
                 raise AssertionError("Missing or duplicate year/variant reference")
-            expected_count = int(summary_row.iloc[0]["trades"])
-            expected_orders = int(summary_row.iloc[0]["orders"])
+            expected_count, expected_orders, expected_net = validate_reference_summary_row(
+                summary_row.iloc[0]
+            )
             if len(orders) != expected_orders or check["trades"] != expected_count:
                 raise AssertionError("Signal count or trade count does not reconcile")
             total = float(result.trades["net_pnl"].sum())
-            if not np.isclose(total, float(summary_row.iloc[0]["net_usd_oz"]), rtol=0, atol=1e-6):
+            if not np.isclose(total, expected_net, rtol=0, atol=1e-6):
                 raise AssertionError("Annual P/L fails standalone reference reconciliation")
             complete.append({
                 "year": year,
