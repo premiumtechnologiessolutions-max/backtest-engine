@@ -34,13 +34,18 @@ def aggregate_bars(minutes: pd.DataFrame, timeframe: str) -> pd.DataFrame:
         raise ValueError("M1 candle opens must align exactly to minute boundaries")
     if minutes[list(required)].isna().any().any():
         raise ValueError("NaN in M1 source; never construct a fabricated full candle")
+    # Resampling in the caller's local timezone shifts higher-timeframe
+    # boundaries (especially H4) and may silently discard a complete UTC
+    # candle. Normalize the *observed instants* before aggregation; never
+    # localize naive timestamps or round source minute opens.
+    utc_minutes = minutes.tz_convert("UTC")
     width = TIMEFRAMES[timeframe]
     if width == 1:
-        out = minutes[["o", "h", "l", "c"]].copy()
+        out = utc_minutes[["o", "h", "l", "c"]].copy()
         out["close_at"] = out.index + pd.Timedelta(minutes=1)
         return out
     rule = f"{width}min"
-    resampler = minutes.resample(rule, label="left", closed="left", origin="epoch")
+    resampler = utc_minutes.resample(rule, label="left", closed="left", origin="epoch")
     bars = resampler.agg({"o": "first", "h": "max", "l": "min", "c": "last"})
     counts = resampler["c"].count()
     # Drop incomplete candles rather than unknowingly inventing prices.
