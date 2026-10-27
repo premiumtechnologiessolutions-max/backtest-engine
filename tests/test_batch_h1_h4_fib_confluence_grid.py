@@ -25,7 +25,7 @@ def m15_fixture(n=40):
 
 
 def test_frozen_count_and_fee_and_status():
-    assert fac.TOTAL == fac.SPEC['specs_per_year'] == 18000
+    assert fac.TOTAL == fac.SPEC['specs_per_year'] == 18000\n    assert fac.PIVOT_PAIRS == ((2, 1), (2, 2), (3, 1), (3, 2))
     assert fac.SPEC['roundtrip_all_in_usd_oz'] == .4
     assert fac.SPEC['years'] == [2012, 2013]
 
@@ -123,3 +123,9 @@ def test_stale_confirmations_and_m15_gap_rejected(monkeypatch):
     t, _, _ = fac.confluence_signals(gapped, bars(), bars('4h'),
                                     (2, 2), .5, 1.5)
     assert not np.isin(t, (gapped.close_at.iloc[24:44].astype('int64')//10**9).to_numpy()).any()
+
+
+def test_h4_width_one_feasible_on_three_completed_bars():
+    b = bars('4h', n=50)
+    t, side, low, high = fac.confirmed_pivot_waves(b, 1, 14400, 672*3600)
+    assert len(t) > 0 and (high > low).all()
