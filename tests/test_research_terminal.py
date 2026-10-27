@@ -42,7 +42,7 @@ def test_displays_explicitly_noncertified_research_and_escapes_html():
     assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html
     assert "<script>alert(1)</script>" not in html
     assert "Read evidence" in html
-    assert "NO RISK FX / RESEARCH" in html
+    assert "NO RISK FX" in html and "Strategy Lab" in html
 
 
 def test_inconsistent_registry_does_not_generate_dashboard():
