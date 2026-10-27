@@ -524,6 +524,11 @@
       "active_annual_replays": 31300,
       "report": "docs/FAC016_36000_ANNUAL_H1_H4_FIB_CONFLUENCE_REJECTED_2026-10-27.md",
       "official_source_verification": "research/FAC016_OFFICIAL_SOURCE_REPLAY_VERIFICATION_2026-10-27.json"
+    },
+    {
+      "id": "NRF-FAC-017-OFFICIAL-CANONICAL",
+      "status": "PENDING",
+      "hypothesis": "Verify the existing 36,864 locally completed FAC017 annual parameter replays against the official frozen GitHub runner and run_fast canonical ledger/floating M1 samples on SHA-verified original private data, then move pending entry into completed_batches and reconcile totals; no new grid search."
     }
   ],
   "rules": [
@@ -744,6 +749,36 @@
       "active_annual_replays": 0,
       "reason": "Frozen >=26 consecutive complete H1 bars infeasible on 2012 original: max contiguous H1 23; FAC012B separately preregistered feasibility fix before opening its results.",
       "report": "docs/FAC012B_48000_ANNUAL_COMPRESSION_REJECTION_2026-10-27.md"
+    }
+  ],
+  "pending_local_replays": [
+    {
+      "id": "NRF-FAC-017",
+      "status": "LOCALLY_COMPLETED_FROZEN_SCREEN_REJECTED_PENDING_OFFICIAL_FULL_CHECKOUT_CANONICAL",
+      "preregistration_commit": "e88adcea2f00927e15d93e37d11e8f95e7680911",
+      "file": "scripts/batch_two_bar_shock_reversal_grid.py",
+      "report": "docs/FAC017_LOCAL_36864_ANNUAL_REPLAYS_PENDING_OFFICIAL_CANONICAL_2026-10-27.md",
+      "years": [
+        2012,
+        2013
+      ],
+      "unique_parameter_specs": 18432,
+      "local_completed_annual_executions": 36864,
+      "local_active_annual_replays": 34624,
+      "local_zero_trade_annual_replays": 2240,
+      "local_monthly_values_including_zero": 442368,
+      "local_active_monthly_values": 415488,
+      "local_max_positive_months_of_24": 20,
+      "local_configs_24_of_24": 0,
+      "local_configs_passing_frozen_joint_gate": 0,
+      "local_positive_both_annual_net": 1080,
+      "local_independent_slow_m1_annual_samples": 8,
+      "local_slow_m1_marks_checked": 2821168,
+      "local_max_monthly_net_fee_dd_parity_error": 0,
+      "official_full_repository_private_source_canonical_parity_samples": 0,
+      "original_zip_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
+      "not_in_certified_factory_totals": true,
+      "notes": "Source authenticated and frozen grid locally replayed using an independently assembled local port; negative 0-pass screen. Official GitHub frozen runner run_fast/canonical full source parity and CI on results head pending. No totals increment until official verification; 2012/13 historically exposed."
     }
   ]
 }
