@@ -95,6 +95,7 @@ def test_h1_non_utc_index_is_equivalent_across_dst(unit):
     expected = complete_h1_regimes(base)
     actual.index = actual.index.tz_convert("UTC").as_unit("ns")
     expected.index = expected.index.as_unit("ns")
+    actual["confirmed_at"] = actual["confirmed_at"].dt.tz_convert("UTC")
     pd.testing.assert_frame_equal(actual, expected)
 
 
