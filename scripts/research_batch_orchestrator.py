@@ -180,7 +180,8 @@ def count(value: object) -> int:
 
 
 def same(a: float, b: float) -> bool:
-    return abs(a - b) <= 1e-6 * max(1.0, abs(a), abs(b))
+    """Absolute accounting tolerance; large P/L must not mask material drift."""
+    return math.isfinite(a) and math.isfinite(b) and abs(a - b) <= 1e-6
 
 
 def audit_run(folder: Path, spec: dict, source_sha: str, engine_sha: str) -> dict:
@@ -193,9 +194,7 @@ def audit_run(folder: Path, spec: dict, source_sha: str, engine_sha: str) -> dic
     if summary.get("execution") != "synthetic_same_reference_bid_ohlc_fixed_all_in_fee":
         raise ValueError("Unknown execution mode")
     settings = summary.get("settings")
-    if not isinstance(settings, dict) or not same(
-        finite(settings.get("roundtrip_cost_per_ounce")), 0.40
-    ):
+    if not isinstance(settings, dict) or finite(settings.get("roundtrip_cost_per_ounce")) != 0.40:
         raise ValueError("Research transaction cost mismatch")
     provenance = summary.get("source_fingerprints")
     if (not isinstance(provenance, dict)
@@ -232,11 +231,15 @@ def audit_run(folder: Path, spec: dict, source_sha: str, engine_sha: str) -> dic
         fees += finite(row.get("total_cost"), nonnegative=True)
         gaps += count(row.get("uncertain_gap_trades"))
         forced += count(row.get("synthetic_end_of_data_trades"))
+    if gaps > trades or forced > trades:
+        raise ValueError("Gap or forced-close counts exceed executed trades")
     weekly_pnl = sum(finite(row.get("net_pnl")) for row in weekly)
     weekly_fees = sum(finite(row.get("total_cost"), nonnegative=True) for row in weekly)
     weekly_trades = sum(count(row.get("trades")) for row in weekly)
     trade_pnl = sum(finite(row.get("net_pnl")) for row in individual)
     trade_fees = sum(finite(row.get("cost"), nonnegative=True) for row in individual)
+    if any(not same(finite(row.get("cost"), nonnegative=True), 0.40) for row in individual):
+        raise ValueError("Individual trade fee differs from frozen $0.40/oz model")
     if (weekly_trades != trades or len(individual) != trades
             or not same(weekly_pnl, sum(pnl.values()))
             or not same(trade_pnl, sum(pnl.values()))
