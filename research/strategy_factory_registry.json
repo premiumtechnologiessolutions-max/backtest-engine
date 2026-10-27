@@ -1,6 +1,6 @@
 {
   "format_version": 1,
-  "updated_utc": "2026-10-27T17:28:47.157Z",
+  "updated_utc": "2026-10-27T18:14:13Z",
   "project": "No Risk FX XAUUSD quant research factory",
   "branch": "feat/quant-engine-foundation",
   "original_private_zip_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
@@ -851,6 +851,15 @@
       "status": "COMPLETED_REJECTED_OFFICIAL_FULL_GRID_AND_JANUARY_REFERENCE_PARITY",
       "hypothesis": "M5 signed semivariance threshold crossing. No refit. 0/2304 frozen passes, max 12/24; all combined nets negative.",
       "evidence": "docs/FAC023_4608_ANNUAL_M5_SEMIVARIANCE_REJECTED_2026-10-27.md"
+    },
+    {
+      "id": "NRF-FAC-024",
+      "status": "FROZEN_PROSPECTIVE_NO_SOURCE_MONTHS_NO_BACKTESTS",
+      "hypothesis": "M15 completed liquidity sweep/reclaim with prior M1 BID/ASK spread expansion and recovery. Frozen at commit 46c4fbf59c4c052fca4404b9b93588b11daac561. Future 2026-11 through 2027-10 only; source partition SHA256 chain registration added, no outcomes or source months yet.",
+      "frozen_spec": "docs/FAC024_PROSPECTIVE_SPREAD_RECOVERY_SWEEP_2026-10-27.md",
+      "source_manifest_gate": "docs/FAC024_PROSPECTIVE_SOURCE_MANIFEST_GATE_2026-10-27.md",
+      "executed_annual_replays": 0,
+      "prospective_months_registered": 0
     }
   ],
   "rules": [
