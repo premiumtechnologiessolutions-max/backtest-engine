@@ -27,3 +27,17 @@ Synthetic tests: `tests/test_prospective_manifest.py`. Keep PR #1 **Draft and un
 ## Additional prospective quote-schema hardening (2026-10-27)
 
 The registration validator now rejects impossible BID or ASK OHLC bars (high below open/close or low above open/close), duplicate column names, and complex-valued quotes before hashing the prospective metadata. Synthetic regression tests cover these malformed inputs. This changes **source acceptance only**; it does not alter FAC024's frozen trading rules, research window, execution fees, or previously reported historical outcomes. Full repository CI and actual prospective-data evaluation must be reported separately; no future calendar month is complete yet.
+
+
+## FAC024 signal-input schema parity hardening (2026-10-27)
+
+The frozen `spread_recovery_sweep_signals` input gate now matches the prospective
+source-manifest gate for three fail-closed checks: duplicate quote-column names,
+complex-valued BID/ASK (no silent imaginary-component truncation), and impossible
+OHLC high/low envelopes on either side of the book. Synthetic regression cases
+cover four malformed candle envelopes plus complex and duplicate columns.
+Crossed-quote diagnostic precedence remains unchanged. This does **not** change
+FAC024's frozen signal thresholds, fees, eligible entry timing, window, or risk
+settings; no prospective outcomes were examined. A green CI is a synthetic
+code-quality check only, not private-source replay, canonical M1 equity parity,
+broker tick certification, or prospective profitability.

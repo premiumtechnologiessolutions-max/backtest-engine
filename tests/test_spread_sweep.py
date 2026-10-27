@@ -82,3 +82,27 @@ def test_non_utc_fails_closed():
 def test_frozen_parameters_cannot_be_changed(kwargs):
     with pytest.raises(ValueError, match='frozen'):
         SpreadSweepSettings(**kwargs)
+
+
+@pytest.mark.parametrize(('column', 'bad_value'), [
+    ('h', 99.0), ('l', 101.0), ('ah', 99.0), ('al', 101.0),
+])
+def test_impossible_bid_ask_envelope_rejected_before_signal_generation(column, bad_value):
+    data = fixture_m1()
+    data.loc[data.index[0], column] = bad_value
+    with pytest.raises(ValueError, match='bar geometry'):
+        spread_recovery_sweep_signals(data)
+
+
+def test_complex_quote_rejected_without_silent_imaginary_loss():
+    data = fixture_m1()
+    data['o'] = [100 + 1j] * len(data)
+    with pytest.raises(ValueError, match='real numeric'):
+        spread_recovery_sweep_signals(data)
+
+
+def test_duplicate_quote_columns_rejected_before_numeric_cast():
+    data = fixture_m1()
+    data = pd.concat([data, data[['o']]], axis=1)
+    with pytest.raises(ValueError, match='unique quote column'):
+        spread_recovery_sweep_signals(data)

@@ -63,17 +63,29 @@ def spread_recovery_sweep_signals(
     if (stamps % 60_000_000_000 != 0).any():
         raise ValueError("FAC024 M1 opens must be minute-aligned")
     required = ('o', 'h', 'l', 'c', 'ao', 'ah', 'al', 'ac')
+    if not minutes.columns.is_unique:
+        raise ValueError("FAC024 requires unique quote column names")
     if any(k not in minutes for k in required):
         raise ValueError("FAC024 requires original M1 BID/ASK OHLC")
     for col in required:
-        if (not pd.api.types.is_numeric_dtype(minutes[col])
-                or pd.api.types.is_bool_dtype(minutes[col])):
-            raise ValueError("FAC024 BID/ASK must be numeric non-boolean")
+        dtype = minutes[col].dtype
+        if (not pd.api.types.is_numeric_dtype(dtype)
+                or pd.api.types.is_bool_dtype(dtype)
+                or pd.api.types.is_complex_dtype(dtype)):
+            raise ValueError("FAC024 BID/ASK must be real numeric non-boolean")
     values = minutes[list(required)].to_numpy(dtype=float)
     if not np.isfinite(values).all() or (values <= 0).any():
         raise ValueError("FAC024 requires finite positive BID/ASK OHLC")
     if (values[:, 4:] < values[:, :4]).any():
         raise ValueError("FAC024 rejects crossed BID/ASK quotes")
+    # A malformed minute candle can fabricate a sweep even when BID <= ASK.
+    # Validate both envelopes before aggregation; do not alter frozen signals.
+    for offset in (0, 4):
+        op, hi, lo, cl = (values[:, offset + j] for j in range(4))
+        if ((hi < np.maximum(op, cl)).any()
+                or (lo > np.minimum(op, cl)).any()
+                or (hi < lo).any()):
+            raise ValueError("FAC024 invalid BID/ASK OHLC bar geometry")
 
     prior = settings.spread_baseline_minutes
     spread_close = (minutes['ac'] - minutes['c']).to_numpy(dtype=float)
