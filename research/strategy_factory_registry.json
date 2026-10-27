@@ -896,7 +896,10 @@
       "observed_monthly_pnl": 0,
       "source_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
       "evidence": "docs/FAC019_STRUCTURAL_H4_CAPACITY_REJECTION_2026-10-27.md",
-      "note": "Pre-outcome frozen; local original SHA-verified M1-to-H4 complete-bar reconstruction, not official checkout parity; 0 eligible H4 windows both years. No parameter refit or backtest; no change to bulk totals."
+      "note": "Pre-outcome frozen; local original SHA-verified M1-to-H4 complete-bar reconstruction, not official checkout parity; 0 eligible H4 windows both years. No parameter refit or backtest; no change to bulk totals.",
+      "actual_parameter_year_executions": 0,
+      "zero_trade_executions": 0,
+      "active_annual_replays": 0
     }
   ],
   "pending_local_replays": []
