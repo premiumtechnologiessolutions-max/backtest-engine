@@ -161,7 +161,7 @@ def test_bad_sha_rejected(tmp_path):
 
 
 @pytest.mark.parametrize(("column", "bad_value"), [
-    ("h", 99.0), ("l", 101.0), ("ah", 99.9), ("al", 101.0),
+    ("h", 99.0), ("l", 100.2), ("ah", 100.1), ("al", 100.5),
 ])
 def test_impossible_bid_ask_bar_geometry_rejected(tmp_path, column, bad_value):
     p, f = source(tmp_path)
