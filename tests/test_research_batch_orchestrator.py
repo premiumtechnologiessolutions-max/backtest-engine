@@ -306,3 +306,53 @@ def test_manual_html_shows_only_recorded_monthly_values():
     assert "NOT independent OOS" in html
     assert "monthly.csv" in html
     assert "No Risk FX" in html
+
+
+def test_large_pnl_drift_is_not_hidden_by_relative_tolerance():
+    # Prior relative comparison allowed a $0.10 discrepancy at $1bn P/L.
+    assert not lab.same(1_000_000_000.0, 1_000_000_000.10)
+    assert lab.same(100.0, 100.0000005)
+
+
+def test_compensating_individual_trade_fees_are_rejected(tmp_path):
+    folder = tmp_path / "job"
+    make_report(folder)
+    path = folder / "trades.csv"
+    with path.open(newline="", encoding="utf-8") as handle:
+        rows = list(csv.DictReader(handle))
+    rows[0]["cost"] = "0.2"
+    rows[1]["cost"] = "0.6"
+    with path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=rows[0])
+        writer.writeheader()
+        writer.writerows(rows)
+    assert sum(float(row["cost"]) for row in rows) == pytest.approx(1.6)
+    with pytest.raises(ValueError, match="Individual trade fee"):
+        lab.audit_run(folder, spec(), SOURCE, COMMIT)
+
+
+def test_noncanonical_nearby_transaction_cost_is_rejected(tmp_path):
+    folder = tmp_path / "job"
+    make_report(folder)
+    path = folder / "summary.json"
+    summary = json.loads(path.read_text(encoding="utf-8"))
+    summary["settings"]["roundtrip_cost_per_ounce"] = 0.4000001
+    path.write_text(json.dumps(summary), encoding="utf-8")
+    with pytest.raises(ValueError, match="transaction cost"):
+        lab.audit_run(folder, spec(), SOURCE, COMMIT)
+
+
+@pytest.mark.parametrize("field", ["uncertain_gap_trades", "synthetic_end_of_data_trades"])
+def test_impossible_exposure_counts_cannot_exceed_trade_count(tmp_path, field):
+    folder = tmp_path / "job"
+    make_report(folder)
+    path = folder / "monthly.csv"
+    with path.open(newline="", encoding="utf-8") as handle:
+        rows = list(csv.DictReader(handle))
+    rows[0][field] = "5"
+    with path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=rows[0])
+        writer.writeheader()
+        writer.writerows(rows)
+    with pytest.raises(ValueError, match="counts exceed executed trades"):
+        lab.audit_run(folder, spec(), SOURCE, COMMIT)
