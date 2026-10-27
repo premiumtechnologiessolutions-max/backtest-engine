@@ -1,6 +1,6 @@
 {
   "format_version": 1,
-  "updated_utc": "2026-10-27T17:27:54.603Z",
+  "updated_utc": "2026-10-27T17:28:47.157Z",
   "project": "No Risk FX XAUUSD quant research factory",
   "branch": "feat/quant-engine-foundation",
   "original_private_zip_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
@@ -654,7 +654,7 @@
     "zero_trade_parameter_specs_excluded": 39896,
     "zero_trade_yearly_parameter_executions_excluded": 90584,
     "zero_trade_canonical_parity_samples_excluded": 12,
-    "total_yearly_parameter_executions_including_zero_trade_negative_control": 714756,
+    "total_yearly_parameter_executions_including_zero_trade_negative_control": 719364,
     "local_copy_fast_engine_parity_samples": 18,
     "independent_slow_m1_parity_samples": 54,
     "annual_replays_pending_new_head_ci": 0,
