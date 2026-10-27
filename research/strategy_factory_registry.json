@@ -1,6 +1,6 @@
 {
   "format_version": 1,
-  "updated_utc": "2026-10-27T15:31:38.939Z",
+  "updated_utc": "2026-10-27T17:27:54.603Z",
   "project": "No Risk FX XAUUSD quant research factory",
   "branch": "feat/quant-engine-foundation",
   "original_private_zip_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
@@ -597,14 +597,59 @@
       "verified_ci_run": 40531528349,
       "verified_ci_tests": 1138,
       "official_source_verification": "research/FAC022_OFFICIAL_SOURCE_REPLAY_VERIFICATION_2026-10-27.json"
+    },
+    {
+      "id": "NRF-FAC-023",
+      "family": "Completed M5 signed realized 12-return semivariance dominance threshold-crossing, completed H1 volatility regime, DST local sessions, post-gate 15m cooldown",
+      "status": "REJECTED_EXPOSED_DESIGN_ORIGINAL_SHA_OFFICIAL_FULL_GRID_AND_JANUARY_REFERENCE_PARITY",
+      "preregistration_commit": "c4d8d8b67e69b7b20a4615f25077441c155a15e1",
+      "unique_parameter_specs": 2304,
+      "years": [
+        2012,
+        2013
+      ],
+      "completed_annual_parameter_executions": 4608,
+      "active_annual_replays": 4608,
+      "zero_trade_annual_executions": 0,
+      "completed_monthly_pnl_values": 55296,
+      "active_monthly_values": 55296,
+      "unique_entry_signal_streams_by_year": [
+        36,
+        36
+      ],
+      "same_id_signal_only_preflight_rules_ge100_both_years": 36,
+      "maximum_positive_months_out_of_24": 12,
+      "configs_18plus_of_24": 0,
+      "configs_24_of_24": 0,
+      "configs_annual_net_positive_both_years": 0,
+      "configs_passing_frozen_joint_gate": 0,
+      "configs_positive_combined_net": 0,
+      "least_negative_combined_net_usd_oz": -39.18,
+      "canonical_replay_parity_samples": 8,
+      "independent_slow_january_only_parity_samples": 2,
+      "independent_slow_january_verified_trades": 17,
+      "independent_slow_january_verified_m1_marks": 58697,
+      "official_full_grid_replayed_annual": 4608,
+      "official_full_grid_replayed_monthly": 55296,
+      "official_full_grid_max_numeric_delta": 0,
+      "original_source_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
+      "file": "scripts/batch_m5_semivariance_transition_grid.py",
+      "frozen_spec": "docs/FAC023_FROZEN_M5_SEMIVARIANCE_TRANSITION_2026-10-27.md",
+      "report": "docs/FAC023_4608_ANNUAL_M5_SEMIVARIANCE_REJECTED_2026-10-27.md",
+      "official_source_verification": "research/FAC023_OFFICIAL_SOURCE_REPLAY_VERIFICATION_2026-10-27.json",
+      "official_source_artifact_id": 12753929062,
+      "official_source_commit": "cead7679bdf5d9944cbb137d30fea758459ca400",
+      "verified_ci_run": 40550223574,
+      "verified_ci_tests": 1156,
+      "notes": "Preregistered before original-data outcomes. 2304 correlated specs x2 exposed years. All 4608 annual replays and 55296 monthly P/L cells byte-identical in official source artifact replay. Zero frozen passes; best 12/24, every combined net negative. 8 full-year run_fast parity and 2 JANUARY-ONLY independent slow slices (17 fills, 58697 M1 marks), NOT full-year slow parity. No OOS, no portfolio. Do not retune."
     }
   ],
   "totals": {
-    "distinct_parameter_specs": 317532,
-    "yearly_backtests": 624172,
-    "exit_booked_monthly_points": 7490064,
-    "canonical_replay_parity_samples": 135,
-    "independent_hypothesis_families": 17,
+    "distinct_parameter_specs": 319836,
+    "yearly_backtests": 628780,
+    "exit_booked_monthly_points": 7545360,
+    "canonical_replay_parity_samples": 143,
+    "independent_hypothesis_families": 18,
     "strictly_positive_every_month_in_both_years": 0,
     "zero_trade_parameter_specs_excluded": 39896,
     "zero_trade_yearly_parameter_executions_excluded": 90584,
@@ -701,7 +746,8 @@
     "latest_fac018_ci_pytest_passed": 964,
     "note_fac018": "FAC018 frozen preregistration dc7f3c before outcomes; official code cb0c12 CI 964/964, SHA-verified local original ZIP; 9216 correlated specs x2 exposed years, 2560 active annual M1 runs, 30720 active monthly cells, max 17/24, zero passes. 4 independent slow full-year checks exact 105 fills and 1410584 M1 equity marks; shared-capacity posthoc negative control not OOS. Registry/report head CI to be verified separately.",
     "note_fac020": "FAC020 frozen at ba44ef7; 12,288 specs x2 exposed years, 24,576 actual active annual M1 replays and 294,912 monthly P/L; 19/24 highest but only 80/101 fills, 0 frozen joint passes. Official exact-head artifact 12733098945 replayed all annual/monthly rows with zero numeric delta, 8 canonical fast and 2 independent slow 15-field+M1 equity parity samples. No OOS or shared portfolio.",
-    "note_distinct_parameter_specs_partition": "Corrected: subtract 14,196 specs with zero fills in BOTH 2012/2013 from active distinct specs (FAC014 5,376; FAC016 500; FAC017 512; FAC018 7,808). Those specs remain in excluded-zero-spec count 39,896; active+excluded=352,820 total including 100 one-year feasibility controls. Arithmetic only; not replay/OOS proof."
+    "note_distinct_parameter_specs_partition": "Corrected: subtract 14,196 specs with zero fills in BOTH 2012/2013 from active distinct specs (FAC014 5,376; FAC016 500; FAC017 512; FAC018 7,808). Those specs remain in excluded-zero-spec count 39,896; active+excluded=352,820 total including 100 one-year feasibility controls. Arithmetic only; not replay/OOS proof.",
+    "note_fac023": "FAC023 prereg c4d8d8b; official code artifact 12753929062 4608 annual/55296 monthly replay byte-identical on SHA-verified private Gold ZIP. All combined nets negative, max 12/24, zero frozen passes; 8 canonical full-year fast parity and 2 JANUARY-only independent slow slices (17 fills, 58697 marks), no full-year slow parity, no OOS."
   },
   "next_priorities": [
     {
@@ -799,6 +845,12 @@
       "status": "COMPLETED_OFFICIAL_SOURCE_REPLAY_REJECTED",
       "hypothesis": "Frozen M5 six-change signed path efficiency, post-gate per-rule cooldown; no refit, 0/2304 passed frozen screen, max 15/24. Historical exposed only.",
       "evidence": "docs/FAC022_4608_ANNUAL_M5_PATH_EFFICIENCY_REJECTED_2026-10-27.md"
+    },
+    {
+      "id": "NRF-FAC-023",
+      "status": "COMPLETED_REJECTED_OFFICIAL_FULL_GRID_AND_JANUARY_REFERENCE_PARITY",
+      "hypothesis": "M5 signed semivariance threshold crossing. No refit. 0/2304 frozen passes, max 12/24; all combined nets negative.",
+      "evidence": "docs/FAC023_4608_ANNUAL_M5_SEMIVARIANCE_REJECTED_2026-10-27.md"
     }
   ],
   "rules": [
