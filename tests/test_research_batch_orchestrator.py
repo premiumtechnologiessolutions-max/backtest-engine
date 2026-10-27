@@ -49,6 +49,18 @@ def make_report(folder: Path, source=SOURCE, commit=COMMIT, *, outcome=(3.0, -2.
                 "total_cost": "0.8", "observed_m1_samples": 100,
                 "uncertain_gap_trades": 0, "synthetic_end_of_data_trades": 0,
             })
+    with (folder / "weekly.csv").open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=["period", "net_pnl", "trades", "total_cost"])
+        writer.writeheader()
+        for month, gain in zip(("2024-01", "2024-02"), outcome):
+            writer.writerow({"period": month, "net_pnl": gain,
+                             "trades": 2, "total_cost": 0.8})
+    with (folder / "trades.csv").open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=["net_pnl", "cost"])
+        writer.writeheader()
+        for gain in outcome:
+            for _ in range(2):
+                writer.writerow({"net_pnl": gain / 2, "cost": 0.4})
     summary = {
         "execution": "synthetic_same_reference_bid_ohlc_fixed_all_in_fee",
         "settings": {"roundtrip_cost_per_ounce": 0.4},
@@ -102,6 +114,14 @@ def test_rejects_invalid_base_strategy_fields(change):
         lab.check_spec(s)
 
 
+def test_refuses_negative_bos_cost_filter():
+    s = {"strategy": "bos-fib", "timeframe": "M1", "execution": "reference",
+         "start": "2024-01-01", "end": "2024-01-31",
+         "parameters": {"bos_min_gross_reward_fee_multiple": -0.5}}
+    with pytest.raises(ValueError):
+        lab.check_spec(s)
+
+
 def test_rejects_forward_oos_assertion_and_relative_dataset(tmp_path):
     p = plan(tmp_path)
     p["exposure_context"] = "future_prospective"
@@ -147,6 +167,8 @@ def test_monthly_accounting_is_reconciled_from_real_report_structure(tmp_path):
     assert result["trades"] == 4
     assert result["total_cost"] == 1.6
     assert result["summary_sha256"] == lab.file_sha(folder / "summary.json")
+    assert result["weekly_sha256"] == lab.file_sha(folder / "weekly.csv")
+    assert result["trades_sha256"] == lab.file_sha(folder / "trades.csv")
 
 
 @pytest.mark.parametrize("mutation", [
@@ -162,13 +184,15 @@ def test_monthly_accounting_is_reconciled_from_real_report_structure(tmp_path):
     ("monthly", "net_pnl", "1e309"),
     ("monthly", "observed_m1_samples", 0),
     ("monthly", "period", "2024-04"),
+    ("weekly", "net_pnl", "600"),
+    ("trades", "cost", "2"),
 ])
 def test_broken_report_fails_closed(tmp_path, mutation):
     folder = tmp_path / "job"
     make_report(folder)
     section, key, value = mutation
-    if section == "monthly":
-        path = folder / "monthly.csv"
+    if section in ("monthly", "weekly", "trades"):
+        path = folder / (section + ".csv")
         with path.open(newline="", encoding="utf-8") as handle:
             rows = list(csv.DictReader(handle))
         rows[0][key] = value
