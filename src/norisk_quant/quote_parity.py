@@ -60,8 +60,14 @@ def compare_bid_ask_ticks_to_m1(
     if ticks.index.has_duplicates:
         if "seq" not in ticks.columns:
             raise ValueError("Duplicate tick timestamps require source sequence")
+        # This public audit can be called directly, without normalize_ticks().
+        # Reject boolean event IDs and integers outside Float64's exact
+        # range before they can silently fabricate a valid quote ordering.
+        if any(isinstance(value, (bool, np.bool_)) for value in ticks["seq"]):
+            raise ValueError("Invalid duplicate tick timestamp/sequence: boolean ID")
         seq = pd.to_numeric(ticks["seq"], errors="coerce").to_numpy(dtype=float)
         if (not np.isfinite(seq).all() or (seq % 1 != 0).any() or
+                (np.abs(seq) >= 2**53).any() or
                 pd.MultiIndex.from_arrays([ticks.index, seq]).has_duplicates):
             raise ValueError("Invalid duplicate tick timestamp/sequence")
         # No reordering by price or guessed intraminute event sequence.
