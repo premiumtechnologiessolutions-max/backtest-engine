@@ -94,6 +94,10 @@ def register_closed_month(
     values = observed_minutes[list(_REQUIRED_QUOTES)].to_numpy(dtype=float)
     if not np.isfinite(values).all() or (values <= 0).any():
         raise ValueError("BID/ASK OHLC must be finite positive")
+    # Check crossed BID/ASK quotes first so invalid cross-spread bars keep
+    # the original, specific fail-closed diagnostic.
+    if (values[:, 4:] < values[:, :4]).any():
+        raise ValueError("Crossed BID/ASK OHLC rejected")
     # The spread check alone cannot detect malformed high/low envelopes.
     # Reject impossible BID or ASK bars before recording a prospective source.
     for offset in (0, 4):
@@ -102,8 +106,6 @@ def register_closed_month(
                 or (lo > np.minimum(op, cl)).any()
                 or (hi < lo).any()):
             raise ValueError("Invalid BID/ASK OHLC bar geometry")
-    if (values[:, 4:] < values[:, :4]).any():
-        raise ValueError("Crossed BID/ASK OHLC rejected")
     source_sha, source_bytes = hash_source_file(path)
     return {
         "month": month,
