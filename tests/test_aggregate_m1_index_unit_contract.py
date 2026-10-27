@@ -42,3 +42,20 @@ def test_subminute_offsets_still_fail_closed(unit):
     frame.index = frame.index + pd.Timedelta(seconds=1)
     with pytest.raises(ValueError, match="align exactly"):
         aggregate_bars(frame, "M15")
+
+
+def test_dst_fold_aware_index_does_not_raise_ambiguous_time_error():
+    # 01:55 local occurs twice at the New York autumn clock change.
+    # Existing API accepts timezone-aware indexes; validate absolute UTC
+    # minute alignment without flooring ambiguous local wall-clock times.
+    index = pd.date_range(
+        "2024-11-03T05:55:00Z", periods=15, freq="min"
+    ).tz_convert("America/New_York").as_unit("s")
+    frame = pd.DataFrame(
+        {"o": [100.0] * 15, "h": [101.0] * 15,
+         "l": [99.0] * 15, "c": [100.0] * 15},
+        index=index,
+    )
+    bars = aggregate_bars(frame, "M1")
+    assert len(bars) == 15
+    assert bars.iloc[-1]["close_at"] == pd.Timestamp("2024-11-03T06:10:00Z")
