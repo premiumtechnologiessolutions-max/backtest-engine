@@ -37,11 +37,30 @@ def _require_numeric_quote_columns(frame: pd.DataFrame, *, context: str) -> None
         )
 
 
+def _reject_raw_boolean_cells(raw: pd.DataFrame) -> None:
+    """Reject JSON/Python booleans before pd.to_numeric turns them into 0/1.
+
+    A mixed object column such as [True, 1.0] is coerced to float64 by
+    pd.to_numeric, so a dtype check *after* conversion cannot detect it.
+    Keep numeric-looking CSV/JSON strings supported, but not true booleans.
+    Numeric arrays take the cheap dtype path; only object columns need a
+    per-cell scan, which avoids Python iteration over large float M1 feeds.
+    """
+    for name in RAW_COLUMNS:
+        series = raw[name]
+        if pd.api.types.is_bool_dtype(series.dtype):
+            raise ValueError(f"Source M1 contains boolean {name} cells")
+        if (pd.api.types.is_object_dtype(series.dtype)
+                and series.map(lambda value: isinstance(value, (bool, np.bool_))).any()):
+            raise ValueError(f"Source M1 contains boolean {name} cells")
+
+
 def normalize(raw: pd.DataFrame, *, strict: bool = True) -> pd.DataFrame:
     """Normalize original gold BID/ASK candles. Index is UTC candle OPEN."""
     missing = set(RAW_COLUMNS) - set(raw.columns)
     if missing:
         raise ValueError(f"Missing source columns: {sorted(missing)}")
+    _reject_raw_boolean_cells(raw)
     frame = raw.copy()
     numeric_ts = pd.to_numeric(frame["ts"], errors="raise")
     # Source timestamps are UNIX seconds, not milliseconds.
