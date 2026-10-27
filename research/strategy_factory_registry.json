@@ -342,7 +342,7 @@
     {
       "id": "NRF-FAC-016",
       "family": "H1/H4 strictly confirmed swing-pivot same-ratio Fibonacci confluence, completed M15 candle and previous20 M15 median normalized stop/target, DST local sessions",
-      "status": "REJECTED_EXPOSED_DESIGN_SHA_VERIFIED_LOCAL_REPRODUCTION_CANONICAL_PARITY_OFFICIAL_BYTE_IDENTICAL_RUNNER_PENDING",
+      "status": "REJECTED_EXPOSED_DESIGN_ORIGINAL_PRIVATE_SOURCE_OFFICIAL_FULL_GRID_AND_CANONICAL_SLOW_PARITY_CI_VERIFIED",
       "preregistration_commit": "721387e06a81cfd47e0e33d5b31815a3dd6b0e96",
       "unique_parameter_specs": 18000,
       "years": [
@@ -368,11 +368,21 @@
       "independent_slow_reference_verified_trades": 185,
       "independent_slow_reference_verified_m1_equity_marks": 705292,
       "original_source_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
-      "notes": "18k correlated specs x 2 exposed years; 36k annual executions, 31,300 with trades and 4,700 zero-trade. 0 frozen passes, max 17/24. Original private ZIP SHA verified locally. Manual transcription of frozen current GitHub FAC016 runner with current-branch core dependency blob SHAs identical; 8 run_fast samples exact and 2 full-year independent slow execution.run vs run_fast audits (185 fills, 705,292 M1 equity marks, all trade fields exact). Official byte-identical runner checkout replay and new-head CI remain pending; no OOS, no broker ticks, no shared portfolio.",
+      "notes": "18k frozen correlated specs x 2 exposed years: 36k annual executions, 31,300 active and 4,700 zero-trade. 0 frozen passes, max 17/24. SHA-verified original ZIP locally. Official GitHub CI artifact 12702503558 exact frozen runner SHA 1521af: all 36,000 annual rows and 432,000 monthly values reproduced (max numeric delta zero), 8 official run_fast samples; 2 independent slow full-year audits exact all 185 trades and 705,292 M1 equity marks. CI 795/795 passed on results registry commit 87fa2cb, later metadata commits require own exact-head CI. No clean OOS/ticks/live.",
       "file": "scripts/batch_h1_h4_fib_confluence_grid.py",
       "frozen_spec": "docs/FAC016_FROZEN_H1_H4_FIB_CONFLUENCE_2026-10-27.md",
       "report": "docs/FAC016_36000_ANNUAL_H1_H4_FIB_CONFLUENCE_REJECTED_2026-10-27.md",
-      "aggregate_summary": "research/FAC016_COMBINED_SUMMARY_2026-10-27.json"
+      "aggregate_summary": "research/FAC016_COMBINED_SUMMARY_2026-10-27.json",
+      "official_source_commit": "0320aaa7af34cd5f1c04a45a426d23a713eabed8",
+      "official_source_artifact_id": 12702503558,
+      "official_source_runner_blob_sha": "1521af1629c6c10fada5a9728201dfae5b5f168b",
+      "official_full_grid_replayed_annual": 36000,
+      "official_full_grid_replayed_monthly": 432000,
+      "official_full_grid_max_numeric_delta": 0,
+      "verified_ci_code_registry_commit": "87fa2cb154da36e810d462e20b862a2f96159514",
+      "verified_ci_run": 40437957678,
+      "verified_ci_tests": 795,
+      "official_source_verification": "research/FAC016_OFFICIAL_SOURCE_REPLAY_VERIFICATION_2026-10-27.json"
     }
   ],
   "totals": {
@@ -388,7 +398,7 @@
     "total_yearly_parameter_executions_including_zero_trade_negative_control": 625668,
     "local_copy_fast_engine_parity_samples": 18,
     "independent_slow_m1_parity_samples": 40,
-    "annual_replays_pending_new_head_ci": 31300,
+    "annual_replays_pending_new_head_ci": 0,
     "canonical_replay_parity_samples_note": "Previous 48 full-repository canonical parity samples; FAC010 6 local fast_engine source-copy checks tracked separately until full-checkout verification.",
     "fac011_zero_trade_annual_executions": 600,
     "fac011_local_locked_chronology_parity_years": 3,
@@ -397,7 +407,7 @@
     "latest_fac011_ci_verified_code_commit": "52cb21e031187862c013ffe2c7e18147c821fd66",
     "latest_fac011_ci_verified_run": 40405257053,
     "latest_fac011_ci_pytest_passed": 713,
-    "annual_replays_pending_official_private_checkout_parity": 111172,
+    "annual_replays_pending_official_private_checkout_parity": 79872,
     "note_ci": "FAC011 and FAC010 code included in 713/713 successful CI on 52cb21e; subsequent metadata-only commits require independent current-head CI verification; official private-source full checkout parity remains pending.",
     "latest_fac012b_ci_verified_code_commit": "db551c0a5bb20995a61895ef4e7e37d2cfeed57a",
     "latest_fac012b_ci_verified_run": 40411959894,
@@ -447,7 +457,13 @@
     "fac016_zero_trade_annual_replays": 4700,
     "fac016_independent_slow_m1_marks_checked": 705292,
     "fac016_independent_slow_m1_filled_trades_checked": 185,
-    "note_fac016": "FAC016 18k frozen correlated specs x 2 exposed years, 36k actual local annual executions, 31,300 active; 0 joint passes, max 17/24. 8 canonical fast samples and 2 independent slow reference years (705,292 marks and 185 trades) exact. Source ZIP SHA verified; local FAC016 runner manually transcribed from GitHub, core dependency blob SHA verified. Official byte-identical checkout and new-head CI still pending."
+    "note_fac016": "FAC016 18k frozen correlated specs x 2 exposed years: 36k completed annual executions, 31,300 active, 4,700 zero-trade; 0 frozen passes, max 17/24. Original ZIP SHA verified; official GitHub source artifact 12702503558 replayed all 36k annual/432k monthly results exactly, 8 official run_fast samples and 2 independent slow reference years (705,292 equity marks/185 trades). CI 795/795 on results+registry commit 87fa2cb; subsequent metadata-only HEAD CI separately.",
+    "latest_fac016_ci_verified_results_registry_commit": "87fa2cb154da36e810d462e20b862a2f96159514",
+    "latest_fac016_ci_verified_run": 40437957678,
+    "latest_fac016_ci_verified_tests": 795,
+    "fac016_official_full_grid_replayed_annual": 36000,
+    "fac016_official_full_grid_replayed_monthly": 432000,
+    "fac016_official_full_grid_max_numeric_delta": 0
   },
   "next_priorities": [
     {
@@ -494,7 +510,7 @@
     },
     {
       "id": "NRF-FAC-016",
-      "status": "COMPLETED_LOCAL_ORIGINAL_SOURCE_36000_REPLAYS_REJECTED_OFFICIAL_RUNNER_AND_HEAD_CI_PENDING",
+      "status": "COMPLETED_ORIGINAL_SOURCE_OFFICIAL_FULL_GRID_REPRODUCED_CI_VERIFIED_REJECTED",
       "hypothesis": "Frozen H1/H4 confirmed pivot Fibonacci confluence; no re-fit, 0/18,000 passed frozen screen, max 17/24. Historical design years exposed, not clean OOS.",
       "frozen_spec": "docs/FAC016_FROZEN_H1_H4_FIB_CONFLUENCE_2026-10-27.md",
       "preregistration_commit": "721387e06a81cfd47e0e33d5b31815a3dd6b0e96",
@@ -504,9 +520,10 @@
       "executed_annual_replays": 36000,
       "observed_monthly_values": 432000,
       "original_source_status": "Original Gold data.zip located in ChatGPT Library, SHA256 verified locally; never uploaded to GitHub/Actions.",
-      "notes": "Local reproduction on original private data; 8 fast canonical and 2 independent slow full-year exact parity; official byte-identical FAC016 runner checkout and exact results-head CI pending. No retuning.",
+      "notes": "Official GitHub CI source artifact 12702503558 reproduced all 36,000 annual and 432,000 monthly rows locally on private SHA-verified ZIP, max numeric delta zero; 8 canonical fast and 2 independent slow years exact; CI 795/795 on results registry commit 87fa2cb. Do not retune rejected family.",
       "active_annual_replays": 31300,
-      "report": "docs/FAC016_36000_ANNUAL_H1_H4_FIB_CONFLUENCE_REJECTED_2026-10-27.md"
+      "report": "docs/FAC016_36000_ANNUAL_H1_H4_FIB_CONFLUENCE_REJECTED_2026-10-27.md",
+      "official_source_verification": "research/FAC016_OFFICIAL_SOURCE_REPLAY_VERIFICATION_2026-10-27.json"
     }
   ],
   "rules": [
