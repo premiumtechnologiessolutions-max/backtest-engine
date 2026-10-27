@@ -28,6 +28,12 @@ def run_fast(minutes: pd.DataFrame, signals: list[Signal], settings: Settings) -
     for s in signals:
         if pd.Timestamp(s.confirmed_at).tzinfo is None:
             raise ValueError("Signal confirmation must include timezone")
+    # .asi8 reflects the stored datetime unit, not necessarily nanoseconds.
+    # Convert second/millisecond/microsecond UTC indexes to canonical ns
+    # before M1 alignment, signal causality and gap calculations.
+    if minutes.index.unit != "ns":
+        minutes = minutes.copy(deep=False)
+        minutes.index = minutes.index.as_unit("ns")
     stamps_ns = minutes.index.asi8
     if (stamps_ns % 60_000_000_000 != 0).any():
         raise ValueError("M1 candle opens must align to exact minute boundaries")
