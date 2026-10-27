@@ -1,6 +1,6 @@
 {
   "format_version": 1,
-  "updated_utc": "2026-10-27",
+  "updated_utc": "2026-10-27T06:20:00Z",
   "project": "No Risk FX XAUUSD quant research factory",
   "branch": "feat/quant-engine-foundation",
   "original_private_zip_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
@@ -778,7 +778,12 @@
       "official_full_repository_private_source_canonical_parity_samples": 0,
       "original_zip_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
       "not_in_certified_factory_totals": true,
-      "notes": "Source authenticated and frozen grid locally replayed using an independently assembled local port; negative 0-pass screen. Official GitHub frozen runner run_fast/canonical full source parity and CI on results head pending. No totals increment until official verification; 2012/13 historically exposed."
+      "notes": "Source authenticated and frozen grid locally replayed using an independently assembled local port; negative 0-pass screen. Official GitHub frozen runner run_fast/canonical full source parity and CI on results head pending. No totals increment until official verification; 2012/13 historically exposed.",
+      "local_export_arithmetic_audit": "COMPLETED_CSV_INTERNAL_RECONCILIATION_NOT_CANONICAL",
+      "local_export_arithmetic_audit_report": "docs/FAC017_EXPORT_ARITHMETIC_AUDIT_2026-10-27.md",
+      "local_export_arithmetic_audit_18plus_configs": 5,
+      "local_export_arithmetic_audit_frozen_joint_passes": 0,
+      "local_export_arithmetic_audit_note": "No new backtests. Existing local CSV annual/combined monthly, fees, risk and frozen gate reconciled; official source canonical parity pending."
     }
   ]
 }
