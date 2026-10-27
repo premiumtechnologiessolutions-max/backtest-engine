@@ -105,6 +105,7 @@ jobs:
             src/
             scripts/
             tests/
+            research/
             pyproject.toml
             constraints-ci.txt
             README.md
