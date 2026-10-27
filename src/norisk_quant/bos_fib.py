@@ -94,7 +94,9 @@ def bos_fib_limit_orders(
     if minutes.empty:
         return []
     ix = minutes.index
-    stamp = ix.asi8
+    # DatetimeIndex.asi8 is expressed in the index's native unit (s/ms/us/ns).
+    # Normalize to ns before minute alignment and gap arithmetic.
+    stamp = ix.as_unit("ns").asi8
     step = 60_000_000_000
     if (stamp % step != 0).any() or not (stamp[1:] > stamp[:-1]).all():
         raise ValueError("M1 timestamps must align to minute boundaries")
