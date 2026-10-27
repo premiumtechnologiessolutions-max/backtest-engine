@@ -85,3 +85,12 @@ def test_joint_preflight_same_rule_id_not_two_different_winners():
 def test_invalid_h1_chronology_rejected():
     t=np.array([3600,7200],np.int64);s=np.ones(2,np.int8);b=np.ones(2)
     with pytest.raises(ValueError):fac.h1_gate(t,s,b,np.array([7200,3600]),np.ones(2),'CALM','ALL')
+
+def test_preflight_reports_fac021_not_prior_family(tmp_path,monkeypatch):
+    empty=(np.empty(0,np.int64),np.empty(0,np.int8),np.empty(0,float))
+    monkeypatch.setattr(fac,'signal_streams',lambda m: {f'R{i}':empty for i in range(fac.RULES)})
+    monkeypatch.setattr(fac,'fingerprint_loaded_m1',lambda m:'synthetic-test-only')
+    result=fac.preflight(None,2012,tmp_path/'fac021.json')
+    assert result['id']=='NRF-FAC-021'
+    assert result['preregistration_commit']==fac.PREREG
+    assert result['no_exit_outcomes_examined'] is True
