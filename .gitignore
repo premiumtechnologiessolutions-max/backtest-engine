@@ -13,6 +13,7 @@ dist/
 data/*
 !data/README.md
 reports/generated/
+reports/research_jobs/
 *.parquet
 *.zip
 *.xlsx
