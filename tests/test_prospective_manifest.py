@@ -158,3 +158,33 @@ def test_bad_sha_rejected(tmp_path):
     r["source_sha256"] = "G" * 64
     with pytest.raises(ValueError, match="SHA256"):
         append_record(empty_manifest(), r)
+
+
+@pytest.mark.parametrize(("column", "bad_value"), [
+    ("h", 99.0), ("l", 101.0), ("ah", 99.9), ("al", 101.0),
+])
+def test_impossible_bid_ask_bar_geometry_rejected(tmp_path, column, bad_value):
+    p, f = source(tmp_path)
+    f.loc[f.index[0], column] = bad_value
+    with pytest.raises(ValueError, match="bar geometry"):
+        register_closed_month("2026-11", p, f,
+                              registered_at_utc="2026-12-01T00:00:00Z",
+                              as_of_utc="2026-12-02T00:00:00Z")
+
+
+def test_complex_quotes_rejected_without_dropping_imaginary_component(tmp_path):
+    p, f = source(tmp_path)
+    f["o"] = [100 + 1j] * len(f)
+    with pytest.raises(ValueError, match="real numeric"):
+        register_closed_month("2026-11", p, f,
+                              registered_at_utc="2026-12-01T00:00:00Z",
+                              as_of_utc="2026-12-02T00:00:00Z")
+
+
+def test_duplicate_quote_column_rejected(tmp_path):
+    p, f = source(tmp_path)
+    f = pd.concat([f, f[["o"]]], axis=1)
+    with pytest.raises(ValueError, match="column names must be unique"):
+        register_closed_month("2026-11", p, f,
+                              registered_at_utc="2026-12-01T00:00:00Z",
+                              as_of_utc="2026-12-02T00:00:00Z")
