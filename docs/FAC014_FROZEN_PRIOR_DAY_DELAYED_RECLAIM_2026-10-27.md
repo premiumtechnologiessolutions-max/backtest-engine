@@ -14,7 +14,7 @@ At reclaim confirmation, join the last **completed** H1 candle at or before conf
 
 - Breach buffers k: [0, 0.25, 0.50]; reclaim windows W: [1, 2, 4, 8] complete M15 bars.
 - Direction: [FADE, FOLLOW]; H1 modes [ALIGNED, CONTRA, IGNORE]; H1 regime [QUIET, HOT]; sessions [ALL, LONDON_LOCAL_08_12, NY_LOCAL_0930_1330].
-- Stop and target multipliers each: [0.50, 0.75, 1.00, 1.25, 1.50, 1.75, 2.00, 2.50] times R from signal. **9,216** correlated parameter specifications/year (3×4×2×3×2×3×8×8); maximum **18,432** annual M1 replays on 2012/2013, 221,184 month values. A parameter specification is NOT an independent hypothesis.
+- Stop and target multipliers each: [0.50, 0.75, 1.00, 1.25, 1.50, 1.75, 2.00, 2.50] times R from signal. **27,648** correlated parameter specifications/year (3×4×2×3×2×3×8×8); maximum **55,296** annual M1 replays on 2012/2013, 663,552 month values. A parameter specification is NOT an independent hypothesis.
 - Frozen order is k, W, direction, H1 mode, H1 regime, session, stop, target; IDs and all zero-trade results retained. Count only actually completed replays as executed, zero-trade separately. Report unique causal entry streams, fees, trade count, each UTC exit-booked month, worst month, annual net, M1 floating drawdown, and expired signals.
 
 ## Fixed execution and acceptance
