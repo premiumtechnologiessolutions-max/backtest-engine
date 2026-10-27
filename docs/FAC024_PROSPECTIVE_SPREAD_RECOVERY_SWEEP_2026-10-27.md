@@ -1,0 +1,15 @@
+# NRF-FAC-024 — Prospective M15 liquidity sweep / BID–ASK spread recovery
+
+**Status: FROZEN HYPOTHESIS, SYNTHETIC CONTRACT TESTS ONLY — NO ORIGINAL-SOURCE BACKTEST, NO OOS OR LIVE CERTIFICATION.**
+
+Date preregistered: 2026-10-27 UTC. This is a *new* research hypothesis; its preregistration is not proof of independent future outcomes. Previous XAUUSD historical years were inspected heavily, so **none of 2010–2026 is a clean independent holdout**. No parameter tuning based on 2012–2026 outcomes is authorized after this freeze.
+
+The signal is a completed M15 sweep/reclaim of a channel from the previous 12 complete contiguous M15 candles. Penetration >= $0.25/oz beyond prior high or low, close back inside, reject double-sided sweeps. Entry signal is known only at the M15 close, with earliest simulated market entry at next M1 open. Stop distance is sweep extremum to completed close plus $0.10; target distance is 1.5x stop. Keep inherited sweep minimum/maximum stop distance ($0.50–$50).
+
+A candidate additionally needs a contiguous 60-M1 baseline immediately preceding the 15-M1 sweep, with positive median of prior M1 **close** BID/ASK spreads. The sweep's first M1 **open** spread must be >= 1.5x that prior median; the last M1 **close** spread must recover to <= 1.1x median. Only information available at the M15 confirmation close is used. Missing M1 quotes, crossed BID/ASK, invalid timestamps, or incomplete M15 bars fail closed.
+
+**Execution contract:** use the official reference and fast engines with one ounce, $0.40/oz fixed all-in roundtrip research cost, one position at a time, stop-first on ambiguous M1, entry expiry after one minute, and a 90-minute maximum holding horizon. Actual spreads and broker execution can exceed this fixed fee; never represent OHLC simulations as executable tick fills. The new strategy module generates signals only; the executable portfolio acceptance runner is not yet implemented.
+
+**Prospective evaluation:** after source acquisition, fingerprint each monthly M1 BID/ASK partition *before* computing strategy outcomes, maintain an immutable run manifest, and evaluate 12 full future calendar months beginning **2026-11-01 UTC** through **2027-10-31 UTC**. No incomplete calendar months or data outside this window may be counted. One frozen configuration only; no parameter search or selective month omission. Report trades, net USD/oz, every monthly and weekly P/L, full M1 equity drawdown, gap/expiry and fees. The goal of 12/12 positive months is a *selection target*, not a profitability guarantee; also require >=100 completed trades, positive annual net, and no single monthly loss worse than $20/oz. Independently verify reference/fast ledger parity and reconcile source fingerprints before making any research-acceptance claim.
+
+**Current blockers:** no authenticated, as-yet-unseen 2026-11 through 2027-10 BID/ASK feed exists in this run; no real source evaluation was performed. Do not silently substitute historically exposed years. The repository is currently public; never commit private market archives, trades, or tick files.
