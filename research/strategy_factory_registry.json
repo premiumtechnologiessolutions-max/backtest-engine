@@ -1,6 +1,6 @@
 {
   "format_version": 1,
-  "updated_utc": "2026-10-27T14:23:00Z",
+  "updated_utc": "2026-10-27T15:29:38.860Z",
   "project": "No Risk FX XAUUSD quant research factory",
   "branch": "feat/quant-engine-foundation",
   "original_private_zip_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
@@ -553,21 +553,59 @@
       "report": "docs/FAC021_4608_ANNUAL_M15_CUSUM_REJECTED_2026-10-27.md",
       "official_source_verification": "research/FAC021_OFFICIAL_SOURCE_REPLAY_VERIFICATION_2026-10-27.json",
       "notes": "Frozen before outcomes; 36 correlated signal-rule IDs x64 exits x2 exposed years. SHA-verified original private ZIP; official GitHub source artifact full-grid 4608 annual/55296 monthly exact numeric and ID parity; 8 run_fast samples and 2 slow reference full years exact 58 fills and 705292 observed M1 marks. Max 17/24, 0 frozen passes. Best-months setting 24/34 fills, +$9.655/oz, worst month -$4.36, max annual floating DD $9.015. No retuning, no clean OOS, no accepted shared-capacity portfolio; private quotes never uploaded. CI 1106/1106 on official source commit; subsequent preflight ID correction and registry-head CI separately checked."
+    },
+    {
+      "id": "NRF-FAC-022",
+      "family": "Completed M5 six-change signed path efficiency with prior-20 contiguous range normalization, post-H1/session 30m per-rule cooldown, H1 volatility halt and DST-aware sessions",
+      "status": "REJECTED_EXPOSED_DESIGN_LOCAL_PRIVATE_SHA_FAST_AND_REFERENCE_PARITY_OFFICIAL_SOURCE_REPLAY_PENDING",
+      "preregistration_commit": "916d43c241be2478b535118f17c5d65ba34f4c01",
+      "unique_parameter_specs": 2304,
+      "years": [
+        2012,
+        2013
+      ],
+      "completed_annual_parameter_executions": 4608,
+      "active_annual_replays": 4608,
+      "zero_trade_annual_executions": 0,
+      "zero_trade_specs_both_years": 0,
+      "completed_monthly_pnl_values": 55296,
+      "active_monthly_values": 55296,
+      "unique_entry_signal_streams_by_year": [
+        36,
+        36
+      ],
+      "same_id_signal_only_preflight_rules_ge100_both_years": 34,
+      "maximum_positive_months_out_of_24": 15,
+      "configs_18plus_of_24": 0,
+      "configs_24_of_24": 0,
+      "configs_annual_net_positive_both_years": 0,
+      "configs_passing_frozen_joint_gate": 0,
+      "canonical_replay_parity_samples": 8,
+      "independent_slow_full_year_parity_samples": 2,
+      "independent_slow_verified_trades": 235,
+      "independent_slow_verified_m1_equity_marks": 705292,
+      "official_full_grid_replayed_annual": 0,
+      "official_full_grid_replayed_monthly": 0,
+      "original_source_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
+      "file": "scripts/batch_m5_path_efficiency_grid.py",
+      "frozen_spec": "docs/FAC022_FROZEN_M5_PATH_EFFICIENCY_2026-10-27.md",
+      "report": "docs/FAC022_4608_ANNUAL_M5_PATH_EFFICIENCY_REJECTED_2026-10-27.md",
+      "notes": "Preregistered before outcomes. 36 related entry-rule IDs x64 exits x2 exposed years. Original ZIP SHA verified locally; 4608 annual M1 replays and 55296 exit-booked monthly P/L cells, 0 frozen passes and max 15/24. Exploratory best 95/140 fills, -$57.3925/oz after $94 fees, worst month -$26.195, max annual floating DD $49.375. Eight local run_fast and two independent slow full-year samples exact (235 fills, 705292 M1 marks). Early local pre-gate cooldown implementation invalidated and excluded; corrected frozen per-rule post-gate cooldown rerun completely. Official GitHub source-artifact full-grid replay pending; no prospective OOS, tick BID/ASK or approved shared-capacity portfolio."
     }
   ],
   "totals": {
-    "distinct_parameter_specs": 315228,
-    "yearly_backtests": 619564,
-    "exit_booked_monthly_points": 7434768,
-    "canonical_replay_parity_samples": 127,
-    "independent_hypothesis_families": 16,
+    "distinct_parameter_specs": 317532,
+    "yearly_backtests": 624172,
+    "exit_booked_monthly_points": 7490064,
+    "canonical_replay_parity_samples": 135,
+    "independent_hypothesis_families": 17,
     "strictly_positive_every_month_in_both_years": 0,
     "zero_trade_parameter_specs_excluded": 39896,
     "zero_trade_yearly_parameter_executions_excluded": 90584,
     "zero_trade_canonical_parity_samples_excluded": 12,
-    "total_yearly_parameter_executions_including_zero_trade_negative_control": 710148,
+    "total_yearly_parameter_executions_including_zero_trade_negative_control": 714756,
     "local_copy_fast_engine_parity_samples": 18,
-    "independent_slow_m1_parity_samples": 52,
+    "independent_slow_m1_parity_samples": 54,
     "annual_replays_pending_new_head_ci": 0,
     "canonical_replay_parity_samples_note": "Previous 48 full-repository canonical parity samples; FAC010 6 local fast_engine source-copy checks tracked separately until full-checkout verification.",
     "fac011_zero_trade_annual_executions": 600,
@@ -577,7 +615,7 @@
     "latest_fac011_ci_verified_code_commit": "52cb21e031187862c013ffe2c7e18147c821fd66",
     "latest_fac011_ci_verified_run": 40405257053,
     "latest_fac011_ci_pytest_passed": 713,
-    "annual_replays_pending_official_private_checkout_parity": 79872,
+    "annual_replays_pending_official_private_checkout_parity": 84480,
     "note_ci": "FAC011 and FAC010 code included in 713/713 successful CI on 52cb21e; subsequent metadata-only commits require independent current-head CI verification; official private-source full checkout parity remains pending.",
     "latest_fac012b_ci_verified_code_commit": "db551c0a5bb20995a61895ef4e7e37d2cfeed57a",
     "latest_fac012b_ci_verified_run": 40411959894,
@@ -749,6 +787,12 @@
       "status": "COMPLETED_REJECTED_OFFICIAL_FULL_GRID_REFERENCE_PARITY",
       "hypothesis": "M15 path-dependent signed CUSUM, prior-known H1 regime and DST session; frozen grid rejected, no refit.",
       "evidence": "docs/FAC021_4608_ANNUAL_M15_CUSUM_REJECTED_2026-10-27.md"
+    },
+    {
+      "id": "NRF-FAC-022",
+      "status": "COMPLETED_LOCAL_REJECTED_OFFICIAL_SOURCE_REPLAY_PENDING",
+      "hypothesis": "Frozen M5 six-change signed path efficiency, post-gate per-rule cooldown; no refit, 0/2304 passed frozen screen, max 15/24. Historical exposed only.",
+      "evidence": "docs/FAC022_4608_ANNUAL_M5_PATH_EFFICIENCY_REJECTED_2026-10-27.md"
     }
   ],
   "rules": [
