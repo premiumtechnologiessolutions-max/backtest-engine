@@ -60,7 +60,6 @@ def test_gap_inside_lookback_rejects_shock_signal():
 
 def test_shock_must_be_large_and_directional_and_retrace():
     bars = m15_fixture()
-    assert int(bars.close_at.iloc[56].timestamp()) not in fac.shock_reversal_signals(bars, 12, 2.5, .4)[0] if False else True
     weak = bars.copy()
     weak.loc[weak.index[55], ['o', 'h', 'l', 'c']] = [100., 100.8, 99.8, 100.7]
     assert int(bars.close_at.iloc[56].timestamp()) not in fac.shock_reversal_signals(weak, 12, 2., .4)[0]
