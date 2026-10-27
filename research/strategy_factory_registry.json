@@ -1,6 +1,6 @@
 {
   "format_version": 1,
-  "updated_utc": "2026-10-27T12:27:00Z",
+  "updated_utc": "2026-10-27T14:23:00Z",
   "project": "No Risk FX XAUUSD quant research factory",
   "branch": "feat/quant-engine-foundation",
   "original_private_zip_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
@@ -509,21 +509,65 @@
       "frozen_spec": "docs/FAC020_FROZEN_LAGGED_VARIANCE_RATIO_M15_2026-10-27.md",
       "report": "docs/FAC020_24576_ANNUAL_LAGGED_VARIANCE_RATIO_REJECTED_2026-10-27.md",
       "notes": "12,288 correlated frozen specs x2 exposed years, all 24,576 annual M1 replays active; 0 joint passes; highest 19/24 +$108.155/oz after $72.4 fees but 80/101 fills violates >=100/year. Official CI artifact full grid exact 0 numeric delta; 8 run_fast samples and 2 full-year independent slow reference/fast exact 181 fills and 705,292 M1 marks. No clean OOS, no accepted shared-capacity cross-strategy portfolio; no private quotes uploaded."
+    },
+    {
+      "id": "NRF-FAC-021",
+      "family": "Path-dependent completed M15 signed CUSUM threshold displacement with prior-20 range normalization, gap reset, completed H1 volatility halt and DST-aware sessions",
+      "status": "REJECTED_EXPOSED_DESIGN_ORIGINAL_PRIVATE_SHA_OFFICIAL_FULL_GRID_AND_REFERENCE_PARITY",
+      "preregistration_commit": "fb4e007f08547e078801a52bbfaf13a755205f23",
+      "unique_parameter_specs": 2304,
+      "years": [
+        2012,
+        2013
+      ],
+      "completed_annual_parameter_executions": 4608,
+      "active_annual_replays": 4608,
+      "zero_trade_annual_executions": 0,
+      "zero_trade_specs_both_years": 0,
+      "completed_monthly_pnl_values": 55296,
+      "active_monthly_values": 55296,
+      "unique_entry_signal_streams_by_year": [
+        36,
+        36
+      ],
+      "same_id_signal_only_preflight_rules_ge100_both_years": 30,
+      "maximum_positive_months_out_of_24": 17,
+      "configs_18plus_of_24": 0,
+      "configs_24_of_24": 0,
+      "configs_annual_net_positive_both_years": 23,
+      "configs_passing_frozen_joint_gate": 0,
+      "canonical_replay_parity_samples": 8,
+      "independent_slow_full_year_parity_samples": 2,
+      "independent_slow_verified_trades": 58,
+      "independent_slow_verified_m1_equity_marks": 705292,
+      "official_full_grid_replayed_annual": 4608,
+      "official_full_grid_replayed_monthly": 55296,
+      "official_full_grid_max_numeric_delta": 0,
+      "original_source_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
+      "official_source_artifact_id": 12741701416,
+      "official_source_commit": "c797c1115a6c11e9e1f42c136ff0727ef877fce8",
+      "verified_ci_run": 40520133897,
+      "verified_ci_tests": 1106,
+      "file": "scripts/batch_m15_cusum_displacement_grid.py",
+      "frozen_spec": "docs/FAC021_FROZEN_M15_SIGNED_CUSUM_2026-10-27.md",
+      "report": "docs/FAC021_4608_ANNUAL_M15_CUSUM_REJECTED_2026-10-27.md",
+      "official_source_verification": "research/FAC021_OFFICIAL_SOURCE_REPLAY_VERIFICATION_2026-10-27.json",
+      "notes": "Frozen before outcomes; 36 correlated signal-rule IDs x64 exits x2 exposed years. SHA-verified original private ZIP; official GitHub source artifact full-grid 4608 annual/55296 monthly exact numeric and ID parity; 8 run_fast samples and 2 slow reference full years exact 58 fills and 705292 observed M1 marks. Max 17/24, 0 frozen passes. Best-months setting 24/34 fills, +$9.655/oz, worst month -$4.36, max annual floating DD $9.015. No retuning, no clean OOS, no accepted shared-capacity portfolio; private quotes never uploaded. CI 1106/1106 on official source commit; subsequent preflight ID correction and registry-head CI separately checked."
     }
   ],
   "totals": {
-    "distinct_parameter_specs": 312924,
-    "yearly_backtests": 614956,
-    "exit_booked_monthly_points": 7379472,
-    "canonical_replay_parity_samples": 119,
-    "independent_hypothesis_families": 15,
+    "distinct_parameter_specs": 315228,
+    "yearly_backtests": 619564,
+    "exit_booked_monthly_points": 7434768,
+    "canonical_replay_parity_samples": 127,
+    "independent_hypothesis_families": 16,
     "strictly_positive_every_month_in_both_years": 0,
     "zero_trade_parameter_specs_excluded": 39896,
     "zero_trade_yearly_parameter_executions_excluded": 90584,
     "zero_trade_canonical_parity_samples_excluded": 12,
-    "total_yearly_parameter_executions_including_zero_trade_negative_control": 705540,
+    "total_yearly_parameter_executions_including_zero_trade_negative_control": 710148,
     "local_copy_fast_engine_parity_samples": 18,
-    "independent_slow_m1_parity_samples": 50,
+    "independent_slow_m1_parity_samples": 52,
     "annual_replays_pending_new_head_ci": 0,
     "canonical_replay_parity_samples_note": "Previous 48 full-repository canonical parity samples; FAC010 6 local fast_engine source-copy checks tracked separately until full-checkout verification.",
     "fac011_zero_trade_annual_executions": 600,
@@ -699,6 +743,12 @@
       "status": "COMPLETED_REJECTED_ORIGINAL_SHA_OFFICIAL_FULL_GRID_CANONICAL_REFERENCE_PARITY",
       "hypothesis": "Frozen M15 two-step lagged variance ratio + completed H1 volatility regime; no parameter refit or historical OOS labeling.",
       "evidence": "docs/FAC020_24576_ANNUAL_LAGGED_VARIANCE_RATIO_REJECTED_2026-10-27.md"
+    },
+    {
+      "id": "NRF-FAC-021",
+      "status": "COMPLETED_REJECTED_OFFICIAL_FULL_GRID_REFERENCE_PARITY",
+      "hypothesis": "M15 path-dependent signed CUSUM, prior-known H1 regime and DST session; frozen grid rejected, no refit.",
+      "evidence": "docs/FAC021_4608_ANNUAL_M15_CUSUM_REJECTED_2026-10-27.md"
     }
   ],
   "rules": [
