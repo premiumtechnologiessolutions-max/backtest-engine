@@ -75,7 +75,18 @@ def test_distinct_active_and_excluded_specs_form_exact_partition():
     all_specs += sum(c["actual_parameter_year_executions"] for c in data["feasibility_negative_controls"])
     assert (audited["distinct_parameter_specs"]
             + audited["zero_trade_parameter_specs_excluded"]) == all_specs
-    assert audited["distinct_parameter_specs"] == 312924
+    def active_annual(batch):
+        if "active_annual_replays" in batch:
+            return batch["active_annual_replays"]
+        if "annual_replays_with_filled_trades" in batch:
+            return batch["annual_replays_with_filled_trades"]
+        return batch.get("completed_annual_replays", batch.get("completed_annual_parameter_executions", 0))
+
+    expected_active_specs = sum(
+        batch["unique_parameter_specs"] - batch.get("zero_trade_specs_both_years", 0)
+        for batch in data["completed_batches"] if active_annual(batch) > 0
+    )
+    assert audited["distinct_parameter_specs"] == expected_active_specs
 
 
 @pytest.mark.parametrize("batch_id,zero_both,match", [
