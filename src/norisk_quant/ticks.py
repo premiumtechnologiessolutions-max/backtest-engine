@@ -55,6 +55,14 @@ def normalize_ticks(
     if raw.empty:
         raise ValueError("Empty tick dataset")
     result = raw.copy()
+    # Boolean quote/sequence cells must never become numeric 0/1: this would
+    # certify a malformed tick feed after pd.to_numeric coercion. Numeric
+    # strings remain permitted for genuine CSV input.
+    for field in ("bid", "ask", "seq"):
+        if field in result and any(
+            isinstance(value, (bool, np.bool_)) for value in result[field]
+        ):
+            raise ValueError(f"Tick {field} cannot contain boolean values")
     # Reject naive strings instead of assuming provider machine timezone.
     text = result["ts_utc"].astype(str)
     if not text.str.contains(r"(?:Z|[+-]\d\d:\d\d)$", regex=True).all():
@@ -74,8 +82,13 @@ def normalize_ticks(
         if "seq" not in result.columns or result["seq"].isna().any():
             raise ValueError("Same-timestamp ticks require a non-null sequence field")
         result["seq"] = pd.to_numeric(result["seq"], errors="raise")
-        if result["seq"].isna().any() or (result["seq"] % 1 != 0).any():
-            raise ValueError("Sequence must contain integer event indices")
+        sequence = result["seq"].to_numpy(dtype=float, na_value=np.nan)
+        # Float64 cannot distinguish adjacent integer IDs beyond 2**53.
+        # Fail closed rather than fabricate a trustworthy event ordering.
+        if (not np.isfinite(sequence).all()
+                or (sequence % 1 != 0).any()
+                or (np.abs(sequence) >= 2**53).any()):
+            raise ValueError("Sequence must contain finite, safely representable integer event indices")
         if result.duplicated(subset=["ts_utc", "seq"]).any():
             raise ValueError("Duplicate timestamp/sequence pair")
         # Sorting is stable and uses source-provided order, never bid price.
