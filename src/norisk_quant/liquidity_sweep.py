@@ -50,12 +50,16 @@ def liquidity_sweep_signals(
         settings.lookback_bars, min_periods=settings.lookback_bars
     ).min()
     period = pd.Timedelta(minutes=TIMEFRAMES[settings.timeframe])
+    # All prior lookback candles AND the sweep candle must be consecutive.
+    # A gap anywhere inside the channel would otherwise silently reuse
+    # stale highs/lows across a missing quote session.
     signals = []
     for i in range(settings.lookback_bars, len(bars)):
         candle = bars.iloc[i]
         top, bottom = float(prior_high.iloc[i]), float(prior_low.iloc[i])
         if (not math.isfinite(top) or not math.isfinite(bottom)
-                or bars.index[i] - bars.index[i - 1] != period):
+                or bars.index[i] - bars.index[i - settings.lookback_bars]
+                != period * settings.lookback_bars):
             continue
         low_sweep = (
             candle["l"] <= bottom - settings.penetration_usd
