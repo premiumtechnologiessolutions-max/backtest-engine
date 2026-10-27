@@ -10,7 +10,7 @@ For UP, retracement price = swing high - ratio*(swing high - swing low). For DOW
 
 ## Frozen grid: 18,000 correlated specs/year, 36,000 PLANNED annual replays
 
-- Pivot widths (H1,H4) = [(2,2),(2,3),(3,2),(3,3)] (confirmation after w right-side completed bars).
+- Pivot widths (H1,H4) = [(2,1),(2,2),(3,1),(3,2)] (confirmation after w right-side completed bars).
 - Shared retracement ratio = [0.50, 0.62, 0.705, 0.79, 0.87].
 - Price confluence tolerance = [0.5, 1.0, 1.5] × previous-20 M15 median range.
 - Session = [ALL, LONDON_LOCAL_08_12, NY_LOCAL_0930_1330], IANA DST-aware.
@@ -23,4 +23,4 @@ Original private `Gold data.zip` SHA256 `1163474d1419212f1ebd199fb77f8dd6b302904
 
 **Frozen joint screen:** >=80 fills **in each** design year, >=18/24 strictly positive months, positive annual net in both years, worst UTC month >=-$20/oz, maximum observed annual M1 floating drawdown <=$100/oz. Reject zero-trade or incomplete years from active totals; retain them as negative controls. Require sample canonical `run_fast` and independent slow M1 parity before marking results verified; verify exact-head CI. Never report 18,000 as independent discoveries. Report every negative result. No retuning after rejection, no claimed prospective OOS or 12/12 guarantee. Independent forward validation requires frozen selection, embargo and multiple-testing control.
 
-**At this freeze:** executed annual replays **0**, observed monthly outcomes **0**, canonical samples **0**, candidate acceptance **NOT EVALUATED**. This design commit must precede all FAC016 outcome access.
+**Pre-outcome feasibility amendment:** The first frozen draft at commit `1bd21fd6dee8f5b283deaeb5e698ed71aa319ab5` included H4 pivot width 3, requiring 7 consecutive fully complete H4 bars (28h). The already-documented original-source structural constraint (at most 23 consecutive complete H1 bars) makes this ineligible. **Before opening any FAC016 outcome**, replace H4 width 3 with width 1 (3 contiguous H4 bars) while preserving exactly 18,000 planned correlated specs, all other thresholds and acceptance gates. The initial frozen draft remains in Git history; the amended freeze commit is authoritative. This is a pre-data feasibility correction, not result-driven retuning.\n\n**At this freeze:** executed annual replays **0**, observed monthly outcomes **0**, canonical samples **0**, candidate acceptance **NOT EVALUATED**. This design commit must precede all FAC016 outcome access.
