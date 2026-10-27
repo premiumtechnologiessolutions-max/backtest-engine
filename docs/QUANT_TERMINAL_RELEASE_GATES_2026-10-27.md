@@ -35,3 +35,10 @@ Open the output file in a browser. This is a read-only generator; its source is 
 
 ## Verification as of initial UI commit
 A local independently constructed UI fixture was used to smoke-test Chromium desktop/mobile rendering, catalog search and one-family selection, and Python renderer smoke checks (4 local checks). These checks use **illustrative family rows**. They are **not** a full current-HEAD GitHub CI run and **not** a replay of the private original Gold data. At the time of the note, GitHub CI for these commits had not reported a run. Keep PR #1 Draft/unmerged.
+
+
+## Bilingual read-only increment (2026-10-27)
+- The offline HTML now has a keyboard-accessible English/Arabic language toggle with correct document `lang` and `dir` switching, RTL alignment and translated main navigation, headings and comparison controls. Source registry family identifiers and statuses remain unchanged and untranslated for audit fidelity.
+- The comparison explicitly marks **worst month, observed floating drawdown and per-month P/L as N/A**: those values are not available as verified per-run fields in the current registry, and the terminal does not infer them from positive-month counts.
+- Language selection is page-local and does not require cookies, external scripts, telemetry or a server. Full Arabic copy coverage, accessibility audit with assistive technology and browser matrix remain release blockers.
+- This UI change does not create backtests, prospective months, OOS proof or a shared-capacity portfolio; keep the PR Draft.

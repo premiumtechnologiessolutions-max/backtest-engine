@@ -91,3 +91,17 @@ def test_zero_families_empty_state():
     html = render_premium_html(model)
     assert "No active families in audited registry" in html
     assert '<tbody id="experimentRows"></tbody>' in html
+
+
+def test_bilingual_accessible_offline_toggle_and_unavailable_risk_labels():
+    html = render_premium_html(_model())
+    assert 'id="languageToggle"' in html
+    assert 'aria-pressed="false"' in html
+    assert "document.documentElement.dir=ar?'rtl':'ltr'" in html
+    assert "data-i18n=\"overview\"" in html
+    assert "نظرة عامة" in html
+    assert "الحد الأقصى 3 عائلات" in html
+    assert "Worst month: N/A" in html
+    assert "Floating DD: N/A" in html
+    assert "Monthly P/L: N/A" in html
+    assert "No external scripts" in html
