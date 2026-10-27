@@ -45,7 +45,9 @@ def complete_h1_regimes(
         raise ValueError("M1 index must be timezone aware")
     if m1.empty or m1.index.has_duplicates or not m1.index.is_monotonic_increasing:
         raise ValueError("M1 must be nonempty, sorted and unique")
-    if (m1.index.asi8 % 60_000_000_000 != 0).any():
+    # A timezone-aware DatetimeIndex may use s/ms/us rather than ns.
+    # Always validate UTC minute boundaries in nanoseconds.
+    if (m1.index.as_unit("ns").asi8 % 60_000_000_000 != 0).any():
         raise ValueError("M1 timestamps must align to exact minute boundaries")
     if not {"o", "h", "l", "c"}.issubset(m1):
         raise ValueError("Missing OHLC")
