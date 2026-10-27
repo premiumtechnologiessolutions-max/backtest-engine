@@ -1,0 +1,10 @@
+# FAC015P — frozen shared-capacity negative-control portfolio diagnostic (2026-10-27)
+
+**Post-hoc component selection, NOT independent validation or new hypothesis-family search.** Freeze the following two already-rejected 2012–2013 historical design configurations **before looking at their combined single-account results**:
+
+1. FAC015 `SAC15_N12_C+0.00_B1.50_CALM_NY_LOCAL_0930_1330_SL1.50_TP2.25` (selected post-hoc from 36k, rejected for only 62/77 fills).
+2. FAC014 `PDR15_K0.00_W4_FOLLOW_ALIGNED_HOT_ALL_SL1.25_TP1.00` (selected post-hoc from 27,648, rejected for low frequency, annual loss).
+
+**Single actual executable reference account:** regenerate both complete causal signal streams independently using their *frozen, unchanged* implementations. Sort by confirmation time; for exact ties, FAC015 priority, then FAC014. Execute with the official canonical `norisk_quant.fast_engine.run_fast`, one 1oz position maximum across both strategies, one exact **$0.40/oz ALL-IN roundtrip** fee per executed trade, stop-first and adverse gap-through, next observed eligible M1 open <=60s. Do not add separately simulated profits. Use original private ZIP verified SHA256 `1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121`; raw quotes never leave local machine. Compute per-year 12 UTC exit-booked months, positive months, worst month, total net, fills, fee, observed M1 floating DD, and capacity-rejected signal count. Also report individual component standalone results only as a *non-additive reference*, not as portfolio P/L.
+
+**Acceptance:** this is a negative-control diagnostic; no component passes its prior frozen gates, so **no portfolio promotion regardless of result**. No OOS, no retuning, no tick fill certification, no live authorization. No new parameter specifications or annual grid backtests counted for this single-account portfolio audit.
