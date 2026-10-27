@@ -255,3 +255,61 @@ def test_replay_accepts_matching_timezone_aware_second_unit_timestamps(
     assert str(current[current_field].dtype).startswith("datetime64[s,")
     assert int(same_instant.timestamp()) == int(archive[archive_field].iloc[0])
     assert exact_ledger_check(current, archive)["trades"] == 1
+
+
+@pytest.mark.parametrize("violation", [
+    "matching_fabricated_gross_and_net",
+    "matching_long_stop_above_entry",
+    "matching_long_target_below_entry",
+    "matching_short_stop_below_entry",
+    "matching_short_target_above_entry",
+])
+def test_identically_corrupted_ledgers_fail_1oz_physics_or_direction(violation):
+    """13/13 matching columns alone cannot certify impossible trade economics."""
+    current, archive = _case()
+    if violation == "matching_fabricated_gross_and_net":
+        current["gross_pnl"] = 3.0
+        archive["gross"] = 3.0
+        current["net_pnl"] = 2.6
+        archive["net"] = 2.6
+    elif violation == "matching_long_stop_above_entry":
+        current["stop"] = 101.0
+        archive["stop"] = 101.0
+    elif violation == "matching_long_target_below_entry":
+        current["target"] = 99.5
+        archive["target"] = 99.5
+    else:
+        # Make a valid 1oz short first, then corrupt exactly one risk bound.
+        current["side"] = -1
+        archive["side"] = -1
+        current["entry_price"] = 102.0
+        archive["entry"] = 102.0
+        current["exit_price"] = 100.0
+        archive["exit"] = 100.0
+        current["stop"] = 103.0
+        archive["stop"] = 103.0
+        current["target"] = 100.0
+        archive["target"] = 100.0
+        if violation == "matching_short_stop_below_entry":
+            current["stop"] = 101.0
+            archive["stop"] = 101.0
+        else:
+            current["target"] = 102.5
+            archive["target"] = 102.5
+    with pytest.raises(AssertionError, match="Ledger invariant:"):
+        exact_ledger_check(current, archive)
+
+
+def test_1oz_gross_and_risk_geometry_accept_valid_short_reference():
+    current, archive = _case()
+    current["side"] = -1
+    archive["side"] = -1
+    current["entry_price"] = 102.0
+    archive["entry"] = 102.0
+    current["exit_price"] = 100.0
+    archive["exit"] = 100.0
+    current["stop"] = 103.0
+    archive["stop"] = 103.0
+    current["target"] = 100.0
+    archive["target"] = 100.0
+    assert exact_ledger_check(current, archive)["trades"] == 1
