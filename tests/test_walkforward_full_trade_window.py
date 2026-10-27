@@ -76,3 +76,53 @@ def test_training_rejects_embargo_entry_even_if_close_inside_training():
     })
     with pytest.raises(ValueError, match="entry_at outside training"):
         require_training_only(trades, _fold())
+
+
+def test_purge_drops_pre_training_signal_despite_in_window_entry_and_exit():
+    from norisk_quant.walkforward import purge_cross_boundary_trades
+
+    trades = pd.DataFrame({
+        "signal_at": ["2011-12-31T23:59:00Z", "2016-12-01T00:00:00Z"],
+        "entry_at": ["2012-01-02T00:00:00Z", "2016-12-01T00:01:00Z"],
+        "closed_at": ["2012-01-02T00:01:00Z", "2016-12-01T00:05:00Z"],
+        "trade_id": ["pre_training_signal", "safe"],
+    })
+    purged = purge_cross_boundary_trades(trades, _fold())
+    assert purged["trade_id"].tolist() == ["safe"]
+
+
+def test_purge_preserves_legacy_entry_exit_only_ledger():
+    from norisk_quant.walkforward import purge_cross_boundary_trades
+
+    trades = pd.DataFrame({
+        "entry_at": ["2016-12-01T00:01:00Z"],
+        "closed_at": ["2016-12-01T00:05:00Z"],
+    })
+    assert len(purge_cross_boundary_trades(trades, _fold())) == 1
+
+
+def test_purge_rejects_signal_after_entry_even_when_trade_would_be_purged():
+    from norisk_quant.walkforward import purge_cross_boundary_trades
+
+    trades = pd.DataFrame({
+        "signal_at": ["2016-12-02T00:00:00Z"],
+        "entry_at": ["2016-12-01T00:01:00Z"],
+        "closed_at": ["2016-12-01T00:05:00Z"],
+    })
+    with pytest.raises(ValueError, match="signal occurs after entry"):
+        purge_cross_boundary_trades(trades, _fold())
+
+
+@pytest.mark.parametrize("bad", [
+    "2016-12-01T00:00:00", "2016-12-01T01:00:00+01:00", pd.NaT,
+])
+def test_purge_rejects_invalid_optional_signal_timestamp(bad):
+    from norisk_quant.walkforward import purge_cross_boundary_trades
+
+    trades = pd.DataFrame({
+        "signal_at": [bad],
+        "entry_at": ["2016-12-01T00:01:00Z"],
+        "closed_at": ["2016-12-01T00:05:00Z"],
+    })
+    with pytest.raises(ValueError, match="UTC|missing"):
+        purge_cross_boundary_trades(trades, _fold())
