@@ -45,7 +45,7 @@ def test_real_registry_reconciles_without_touching_private_quotes():
     (lambda d: next(b for b in d["completed_batches"] if b["id"] == "NRF-FAC-018").__setitem__(
         "active_annual_replays", 2561), "zero-trade reconciliation"),
     (lambda d: d["completed_batches"][-1].__setitem__("active_monthly_values", 432000), "active monthly"),
-    (lambda d: d["completed_batches"][-1].__setitem__("configs_24_of_24", 1), "strictly_positive"),
+    (lambda d: d["completed_batches"][-1].__setitem__("configs_24_of_24", 1), "impossible 24/24"),
     (lambda d: d["completed_batches"][0].__setitem__("years", [2013, 2012]), "design years"),
     (lambda d: d["feasibility_negative_controls"][0].__setitem__("active_annual_replays", 1), "negative control"),
     (lambda d: d.__setitem__("fixed_roundtrip_all_in_fee_usd_per_oz", 0.5), "roundtrip fee"),
@@ -98,5 +98,34 @@ def test_both_year_zero_trade_spec_corruption_fails_closed(batch_id, zero_both, 
     data = _registry()
     batch = next(b for b in data["completed_batches"] if b["id"] == batch_id)
     batch["zero_trade_specs_both_years"] = zero_both
+    with pytest.raises(RegistryAuditError, match=match):
+        audit_registry(data)
+
+
+@pytest.mark.parametrize("change,match", [
+    (lambda d: next(b for b in d["completed_batches"] if b["id"] == "NRF-FAC-017")
+     .__setitem__("completed_monthly_values_including_zero", 442380), "all monthly values"),
+    (lambda d: d["completed_batches"][0].__setitem__(
+        "maximum_positive_months_out_of_24", 25), "invalid maximum positive months"),
+    (lambda d: d["completed_batches"][0].__setitem__(
+        "maximum_positive_months_out_of_24", 24), "impossible 24/24"),
+    (lambda d: d["completed_batches"][0].__setitem__(
+        "configs_annual_net_positive_both_years", 20001), "impossible annual-positive"),
+    (lambda d: next(b for b in d["completed_batches"] if b["id"] == "NRF-FAC-018")
+     .__setitem__("configs_annual_net_positive_both_years", 1281),
+     "impossible annual-positive"),
+    (lambda d: d["completed_batches"][0].update({
+        "maximum_positive_months_out_of_24": 24, "configs_24_of_24": 104,
+    }), "impossible 24/24"),
+    (lambda d: d["completed_batches"][0].__setitem__(
+        "completed_annual_parameter_executions", 40000)
+     or d["completed_batches"][0].__setitem__("completed_annual_replays", 39999),
+     "annual executions"),
+    (lambda d: next(b for b in d["completed_batches"] if b["id"] == "NRF-FAC-005B")
+     .__setitem__("active_annual_replays", 51199), "annual_replays_with_filled_trades"),
+])
+def test_impossible_research_claims_and_duplicate_count_aliases_fail_closed(change, match):
+    data = _registry()
+    change(data)
     with pytest.raises(RegistryAuditError, match=match):
         audit_registry(data)
