@@ -24,7 +24,7 @@ MULTS=(.50,.75,1.,1.25,1.50,1.75,2.,2.25)
 RULES=len(THRESHOLDS)*len(MODES)*len(REGIMES)*len(SESSIONS)
 TOTAL=RULES*len(MULTS)**2
 PREREG='c4d8d8b67e69b7b20a4615f25077441c155a15e1'
-SPEC={'research_id':'NRF-FAC-022','preregistration_commit':PREREG,
+SPEC={'research_id':'NRF-FAC-023','preregistration_commit':PREREG,
       'family':'completed M5 12-return signed realized semivariance threshold-crossing; H1 regime and DST session',
       'return_window':12,'prior_m5_ranges':20,'cooldown_seconds':900,
       'thresholds':list(THRESHOLDS),'modes':list(MODES),'regimes':list(REGIMES),
@@ -141,7 +141,7 @@ def preflight(m1,year,out):
     if out.exists():raise FileExistsError('Refuse prior preflight overwrite')
     out.parent.mkdir(parents=True,exist_ok=True)
     counts={k:len(v[0]) for k,v in signal_streams(m1).items()}
-    result={'id':'NRF-FAC-022','year':year,'preregistration_commit':PREREG,
+    result={'id':'NRF-FAC-023','year':year,'preregistration_commit':PREREG,
             'original_zip_sha256':ORIGINAL,'loaded_m1_sha256':fingerprint_loaded_m1(m1),
             'rule_counts':counts,'max_signals':max(counts.values()),
             'nonzero_rules':sum(n>0 for n in counts.values()),'no_exit_outcomes_examined':True}
