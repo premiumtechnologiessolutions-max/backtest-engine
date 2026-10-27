@@ -5,7 +5,7 @@
 ## Data and execution audit
 
 - Private original `Gold data.zip` SHA256 verified locally: `1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121`. **Never uploaded raw BID/ASK quotes to this public repository or GitHub Actions.**
-- Local reproduction of the already committed `scripts/batch_h1_h4_fib_confluence_grid.py`, using an earlier GitHub CI-source snapshot whose **core dependency blobs were verified identical to the current branch**: `fast_engine.py` 08b291c4a2e24625e047862440bfb2f588729078, `batch_compression_h1_grid.py` 1a05dcecfd11e8e9ff4502b21325445fe7182983, `data.py` 366af69961dbf31f40ac5bde53674d5f949b4dc7, `strategy.py` 5ce53a4542474bd36804f6d2c0d3af8ee8cfcef0. **The local FAC016 runner is a manual transcription, not an independently verified byte-identical official checkout**; exact-head official full-grid reproduction remains a separate audit item.
+- **OFFICIAL SOURCE FULL-GRID REPRODUCED:** Downloaded the complete code artifact `12702503558` from successful GitHub Actions run `40433338540` at commit `0320aaa7af34cd5f1c04a45a426d23a713eabed8`. Its exact frozen FAC016 runner Git blob is `1521af1629c6c10fada5a9728201dfae5b5f168b`. Replayed **all 36,000 annual rows and 432,000 monthly values** locally against the authenticated original private ZIP; **maximum numerical difference 0** versus the earlier local independent reproduction. All 8 official `run_fast` canonical samples passed. The core source dependencies are identical to the current branch. See [official source verification](../research/FAC016_OFFICIAL_SOURCE_REPLAY_VERIFICATION_2026-10-27.json).
 - Completed H1/H4 pivot confirmation only after right-side bars close; fully observed UTC-anchored H1/H4/M15 candles, no fabricated minutes, local London/New York DST masks, next observed M1 open <=60s, one position, stop-first, adverse gap-through, exactly **$0.40/oz ALL-IN roundtrip only**. Exit-booked UTC months; M1 floating equity drawdown.
 - 18,000 correlated parameter IDs per year, not 18,000 independent hypotheses; 180 pre-execution signal-rule combinations (fewer unique signal streams after duplicate/empty signals).
 
@@ -47,10 +47,10 @@ This top-by-month-count candidate **fails** the frozen worst-month >=-$20/oz req
 
 ## Parity and limits
 
-- **8** local `run_fast` samples across both years matched the JIT bulk executor's monthly values, fees, fills and observed floating M1 DD (reported zero differences).
+- **8 official GitHub-source `run_fast` canonical parity samples** across both years matched the JIT bulk executor's monthly values, fees, fills and observed floating M1 DD exactly.
 - The 17/24 diagnostic underwent **2 complete independent slow `execution.run` vs `run_fast` reference replays** on the authenticated private original data: **185 trades, every trade field and all 705,292 observed M1 equity marks identical**, including all 24 monthly outcomes.
 - Historical 2012/2013 were previously exposed; these are *not* 36,000 independent hypotheses, clean holdout results, a broker tick model, or evidence of monthly-profit guarantees. No shared-capacity multi-strategy portfolio is inferred from summing independent annual profits. No live trading.
 - Full per-ID monthly results and parity JSON were generated locally and retained in a separate downloadable research ZIP, **not raw quotes**. They have not been committed as 10MB+ public CSVs.
-- GitHub Actions CI for this results-documentation commit must be checked after commit. Previously verified exact head 0320aaa7 passed **795 tests** on run 40433338540; that is not a claim that the new results commit has passed.
+- **Exact results-and-registry HEAD CI PASSED:** commit `87fa2cb154da36e810d462e20b862a2f96159514`, [GitHub Actions run 40437957678](https://github.com/premiumtechnologiessolutions-max/backtest-engine/actions/runs/40437957678), **795/795 pytest passed**; dependency checks, compilation, CLI smoke and synthetic end-to-end reference/fast parity passed. Subsequent audit-documentation commits need their own exact-head CI check.
 
 **Decision:** FAC016 **REJECTED**. Do not re-fit this family to already observed years. Reserve any future forward/prospective data for a truly frozen model with embargo and multiple-testing correction.
