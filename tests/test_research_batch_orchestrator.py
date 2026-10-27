@@ -68,7 +68,7 @@ def make_report(folder: Path, source=SOURCE, commit=COMMIT, *, outcome=(3.0, -2.
             "source_file_sha256": source, "git_revision_env": commit,
             "loaded_m1_bidask_sha256": M1,
         },
-        "run_parameters": spec(),
+        "run_parameters": {**{k: v for k, v in spec().items() if k != "parameters"}, **spec()["parameters"]},
         "trades": 4, "total_fees": 1.6,
         "net_pnl": sum(outcome), "months_observed": 2,
         "positive_months": sum(v > 0 for v in outcome),
@@ -106,7 +106,7 @@ def test_rejects_invalid_or_unbounded_cli_specifications(bad):
 
 @pytest.mark.parametrize("change", [
     {"strategy": "fake"}, {"timeframe": "M60"}, {"execution": "live"},
-    {"start": "2024-03-01"}, {"end": "2024-01-01"},
+    {"start": "2024-03-01"}, {"end": "2023-12-31"},
 ])
 def test_rejects_invalid_base_strategy_fields(change):
     s = spec(**change)
