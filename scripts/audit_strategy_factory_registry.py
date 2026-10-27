@@ -76,11 +76,34 @@ def audit_registry(registry: dict) -> dict:
             raise RegistryAuditError(f"{ident}: annual executions do not match 2 design years")
         if n_active > n_executed:
             raise RegistryAuditError(f"{ident}: active exceeds executed")
+        # Where multiple annual-count aliases are published, never silently
+        # prefer one while ignoring a contradictory second value.
+        for alias in ("active_annual_replays", "annual_replays_with_filled_trades"):
+            if alias in batch:
+                _assert_equal(n_active, _integer(batch[alias], f"{ident} {alias}"),
+                              f"{ident} {alias} reconciliation")
+        for alias in ("completed_annual_parameter_executions", "completed_annual_replays"):
+            if alias in batch:
+                _assert_equal(n_executed, _integer(batch[alias], f"{ident} {alias}"),
+                              f"{ident} {alias} reconciliation")
+        maximum_months = _integer(batch.get("maximum_positive_months_out_of_24"),
+                                  f"{ident} maximum positive months")
+        if maximum_months > 24 or (n_active == 0 and maximum_months != 0):
+            raise RegistryAuditError(f"{ident}: invalid maximum positive months")
+        positive_both = _integer(batch.get("configs_annual_net_positive_both_years"),
+                                 f"{ident} annual-positive both years")
+        if positive_both > n_specs or 2 * positive_both > n_active:
+            raise RegistryAuditError(f"{ident}: impossible annual-positive both years count")
+        full_positive = _integer(batch.get("configs_24_of_24"), f"{ident} 24/24")
+        if (full_positive > n_specs or full_positive > positive_both
+                or (maximum_months == 24) != (full_positive > 0)):
+            raise RegistryAuditError(f"{ident}: impossible 24/24 positive-month count")
         if "zero_trade_annual_executions" in batch:
             _assert_equal(n_executed - n_active,
                           _integer(batch["zero_trade_annual_executions"], f"{ident} zero"),
                           f"{ident} zero-trade reconciliation")
         for key in ("completed_monthly_pnl_values", "completed_monthly_values_including_zero_trade",
+                    "completed_monthly_values_including_zero",
                     "completed_exit_booked_monthly_values"):
             if key in batch:
                 _assert_equal(n_executed * 12, _integer(batch[key], f"{ident} {key}"),
@@ -88,8 +111,7 @@ def audit_registry(registry: dict) -> dict:
         if "active_monthly_values" in batch:
             _assert_equal(n_active * 12, _integer(batch["active_monthly_values"], f"{ident} active months"),
                           f"{ident} active monthly values")
-        if "configs_24_of_24" in batch:
-            full_months += _integer(batch["configs_24_of_24"], f"{ident} 24/24")
+        full_months += full_positive
         # A spec that never filled in EITHER design year is excluded from
         # distinct active specifications, even if its family has other fills.
         # It must be counted exactly once in the zero-trade-spec partition.
