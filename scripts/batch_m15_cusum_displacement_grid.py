@@ -112,7 +112,7 @@ def preflight(m1,year,out):
     if out.exists():raise FileExistsError('Refuse prior preflight overwrite')
     out.parent.mkdir(parents=True,exist_ok=True)
     counts={k:len(v[0]) for k,v in signal_streams(m1).items()}
-    result={'id':'NRF-FAC-020','year':year,'preregistration_commit':PREREG,
+    result={'id':'NRF-FAC-021','year':year,'preregistration_commit':PREREG,
             'original_zip_sha256':ORIGINAL,'loaded_m1_sha256':fingerprint_loaded_m1(m1),
             'rule_counts':counts,'max_signals':max(counts.values()),
             'nonzero_rules':sum(n>0 for n in counts.values()),'no_exit_outcomes_examined':True}
