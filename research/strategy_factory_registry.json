@@ -405,7 +405,8 @@
     "latest_fac015_ci_pytest_passed": 777,
     "fac015_official_full_checkout_annual_replays_verified": 72000,
     "fac015_official_full_checkout_monthly_values_verified": 864000,
-    "fac015_official_full_checkout_max_numeric_delta": 0
+    "fac015_official_full_checkout_max_numeric_delta": 0,
+    "note_fac015p": "FAC015P posthoc-selected FAC015+FAC014 one-position diagnostic 2012/13: 18/24 positive months, +$90.11/oz after $100 all-in fees, worst -$15.18875, DD $45.22375; 250 fills, 705,292 independent slow M1 marks exact. Official code artifact 12701365168 reproduced portfolio results; 777-test CI passed on ad9377e. Not independent OOS, no factory total inflation."
   },
   "next_priorities": [
     {
@@ -514,7 +515,7 @@
     },
     {
       "id": "NRF-FAC-015P",
-      "status": "COMPLETED_POSTHOC_SHARED_CAPACITY_DIAGNOSTIC_REJECTED_NOT_OOS",
+      "status": "COMPLETED_POSTHOC_SHARED_CAPACITY_REJECTED_ORIGINAL_SOURCE_OFFICIAL_ARTIFACT_AND_INDEPENDENT_SLOW_VERIFIED",
       "preregistration_commit": "36f7528e15cf9ded1d163adae1e9c11ece78f97d",
       "years": [
         2012,
@@ -557,7 +558,18 @@
       "report": "docs/FAC015P_POSTHOC_SHARED_CAPACITY_NEGATIVE_CONTROL_2026-10-27.md",
       "frozen_spec": "docs/FAC015P_FROZEN_POSTHOC_SHARED_CAPACITY_DIAGNOSTIC_2026-10-27.md",
       "file": "scripts/run_fac015p_shared_portfolio.py",
-      "notes": "Actual one-position canonical run_fast shared-capacity M1 account on original private SHA-verified ZIP. Two previously rejected posthoc-selected components; selection bias, no clean OOS, not promoted. 18/24 months +$90.11 after $100 fees, worst -$15.18875, DD $45.22375. Standalone sums are not executable portfolio results. Does NOT add to bulk parameter or backtest totals. CI for new code pending."
+      "notes": "Posthoc component selection, no clean OOS, no live trading. Actual one-slot canonical M1 shared portfolio: 18/24 months, +$90.11/oz, 250 fills, $100 fees, worst -$15.18875, max annual floating DD $45.22375. Separate standalone sum +$100.53 is NOT executable. Independent slow checked 705,292 M1 equity marks and 250 fills exactly; official CI artifact 12701365168 from successful 777-test run 40428477922 replayed full portfolio on SHA-verified private original ZIP. Excluded from factory bulk totals. Later metadata-only head CI pending.",
+      "verified_ci_code_commit": "ad9377edc29031d454580821973386e3c3aaa411",
+      "verified_ci_run": 40428477922,
+      "verified_ci_pytest_passed": 777,
+      "verified_official_code_artifact_id": 12701365168,
+      "official_checkout_original_source_reproduced_years": 2,
+      "official_checkout_max_monthly_or_metric_difference": 0,
+      "independent_slow_full_year_parity_samples": 2,
+      "independent_slow_verified_m1_equity_marks": 705292,
+      "independent_slow_verified_fills": 250,
+      "independent_slow_max_m1_equity_or_monthly_difference": 0,
+      "independent_slow_file": "scripts/verify_fac015p_independent_slow.py"
     }
   ],
   "chronological_validation_experiments": [
