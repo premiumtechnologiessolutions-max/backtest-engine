@@ -81,15 +81,27 @@ def register_closed_month(
     if (idx[0] < start or idx[-1] >= end
             or (idx != idx.floor("min")).any()):
         raise ValueError("Observed M1 opens must be aligned and inside month")
+    if not observed_minutes.columns.is_unique:
+        raise ValueError("Observed BID/ASK column names must be unique")
     if any(k not in observed_minutes for k in _REQUIRED_QUOTES):
         raise ValueError("Observed source lacks BID/ASK OHLC")
     for col in _REQUIRED_QUOTES:
-        if (not pd.api.types.is_numeric_dtype(observed_minutes[col])
-                or pd.api.types.is_bool_dtype(observed_minutes[col])):
-            raise ValueError("BID/ASK OHLC must be numeric, not bool or text")
+        dtype = observed_minutes[col].dtype
+        if (not pd.api.types.is_numeric_dtype(dtype)
+                or pd.api.types.is_bool_dtype(dtype)
+                or pd.api.types.is_complex_dtype(dtype)):
+            raise ValueError("BID/ASK OHLC must be real numeric, not bool, complex or text")
     values = observed_minutes[list(_REQUIRED_QUOTES)].to_numpy(dtype=float)
     if not np.isfinite(values).all() or (values <= 0).any():
         raise ValueError("BID/ASK OHLC must be finite positive")
+    # The spread check alone cannot detect malformed high/low envelopes.
+    # Reject impossible BID or ASK bars before recording a prospective source.
+    for offset in (0, 4):
+        op, hi, lo, cl = (values[:, offset + j] for j in range(4))
+        if ((hi < np.maximum(op, cl)).any()
+                or (lo > np.minimum(op, cl)).any()
+                or (hi < lo).any()):
+            raise ValueError("Invalid BID/ASK OHLC bar geometry")
     if (values[:, 4:] < values[:, :4]).any():
         raise ValueError("Crossed BID/ASK OHLC rejected")
     source_sha, source_bytes = hash_source_file(path)
