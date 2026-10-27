@@ -1,0 +1,46 @@
+{
+  "research_id": "NRF-FAC-015",
+  "status": "REJECT_HISTORICALLY_EXPOSED_NOT_OOS",
+  "frozen_commit": "55ca1fd024dc691ec9fc98b2ba82fb5241a0c162",
+  "original_private_zip_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
+  "parameter_specs": 36000,
+  "completed_annual_replays": 72000,
+  "active_annual_replays": 72000,
+  "monthly_pnl_values": 864000,
+  "unique_signal_streams_by_year": [
+    360,
+    360
+  ],
+  "positive_annual_net_2012": 3015,
+  "positive_annual_net_2013": 2857,
+  "positive_annual_both": 931,
+  "maximum_positive_months_of_24": 21,
+  "configs_24_of_24": 0,
+  "configs_passing_frozen_gate": 0,
+  "gate": {
+    "minimum_trades_per_year": 100,
+    "minimum_positive_months_of_24": 18,
+    "annual_net_positive_both": true,
+    "worst_month_min_usd_oz": -20,
+    "max_annual_m1_floating_dd_usd_oz": 100
+  },
+  "top_month_count_id": "SAC15_N12_C+0.00_B1.50_CALM_NY_LOCAL_0930_1330_SL1.50_TP2.25",
+  "top_month_count": {
+    "positive_months": 21,
+    "net_2012": 49.4275,
+    "net_2013": 55.64875,
+    "net_total": 105.07625,
+    "fills_2012": 62,
+    "fills_2013": 77,
+    "fees_total": 55.6,
+    "worst_month": -15.8675,
+    "max_annual_m1_dd": 26.69625,
+    "decision": "REJECT_MIN_SAMPLE"
+  },
+  "canonical_fast_parity_annual_samples": 8,
+  "independent_slow_m1_annual_samples": 2,
+  "independent_slow_verified_m1_marks": 705292,
+  "independent_slow_verified_fills": 139,
+  "max_observed_m1_equity_delta": 0,
+  "warning": "Historically exposed 2012-2013; correlated grid not independent OOS, not a shared portfolio."
+}
