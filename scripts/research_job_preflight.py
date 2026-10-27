@@ -36,6 +36,18 @@ def _git_head(root: Path) -> str:
     sha = result.stdout.strip()
     if not COMMIT.fullmatch(sha):
         raise ValueError("Invalid local Git checkout HEAD")
+    # HEAD alone does not bind uncommitted tracked strategy/engine edits.
+    # Untracked files are deliberately outside this check; a future isolated
+    # worker must also reject import-path shadowing and enforce a clean build.
+    try:
+        dirty = subprocess.run(
+            ["git", "status", "--porcelain", "--untracked-files=no"], cwd=root,
+            capture_output=True, text=True, check=True, timeout=5,
+        ).stdout
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
+        raise ValueError("Cannot verify tracked checkout cleanliness") from exc
+    if dirty.strip():
+        raise ValueError("Tracked checkout differs from frozen Git revision")
     return sha
 
 
