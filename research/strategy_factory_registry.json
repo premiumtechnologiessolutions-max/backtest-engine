@@ -1,6 +1,6 @@
 {
   "format_version": 1,
-  "updated_utc": "2026-10-27T06:20:00Z",
+  "updated_utc": "2026-10-27T07:20:00Z",
   "project": "No Risk FX XAUUSD quant research factory",
   "branch": "feat/quant-engine-foundation",
   "original_private_zip_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
@@ -383,21 +383,64 @@
       "verified_ci_run": 40437957678,
       "verified_ci_tests": 795,
       "official_source_verification": "research/FAC016_OFFICIAL_SOURCE_REPLAY_VERIFICATION_2026-10-27.json"
+    },
+    {
+      "id": "NRF-FAC-017",
+      "family": "M15 two-bar volatility-shock reversal with last-completed H1 volatility regime, DST-aware sessions and normalized stop/target",
+      "status": "REJECTED_EXPOSED_DESIGN_ORIGINAL_PRIVATE_SHA_VERIFIED_OFFICIAL_FULL_GRID_AND_REFERENCE_PARITY",
+      "preregistration_commit": "e88adcea2f00927e15d93e37d11e8f95e7680911",
+      "unique_parameter_specs": 18432,
+      "years": [
+        2012,
+        2013
+      ],
+      "completed_annual_parameter_executions": 36864,
+      "active_annual_replays": 34624,
+      "zero_trade_annual_executions": 2240,
+      "zero_trade_specs_both_years": 512,
+      "completed_monthly_values_including_zero": 442368,
+      "active_monthly_values": 415488,
+      "unique_entry_signal_streams_by_year": [
+        254,
+        260
+      ],
+      "maximum_positive_months_out_of_24": 20,
+      "configs_24_of_24": 0,
+      "configs_18plus_of_24": 5,
+      "configs_passing_frozen_joint_gate": 0,
+      "configs_annual_net_positive_both_years": 1080,
+      "canonical_run_fast_parity_samples": 8,
+      "independent_reference_fast_full_year_parity_samples": 4,
+      "independent_reference_verified_trades": 866,
+      "independent_reference_verified_m1_equity_marks": 1410584,
+      "official_source_artifact_id": 12715291292,
+      "official_source_commit": "94f9115c9ef367d83989f5cd6ebce3d8c364b821",
+      "original_source_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
+      "official_full_grid_replayed_annual": 36864,
+      "official_full_grid_replayed_monthly": 442368,
+      "official_full_grid_max_numeric_delta": 0,
+      "verified_code_ci_run": 40462258228,
+      "verified_code_ci_tests": 932,
+      "file": "scripts/batch_two_bar_shock_reversal_grid.py",
+      "frozen_spec": "docs/FAC017_FROZEN_TWO_BAR_VOLATILITY_SHOCK_REVERSAL_2026-10-27.md",
+      "report": "docs/FAC017_OFFICIAL_36864_ANNUAL_CANONICAL_REPRODUCTION_REJECTED_2026-10-27.md",
+      "official_source_verification": "research/FAC017_OFFICIAL_SOURCE_REPLAY_VERIFICATION_2026-10-27.json",
+      "notes": "Historical design rejected. Official SHA-verified full source replay and 4 full-year 15-field reference/fast equity matches. Best 20/24 with 41 total fills, -2012 annual, violates >=100/year gate. No clean OOS, portfolio or tick certification. CI 932/932 on source commit; new registry head CI separately pending."
     }
   ],
   "totals": {
-    "distinct_parameter_specs": 287184,
-    "yearly_backtests": 553196,
-    "exit_booked_monthly_points": 6638352,
-    "canonical_replay_parity_samples": 95,
-    "independent_hypothesis_families": 12,
+    "distinct_parameter_specs": 305616,
+    "yearly_backtests": 587820,
+    "exit_booked_monthly_points": 7053840,
+    "canonical_replay_parity_samples": 103,
+    "independent_hypothesis_families": 13,
     "strictly_positive_every_month_in_both_years": 0,
-    "zero_trade_parameter_specs_excluded": 31576,
-    "zero_trade_yearly_parameter_executions_excluded": 72472,
+    "zero_trade_parameter_specs_excluded": 32088,
+    "zero_trade_yearly_parameter_executions_excluded": 74712,
     "zero_trade_canonical_parity_samples_excluded": 12,
-    "total_yearly_parameter_executions_including_zero_trade_negative_control": 625668,
+    "total_yearly_parameter_executions_including_zero_trade_negative_control": 662532,
     "local_copy_fast_engine_parity_samples": 18,
-    "independent_slow_m1_parity_samples": 40,
+    "independent_slow_m1_parity_samples": 44,
     "annual_replays_pending_new_head_ci": 0,
     "canonical_replay_parity_samples_note": "Previous 48 full-repository canonical parity samples; FAC010 6 local fast_engine source-copy checks tracked separately until full-checkout verification.",
     "fac011_zero_trade_annual_executions": 600,
@@ -463,7 +506,19 @@
     "latest_fac016_ci_verified_tests": 795,
     "fac016_official_full_grid_replayed_annual": 36000,
     "fac016_official_full_grid_replayed_monthly": 432000,
-    "fac016_official_full_grid_max_numeric_delta": 0
+    "fac016_official_full_grid_max_numeric_delta": 0,
+    "fac017_official_verified_annual_executions": 36864,
+    "fac017_official_verified_active_annual_replays": 34624,
+    "fac017_official_verified_monthly_values_including_zero": 442368,
+    "fac017_official_verified_active_monthly_values": 415488,
+    "fac017_official_full_grid_max_numeric_delta": 0,
+    "fac017_independent_full_year_reference_parity_samples": 4,
+    "fac017_independent_full_year_verified_m1_marks": 1410584,
+    "fac017_independent_full_year_verified_trades": 866,
+    "fac017_verified_code_commit": "94f9115c9ef367d83989f5cd6ebce3d8c364b821",
+    "fac017_verified_code_ci_run": 40462258228,
+    "fac017_verified_code_ci_tests": 932,
+    "note_fac017": "FAC017 18,432 correlated frozen specs x 2012/2013, 36,864 annual executions; 34,624 active, 2,240 zero trade, 415,488 active monthly points. Official exact-head artifact replay reproduced all rows/months exactly; 8 run_fast canonical and 4 full-year independent reference/fast 15-field+equity checks, 866 fills and 1,410,584 M1 marks. Zero passed frozen gate, max 20/24 with 22/19 fills. Exposed historical design, no prospective OOS. Results/registry head CI must be verified separately."
   },
   "next_priorities": [
     {
@@ -527,8 +582,10 @@
     },
     {
       "id": "NRF-FAC-017-OFFICIAL-CANONICAL",
-      "status": "PENDING",
-      "hypothesis": "Verify the existing 36,864 locally completed FAC017 annual parameter replays against the official frozen GitHub runner and run_fast canonical ledger/floating M1 samples on SHA-verified original private data, then move pending entry into completed_batches and reconcile totals; no new grid search."
+      "status": "COMPLETED_ORIGINAL_SHA_OFFICIAL_FULL_GRID_8_FAST_4_REFERENCE_SAMPLES_REJECTED",
+      "hypothesis": "Verify the existing 36,864 locally completed FAC017 annual parameter replays against the official frozen GitHub runner and run_fast canonical ledger/floating M1 samples on SHA-verified original private data, then move pending entry into completed_batches and reconcile totals; no new grid search.",
+      "evidence": "docs/FAC017_OFFICIAL_36864_ANNUAL_CANONICAL_REPRODUCTION_REJECTED_2026-10-27.md",
+      "note": "Do not rerun grid or promote rejected candidate. Exact results-head CI pending separately."
     }
   ],
   "rules": [
@@ -751,39 +808,5 @@
       "report": "docs/FAC012B_48000_ANNUAL_COMPRESSION_REJECTION_2026-10-27.md"
     }
   ],
-  "pending_local_replays": [
-    {
-      "id": "NRF-FAC-017",
-      "status": "LOCALLY_COMPLETED_FROZEN_SCREEN_REJECTED_PENDING_OFFICIAL_FULL_CHECKOUT_CANONICAL",
-      "preregistration_commit": "e88adcea2f00927e15d93e37d11e8f95e7680911",
-      "file": "scripts/batch_two_bar_shock_reversal_grid.py",
-      "report": "docs/FAC017_LOCAL_36864_ANNUAL_REPLAYS_PENDING_OFFICIAL_CANONICAL_2026-10-27.md",
-      "years": [
-        2012,
-        2013
-      ],
-      "unique_parameter_specs": 18432,
-      "local_completed_annual_executions": 36864,
-      "local_active_annual_replays": 34624,
-      "local_zero_trade_annual_replays": 2240,
-      "local_monthly_values_including_zero": 442368,
-      "local_active_monthly_values": 415488,
-      "local_max_positive_months_of_24": 20,
-      "local_configs_24_of_24": 0,
-      "local_configs_passing_frozen_joint_gate": 0,
-      "local_positive_both_annual_net": 1080,
-      "local_independent_slow_m1_annual_samples": 8,
-      "local_slow_m1_marks_checked": 2821168,
-      "local_max_monthly_net_fee_dd_parity_error": 0,
-      "official_full_repository_private_source_canonical_parity_samples": 0,
-      "original_zip_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
-      "not_in_certified_factory_totals": true,
-      "notes": "Source authenticated and frozen grid locally replayed using an independently assembled local port; negative 0-pass screen. Official GitHub frozen runner run_fast/canonical full source parity and CI on results head pending. No totals increment until official verification; 2012/13 historically exposed.",
-      "local_export_arithmetic_audit": "COMPLETED_CSV_INTERNAL_RECONCILIATION_NOT_CANONICAL",
-      "local_export_arithmetic_audit_report": "docs/FAC017_EXPORT_ARITHMETIC_AUDIT_2026-10-27.md",
-      "local_export_arithmetic_audit_18plus_configs": 5,
-      "local_export_arithmetic_audit_frozen_joint_passes": 0,
-      "local_export_arithmetic_audit_note": "No new backtests. Existing local CSV annual/combined monthly, fees, risk and frozen gate reconciled; official source canonical parity pending."
-    }
-  ]
+  "pending_local_replays": []
 }
