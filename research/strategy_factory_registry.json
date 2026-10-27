@@ -512,7 +512,7 @@
     }
   ],
   "totals": {
-    "distinct_parameter_specs": 327120,
+    "distinct_parameter_specs": 312924,
     "yearly_backtests": 614956,
     "exit_booked_monthly_points": 7379472,
     "canonical_replay_parity_samples": 119,
@@ -612,7 +612,8 @@
     "latest_fac018_ci_verified_run": 40472756466,
     "latest_fac018_ci_pytest_passed": 964,
     "note_fac018": "FAC018 frozen preregistration dc7f3c before outcomes; official code cb0c12 CI 964/964, SHA-verified local original ZIP; 9216 correlated specs x2 exposed years, 2560 active annual M1 runs, 30720 active monthly cells, max 17/24, zero passes. 4 independent slow full-year checks exact 105 fills and 1410584 M1 equity marks; shared-capacity posthoc negative control not OOS. Registry/report head CI to be verified separately.",
-    "note_fac020": "FAC020 frozen at ba44ef7; 12,288 specs x2 exposed years, 24,576 actual active annual M1 replays and 294,912 monthly P/L; 19/24 highest but only 80/101 fills, 0 frozen joint passes. Official exact-head artifact 12733098945 replayed all annual/monthly rows with zero numeric delta, 8 canonical fast and 2 independent slow 15-field+M1 equity parity samples. No OOS or shared portfolio."
+    "note_fac020": "FAC020 frozen at ba44ef7; 12,288 specs x2 exposed years, 24,576 actual active annual M1 replays and 294,912 monthly P/L; 19/24 highest but only 80/101 fills, 0 frozen joint passes. Official exact-head artifact 12733098945 replayed all annual/monthly rows with zero numeric delta, 8 canonical fast and 2 independent slow 15-field+M1 equity parity samples. No OOS or shared portfolio.",
+    "note_distinct_parameter_specs_partition": "Corrected: subtract 14,196 specs with zero fills in BOTH 2012/2013 from active distinct specs (FAC014 5,376; FAC016 500; FAC017 512; FAC018 7,808). Those specs remain in excluded-zero-spec count 39,896; active+excluded=352,820 total including 100 one-year feasibility controls. Arithmetic only; not replay/OOS proof."
   },
   "next_priorities": [
     {

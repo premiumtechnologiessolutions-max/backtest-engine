@@ -65,3 +65,27 @@ def test_invalid_counter_types_fail_closed(bad):
     data["totals"]["yearly_backtests"] = bad
     with pytest.raises(RegistryAuditError, match="nonnegative integer"):
         audit_registry(data)
+
+
+def test_distinct_active_and_excluded_specs_form_exact_partition():
+    data = _registry()
+    audited = audit_registry(data)
+    all_specs = sum(b["unique_parameter_specs"] for b in data["completed_batches"])
+    # One-year feasibility controls represent unique excluded trials.
+    all_specs += sum(c["actual_parameter_year_executions"] for c in data["feasibility_negative_controls"])
+    assert (audited["distinct_parameter_specs"]
+            + audited["zero_trade_parameter_specs_excluded"]) == all_specs
+    assert audited["distinct_parameter_specs"] == 312924
+
+
+@pytest.mark.parametrize("batch_id,zero_both,match", [
+    ("NRF-FAC-014", 27649, "both-year zero specs exceed parameter specs"),
+    ("NRF-FAC-014", 9000, "both-year zero specs exceed zero-trade annual executions"),
+    ("NRF-FAC-005", 1, "all-zero family must not double-count"),
+])
+def test_both_year_zero_trade_spec_corruption_fails_closed(batch_id, zero_both, match):
+    data = _registry()
+    batch = next(b for b in data["completed_batches"] if b["id"] == batch_id)
+    batch["zero_trade_specs_both_years"] = zero_both
+    with pytest.raises(RegistryAuditError, match=match):
+        audit_registry(data)

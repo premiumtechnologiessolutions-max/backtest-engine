@@ -90,13 +90,25 @@ def audit_registry(registry: dict) -> dict:
                           f"{ident} active monthly values")
         if "configs_24_of_24" in batch:
             full_months += _integer(batch["configs_24_of_24"], f"{ident} 24/24")
+        # A spec that never filled in EITHER design year is excluded from
+        # distinct active specifications, even if its family has other fills.
+        # It must be counted exactly once in the zero-trade-spec partition.
+        both_zero_specs = _integer(batch.get("zero_trade_specs_both_years", 0),
+                                   f"{ident} both-year zero specs")
+        if both_zero_specs > n_specs:
+            raise RegistryAuditError(f"{ident}: both-year zero specs exceed parameter specs")
+        if 2 * both_zero_specs > n_executed - n_active:
+            raise RegistryAuditError(f"{ident}: both-year zero specs exceed zero-trade annual executions")
         if n_active:
-            specs += n_specs
+            if both_zero_specs == n_specs:
+                raise RegistryAuditError(f"{ident}: active annual runs with all specs zero in both years")
+            specs += n_specs - both_zero_specs
             active_families += 1
-        elif n_active == 0:
+            zero_specs += both_zero_specs
+        else:
+            if both_zero_specs:
+                raise RegistryAuditError(f"{ident}: all-zero family must not double-count both-year zero specs")
             zero_specs += n_specs
-        zero_specs += _integer(batch.get("zero_trade_specs_both_years", 0),
-                               f"{ident} both-year zero specs")
         active += n_active
         executed += n_executed
 
