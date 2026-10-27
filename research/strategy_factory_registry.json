@@ -872,7 +872,7 @@
     {
       "id": "NRF-FAC-019-H4-INFEASIBLE",
       "preregistration_commit": "530fc65c24d16b1733543f7bf7eceafb5b411542",
-      "status": "STRUCTURALLY_UNREACHABLE_SIGNAL_ONLY_LOCAL_SOURCE_AUDIT",
+      "status": "STRUCTURALLY_UNREACHABLE_OFFICIAL_GITHUB_SOURCE_ORIGINAL_SHA_VERIFIED",
       "years": [
         2012,
         2013
@@ -896,10 +896,14 @@
       "observed_monthly_pnl": 0,
       "source_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
       "evidence": "docs/FAC019_STRUCTURAL_H4_CAPACITY_REJECTION_2026-10-27.md",
-      "note": "Pre-outcome frozen; local original SHA-verified M1-to-H4 complete-bar reconstruction, not official checkout parity; 0 eligible H4 windows both years. No parameter refit or backtest; no change to bulk totals.",
+      "note": "Pre-outcome frozen. Independent local complete H4 reconstruction and official exact-head GitHub code on SHA-verified private original ZIP agree: max 5 consecutive H4 bars each year, 0 eight-bar windows. No SL/TP grid or trade parity run; no parameter refit or changes to bulk totals.",
       "actual_parameter_year_executions": 0,
       "zero_trade_executions": 0,
-      "active_annual_replays": 0
+      "active_annual_replays": 0,
+      "official_source_commit": "e36ea680b3f6534a8c055507e084527011f73354",
+      "official_ci_run": 40494985167,
+      "official_ci_pytest_passed": 1050,
+      "official_code_artifact_id": 12729647867
     }
   ],
   "pending_local_replays": []

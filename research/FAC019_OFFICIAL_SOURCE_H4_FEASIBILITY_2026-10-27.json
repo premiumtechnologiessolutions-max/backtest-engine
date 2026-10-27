@@ -1,0 +1,27 @@
+{
+  "research_id": "NRF-FAC-019",
+  "status": "STRUCTURALLY_UNREACHABLE",
+  "preregistration_commit": "530fc65c24d16b1733543f7bf7eceafb5b411542",
+  "official_source_commit": "e36ea680b3f6534a8c055507e084527011f73354",
+  "official_source_ci_run": 40494985167,
+  "original_private_zip_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
+  "required_consecutive_h4_bars": 8,
+  "complete_h4_bars_by_year": {
+    "2012": 1213,
+    "2013": 1197
+  },
+  "max_contiguous_complete_h4_bars_by_year": {
+    "2012": 5,
+    "2013": 5
+  },
+  "eligible_eight_bar_windows_by_year": {
+    "2012": 0,
+    "2013": 0
+  },
+  "planned_correlated_specs_per_year": 16384,
+  "executed_annual_m1_backtests": 0,
+  "new_monthly_pnl": 0,
+  "canonical_trade_parity_samples": 0,
+  "independent_complete_bar_reconstruction_agrees": true,
+  "raw_market_data_uploaded": false
+}
