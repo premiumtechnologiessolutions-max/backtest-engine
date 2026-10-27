@@ -245,22 +245,62 @@
       "verified_ci_code_commit": "7d1b8b5d4071a3338b6eb14b450f36ddf6b4f137",
       "verified_ci_run": 40419755915,
       "verified_ci_tests": 735
+    },
+    {
+      "id": "NRF-FAC-014",
+      "family": "Previous eligible completed UTC-day high/low M15 close breach then delayed same-day M15 reclaim, completed H1 trend/volatility and DST-aware sessions",
+      "status": "REJECTED_EXPOSED_DESIGN_PRIVATE_SHA_VERIFIED_LOCAL_SLOW_M1_PARITY_PASSED_OFFICIAL_CANONICAL_AND_NEW_HEAD_CI_PENDING",
+      "preregistration_commit": "15b7083b13b4d434036612b509d189eb742ae339",
+      "unique_parameter_specs": 27648,
+      "years": [
+        2012,
+        2013
+      ],
+      "completed_annual_parameter_executions": 55296,
+      "active_annual_replays": 39424,
+      "zero_trade_annual_executions": 15872,
+      "zero_trade_specs_both_years": 5376,
+      "completed_monthly_values_including_zero_trade": 663552,
+      "active_monthly_values": 473088,
+      "unique_entry_signal_streams_by_year": [
+        169,
+        163
+      ],
+      "configs_annual_net_positive_both_years": 1564,
+      "maximum_positive_months_out_of_24": 17,
+      "configs_24_of_24": 0,
+      "configs_passing_frozen_joint_gate": 0,
+      "max_filled_trades_any_spec_by_year": [
+        74,
+        67
+      ],
+      "local_independent_slow_m1_parity_samples": 8,
+      "local_independent_slow_m1_marks_checked": 2821168,
+      "local_independent_slow_m1_filled_trades_checked": 149,
+      "local_independent_slow_max_metric_delta": 7.105427357601002e-15,
+      "official_repository_canonical_parity_samples": 0,
+      "original_source_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
+      "notes": "Original ZIP SHA verified locally, frozen grid 27,648 correlated specs x2. 55,296 annual executions but 15,872 zero-trade; only 39,424 active. 0 passed prereg gate, max 17/24, all specs below >=75 trades/year. Eight independent local slow-M1 aggregate parity samples (2,821,168 observed marks) are NOT official full-checkout run_fast per-mark parity. No shared-capacity portfolio authorized, no OOS, no live fills.",
+      "file": "scripts/batch_prior_day_reclaim_grid.py",
+      "frozen_spec": "docs/FAC014_FROZEN_PRIOR_DAY_DELAYED_RECLAIM_2026-10-27.md",
+      "report": "docs/FAC014_55296_ANNUAL_PRIOR_DAY_RECLAIM_REJECTED_2026-10-27.md",
+      "aggregate_summary": "research/FAC014_COMBINED_SUMMARY_2026-10-27.json"
     }
   ],
   "totals": {
-    "distinct_parameter_specs": 205536,
-    "yearly_backtests": 410472,
-    "exit_booked_monthly_points": 4925664,
+    "distinct_parameter_specs": 233184,
+    "yearly_backtests": 449896,
+    "exit_booked_monthly_points": 5398752,
     "canonical_replay_parity_samples": 70,
-    "independent_hypothesis_families": 9,
+    "independent_hypothesis_families": 10,
     "strictly_positive_every_month_in_both_years": 0,
-    "zero_trade_parameter_specs_excluded": 25700,
-    "zero_trade_yearly_parameter_executions_excluded": 51900,
+    "zero_trade_parameter_specs_excluded": 31076,
+    "zero_trade_yearly_parameter_executions_excluded": 67772,
     "zero_trade_canonical_parity_samples_excluded": 12,
-    "total_yearly_parameter_executions_including_zero_trade_negative_control": 462372,
+    "total_yearly_parameter_executions_including_zero_trade_negative_control": 517668,
     "local_copy_fast_engine_parity_samples": 18,
-    "independent_slow_m1_parity_samples": 28,
-    "annual_replays_pending_new_head_ci": 0,
+    "independent_slow_m1_parity_samples": 36,
+    "annual_replays_pending_new_head_ci": 39424,
     "canonical_replay_parity_samples_note": "Previous 48 full-repository canonical parity samples; FAC010 6 local fast_engine source-copy checks tracked separately until full-checkout verification.",
     "fac011_zero_trade_annual_executions": 600,
     "fac011_local_locked_chronology_parity_years": 3,
@@ -269,7 +309,7 @@
     "latest_fac011_ci_verified_code_commit": "52cb21e031187862c013ffe2c7e18147c821fd66",
     "latest_fac011_ci_verified_run": 40405257053,
     "latest_fac011_ci_pytest_passed": 713,
-    "annual_replays_pending_official_private_checkout_parity": 79872,
+    "annual_replays_pending_official_private_checkout_parity": 119296,
     "note_ci": "FAC011 and FAC010 code included in 713/713 successful CI on 52cb21e; subsequent metadata-only commits require independent current-head CI verification; official private-source full checkout parity remains pending.",
     "latest_fac012b_ci_verified_code_commit": "db551c0a5bb20995a61895ef4e7e37d2cfeed57a",
     "latest_fac012b_ci_verified_run": 40411959894,
@@ -287,7 +327,14 @@
     "note_fac013": "FAC013 original private SHA-verified M1 2012/2013: 21,600 correlated specs, 43,200 active annual replays, 518,400 monthly P/L, max 18/24, 0 frozen passes. 8 fast and 2 full-year independent slow parity samples. New HEAD CI pending. New FAC013 code CI 735/735 passed on 7d1b8b5, metadata-only commits afterwards need separate head CI.",
     "latest_fac013_ci_verified_code_commit": "7d1b8b5d4071a3338b6eb14b450f36ddf6b4f137",
     "latest_fac013_ci_verified_run": 40419755915,
-    "latest_fac013_ci_pytest_passed": 735
+    "latest_fac013_ci_pytest_passed": 735,
+    "fac014_executed_annual_parameter_runs_including_zero_trade": 55296,
+    "fac014_active_annual_replays": 39424,
+    "fac014_zero_trade_annual_replays": 15872,
+    "fac014_local_slow_m1_parity_samples": 8,
+    "fac014_local_slow_m1_marks_checked": 2821168,
+    "fac014_official_canonical_parity_samples": 0,
+    "note_fac014": "FAC014 frozen 27,648 correlated specs x 2 exposed years: 55,296 actual annual parameter executions, 39,424 active and 15,872 zero-trade. 663,552 monthly values including zeros, 473,088 active. Max 17/24 months, 0 joint passes. Local slow-M1 parity 8 samples/2.82M marks; official full-checkout canonical and new-head CI pending. No portfolio or OOS."
   },
   "next_priorities": [
     {
@@ -325,6 +372,11 @@
       "id": "NRF-FAC-013-PROSPECTIVE",
       "status": "NOT_STARTED",
       "hypothesis": "No FAC013 frozen joint gate passed. Do not retune exposed years; future embargoed prospective test only with a newly frozen rule, no posthoc winner labeling."
+    },
+    {
+      "id": "NRF-FAC-014-OFFICIAL-CANONICAL",
+      "status": "PENDING",
+      "hypothesis": "Run deterministic FAC014 parity on complete official GitHub source with original SHA-verified private ZIP, compare run_fast ledger and every observed M1 floating equity mark; do not repeat/reoptimize frozen grid. Confirm final-head CI separately."
     }
   ],
   "rules": [
