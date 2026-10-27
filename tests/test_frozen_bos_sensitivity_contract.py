@@ -5,6 +5,7 @@ import scripts.run_bos_fib_frozen_sensitivity as frozen
 from scripts.run_bos_fib_frozen_sensitivity import (
     EXECUTION_SETTINGS, H1_SETTINGS, SOURCE_SHA, YEARLY_SETTINGS,
     validate_annual_month_coverage, validate_year_selection,
+    validate_output_destination,
 )
 
 
@@ -137,3 +138,44 @@ def test_frozen_runner_synthetic_end_to_end_writes_reconciled_reports(tmp_path, 
     assert (output / "2012" / "equity_m1.csv").is_file()
     assert (output / "2012" / "trades.csv").is_file()
     assert (output / "frozen_sensitivity_summary.json").is_file()
+
+
+def test_frozen_runner_refuses_to_overwrite_prior_annual_evidence(tmp_path):
+    source = tmp_path / "synthetic_source.zip"
+    source.write_bytes(b"not original market data")
+    destination = tmp_path / "reports"
+    destination.mkdir()
+    (destination / "2012").mkdir()
+    sentinel = destination / "2012" / "trades.csv"
+    sentinel.write_text("prior audited evidence", encoding="utf-8")
+    # Must reject before source hashing, market loading, strategy execution,
+    # or reporting; prior output must remain byte-for-byte unchanged.
+    with pytest.raises(FileExistsError, match="nonempty"):
+        frozen.execute(source, [2012], destination)
+    assert sentinel.read_text(encoding="utf-8") == "prior audited evidence"
+    assert not (destination / "frozen_sensitivity_summary.json").exists()
+
+
+def test_frozen_runner_allows_missing_or_empty_output_directory(tmp_path):
+    validate_output_destination(tmp_path / "missing")
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    validate_output_destination(empty)
+
+
+def test_frozen_runner_rejects_existing_output_file(tmp_path):
+    destination = tmp_path / "reports"
+    destination.write_text("do not clobber", encoding="utf-8")
+    with pytest.raises(FileExistsError, match="not a directory"):
+        validate_output_destination(destination)
+    assert destination.read_text(encoding="utf-8") == "do not clobber"
+
+
+def test_frozen_runner_rejects_output_symlink(tmp_path):
+    target = tmp_path / "target"
+    target.mkdir()
+    destination = tmp_path / "linked-reports"
+    destination.symlink_to(target, target_is_directory=True)
+    with pytest.raises(FileExistsError, match="symlink"):
+        validate_output_destination(destination)
+    assert list(target.iterdir()) == []
