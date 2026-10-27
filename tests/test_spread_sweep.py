@@ -85,10 +85,15 @@ def test_frozen_parameters_cannot_be_changed(kwargs):
 
 
 @pytest.mark.parametrize(('column', 'bad_value'), [
-    ('h', 99.0), ('l', 101.0), ('ah', 99.0), ('al', 101.0),
+    ('h', 99.0), ('l', 100.2), ('ah', 100.1), ('al', 100.5),
 ])
 def test_impossible_bid_ask_envelope_rejected_before_signal_generation(column, bad_value):
     data = fixture_m1()
+    # Neutral first bar keeps every BID <= ASK comparison valid, so this
+    # specifically exercises the envelope gate rather than crossed quotes.
+    data.loc[data.index[0], ['o', 'h', 'l', 'c', 'ao', 'ah', 'al', 'ac']] = [
+        100., 100., 100., 100., 100.4, 100.4, 100.4, 100.4,
+    ]
     data.loc[data.index[0], column] = bad_value
     with pytest.raises(ValueError, match='bar geometry'):
         spread_recovery_sweep_signals(data)
