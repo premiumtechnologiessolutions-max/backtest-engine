@@ -25,7 +25,8 @@ def m15_fixture(n=40):
 
 
 def test_frozen_count_and_fee_and_status():
-    assert fac.TOTAL == fac.SPEC['specs_per_year'] == 18000\n    assert fac.PIVOT_PAIRS == ((2, 1), (2, 2), (3, 1), (3, 2))
+    assert fac.TOTAL == fac.SPEC['specs_per_year'] == 18000
+    assert fac.PIVOT_PAIRS == ((2, 1), (2, 2), (3, 1), (3, 2))
     assert fac.SPEC['roundtrip_all_in_usd_oz'] == .4
     assert fac.SPEC['years'] == [2012, 2013]
 
