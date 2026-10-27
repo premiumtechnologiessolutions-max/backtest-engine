@@ -57,7 +57,7 @@ def path_events(m5,threshold):
     changes=np.diff(close,prepend=np.nan)
     travel=pd.Series(np.abs(changes)).rolling(6,min_periods=6).sum().to_numpy()
     stamps=(_ns(m5.close_at)//1_000_000_000).astype(np.int64)
-    events=[];sides=[];bases=[];last=-2**62
+    events=[];sides=[];bases=[]
     for j in range(20,len(m5)):
         if idx[j]-idx[j-20]!=20*300_000_000_000:
             continue
@@ -70,9 +70,8 @@ def path_events(m5,threshold):
         efficiency=abs(displacement)/travel[j]
         if efficiency+1e-12<threshold:continue
         t=int(stamps[j])
-        if t-last<1800:continue
         events.append(t);sides.append(1 if displacement>0 else -1)
-        bases.append(float(base[j]));last=t
+        bases.append(float(base[j]))
     return np.asarray(events,np.int64),np.asarray(sides,np.int8),np.asarray(bases,float)
 
 def h1_gate(times,sides,base,h1times,h1ratio,regime,session,masks=None):
@@ -90,7 +89,12 @@ def h1_gate(times,sides,base,h1times,h1ratio,regime,session,masks=None):
     valid &= (h1ratio[safe]<=1.) if regime=='CALM' else (h1ratio[safe]>1.)
     if masks is None:masks=local_session_masks(times)
     valid &= masks[session]
-    return times[valid],sides[valid],base[valid]
+    filtered_times,filtered_sides,filtered_base=times[valid],sides[valid],base[valid]
+    keep=[];last=-2**62
+    for j,t in enumerate(filtered_times):
+        if int(t)-last>=1800:
+            keep.append(j);last=int(t)
+    return filtered_times[keep],filtered_sides[keep],filtered_base[keep]
 
 def rule_id(threshold,mode,regime,session):
     return f'PE5_K{threshold:.2f}_{mode}_{regime}_{session}'
