@@ -37,7 +37,10 @@ def _duplicate_tick_fixture():
 def test_direct_quote_parity_rejects_unsafe_duplicate_sequence_ids(unsafe_id):
     ticks, minutes = _duplicate_tick_fixture()
     ticks["seq"] = ticks["seq"].astype(object)
-    ticks.iloc[1, ticks.columns.get_loc("seq")] = unsafe_id
+    # Boolean at the first event used to be silently converted to 0/1
+    # and could pass both uniqueness and increasing-order checks.
+    row = 0 if isinstance(unsafe_id, (bool, np.bool_)) else 1
+    ticks.iloc[row, ticks.columns.get_loc("seq")] = unsafe_id
     with pytest.raises(ValueError, match="Invalid duplicate tick timestamp/sequence"):
         compare_bid_ask_ticks_to_m1(ticks, minutes)
 
