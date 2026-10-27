@@ -54,3 +54,30 @@ def test_ambiguous_bidirectional_sweep_rejected():
 def test_invalid_sweep_spec(kwargs):
     with pytest.raises(ValueError):
         SweepSettings(**kwargs)
+
+
+def test_missing_bar_inside_prior_channel_invalidates_sweep():
+    """A stale channel across a missing M15 bar must not qualify."""
+    start = pd.Timestamp("2024-01-08T12:00:00Z")
+    rows = []
+    for bar in range(16):
+        o, h, l, c = (100.0, 101.0, 99.0, 100.0)
+        if bar == 15:
+            o, h, l, c = (100.0, 100.8, 98.0, 99.5)
+        for minute in range(15):
+            rows.append((start + pd.Timedelta(minutes=bar * 15 + minute),
+                         o, h, l, c))
+    continuous = pd.DataFrame(
+        rows, columns=["at", "o", "h", "l", "c"]
+    ).set_index("at")
+    assert len(liquidity_sweep_signals(continuous)) == 1
+
+    # Entire bar 7 is missing; the immediate predecessor of the sweep is
+    # still contiguous. The old one-bar gap check incorrectly passed.
+    interrupted = continuous.drop(continuous.index[7 * 15:8 * 15])
+    assert not liquidity_sweep_signals(interrupted)
+
+    # A gap entirely outside the 12-bar lookback is allowed: only the
+    # actual source window used for this sweep must be continuous.
+    earlier_gap = continuous.drop(continuous.index[0:15])
+    assert len(liquidity_sweep_signals(earlier_gap)) == 1
