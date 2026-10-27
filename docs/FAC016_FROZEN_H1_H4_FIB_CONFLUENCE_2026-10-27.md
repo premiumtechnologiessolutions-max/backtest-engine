@@ -15,7 +15,7 @@ For UP, retracement price = swing high - ratio*(swing high - swing low). For DOW
 - Price confluence tolerance = [0.5, 1.0, 1.5] × previous-20 M15 median range.
 - Session = [ALL, LONDON_LOCAL_08_12, NY_LOCAL_0930_1330], IANA DST-aware.
 - Stop multiplier and target multiplier each = [0.50,0.75,1.00,1.25,1.50,1.75,2.00,2.25,2.50,2.75] × previous-20 M15 median range.
-- **4 × 5 × 3 × 3 × 10 × 10 = 18,000** distinct parameter specifications per year. The 60 distinct pre-execution signal rules are correlated, not independent hypotheses. Planned years 2012/2013 are already exposed design data, never clean OOS.
+- **4 × 5 × 3 × 3 × 10 × 10 = 18,000** distinct parameter specifications per year. The 180 distinct pre-execution signal rules are correlated, not independent hypotheses. Planned years 2012/2013 are already exposed design data, never clean OOS.
 
 ## Execution, evaluation and refusal gates
 
