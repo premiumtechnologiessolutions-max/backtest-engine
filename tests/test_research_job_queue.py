@@ -112,3 +112,56 @@ def test_no_queue_means_empty_not_completed(tmp_path):
     root = root_fixture(tmp_path)
     assert list_jobs(root) == []
     assert not (root / "reports").exists()
+
+
+def test_existing_record_permissions_fail_closed(tmp_path):
+    if os.name != "posix":
+        pytest.skip("POSIX owner-only permission check")
+    root = root_fixture(tmp_path)
+    job = enqueue(root, request(root))
+    file = root / "reports" / "research_jobs" / (job["fingerprint"] + ".json")
+    file.chmod(0o644)
+    with pytest.raises(ValueError, match="owner-only"):
+        list_jobs(root)
+    with pytest.raises(ValueError, match="unsafe"):
+        enqueue(root, job)
+
+
+def test_hardlinked_record_rejected(tmp_path):
+    root = root_fixture(tmp_path)
+    job = enqueue(root, request(root))
+    file = root / "reports" / "research_jobs" / (job["fingerprint"] + ".json")
+    os.link(file, tmp_path / "alias.json")
+    with pytest.raises(ValueError, match="unlinked"):
+        list_jobs(root)
+
+
+@pytest.mark.parametrize("change", [
+    {"schema_version": True},
+    {"family": "NRF-FAC-../../etc"},
+    {"frozen_spec": "docs/../private.json"},
+    {"source_commit": "Z" * 40},
+    {"registry_sha256": "z" * 64},
+    {"evaluation_start": "2027-12-01", "evaluation_end": "2026-11-01"},
+])
+def test_recomputed_checksum_does_not_bypass_schema_validation(tmp_path, change):
+    root = root_fixture(tmp_path)
+    job = request(root)
+    body = {k: v for k, v in job.items() if k != "fingerprint"}
+    body.update(change)
+    forged = {**body, "fingerprint": _sha(_canonical(body))}
+    with pytest.raises(ValueError):
+        enqueue(root, forged)
+
+
+def test_symlinked_queue_record_rejected(tmp_path):
+    root = root_fixture(tmp_path)
+    job = enqueue(root, request(root))
+    file = root / "reports" / "research_jobs" / (job["fingerprint"] + ".json")
+    target = tmp_path / "target.json"
+    file.rename(target)
+    file.symlink_to(target)
+    with pytest.raises(ValueError, match="Symlinked"):
+        list_jobs(root)
+    with pytest.raises(ValueError, match="unsafe"):
+        enqueue(root, job)

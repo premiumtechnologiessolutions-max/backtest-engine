@@ -12,6 +12,7 @@ import json
 import os
 from pathlib import Path, PurePosixPath
 import re
+import stat
 
 ROOT = Path(__file__).resolve().parents[1]
 FAMILY = re.compile(r"NRF-FAC-[0-9]{3}[A-Z]?\Z")
@@ -109,8 +110,23 @@ def _verify(record: dict, filename: str) -> dict:
         "status", "fingerprint",
     }:
         raise ValueError("Malformed research queue record")
-    if record["schema_version"] != 1 or record["mode"] != "OFFLINE_RESEARCH_ONLY" or record["status"] != "QUEUED_NOT_EXECUTED":
+    if (type(record["schema_version"]) is not int or record["schema_version"] != 1
+            or record["mode"] != "OFFLINE_RESEARCH_ONLY"
+            or record["status"] != "QUEUED_NOT_EXECUTED"):
         raise ValueError("Unsupported or misleading queue state")
+    if type(record["family"]) is not str or not FAMILY.fullmatch(record["family"]):
+        raise ValueError("Invalid queue family")
+    spec = record["frozen_spec"]
+    if (type(spec) is not str or not SAFE_SPEC.fullmatch(spec)
+            or ".." in PurePosixPath(spec).parts):
+        raise ValueError("Invalid queue frozen spec")
+    if type(record["source_commit"]) is not str or not COMMIT.fullmatch(record["source_commit"]):
+        raise ValueError("Invalid queue source commit")
+    for field in ("frozen_spec_sha256", "registry_sha256"):
+        if type(record[field]) is not str or not re.fullmatch(r"[0-9a-f]{64}", record[field]):
+            raise ValueError(f"Invalid queue {field}")
+    if _period(record["evaluation_end"]) < _period(record["evaluation_start"]):
+        raise ValueError("Invalid queue evaluation period")
     fingerprint = record["fingerprint"]
     if not isinstance(fingerprint, str) or not re.fullmatch(r"[0-9a-f]{64}", fingerprint):
         raise ValueError("Invalid fingerprint")
@@ -119,6 +135,24 @@ def _verify(record: dict, filename: str) -> dict:
     if filename != fingerprint + ".json":
         raise ValueError("Queue filename does not match fingerprint")
     return record
+
+
+def _read_job_bytes(path: Path) -> bytes:
+    """Reject links, unsafe permissions and oversized entries before parsing."""
+    if path.is_symlink():
+        raise ValueError("Symlinked queue record")
+    flags = os.O_RDONLY
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    with os.fdopen(os.open(path, flags), "rb") as stream:
+        info = os.fstat(stream.fileno())
+        if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+            raise ValueError("Queue record must be a regular, unlinked file")
+        if os.name == "posix" and (info.st_uid != os.getuid() or info.st_mode & 0o077):
+            raise ValueError("Queue record must be owner-only (0600)")
+        if info.st_size > 8192:
+            raise ValueError("Oversized queue record")
+        return stream.read(8193)
 
 
 def enqueue(root: Path, request: dict) -> dict:
@@ -133,7 +167,11 @@ def enqueue(root: Path, request: dict) -> dict:
     try:
         fd = os.open(target, flags, 0o600)
     except FileExistsError:
-        if target.is_symlink() or target.read_bytes() != payload:
+        try:
+            existing = _read_job_bytes(target)
+        except (ValueError, OSError) as exc:
+            raise ValueError("Existing queue entry differs or is unsafe") from exc
+        if existing != payload:
             raise ValueError("Existing queue entry differs from frozen request")
         return record
     try:
@@ -153,11 +191,9 @@ def list_jobs(root: Path) -> list[dict]:
         return []
     jobs = []
     for file in sorted(directory.iterdir()):
-        if file.is_symlink() or not file.is_file() or file.suffix != ".json":
+        if file.suffix != ".json":
             raise ValueError("Unexpected queue entry")
-        if file.stat().st_size > 8192:
-            raise ValueError("Oversized queue record")
-        jobs.append(_verify(json.loads(file.read_text(encoding="utf-8")), file.name))
+        jobs.append(_verify(json.loads(_read_job_bytes(file)), file.name))
     return jobs
 
 
