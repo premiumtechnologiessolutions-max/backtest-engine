@@ -642,6 +642,12 @@
       "status": "COMPLETED_REJECTED_ORIGINAL_SOURCE_REFERENCE_PARITY",
       "hypothesis": "Frozen session-anchor inventory unwind with completed H4 path efficiency. Closed negative design; no refitting.",
       "evidence": "docs/FAC018_18432_ANNUAL_SESSION_INVENTORY_REJECTED_2026-10-27.md"
+    },
+    {
+      "id": "NRF-FAC-019",
+      "status": "STRUCTURALLY_REJECTED_NO_BACKTESTS",
+      "hypothesis": "Frozen cross-session London-to-NY transfer impossible due required 8 contiguous H4 bars; original 2012/2013 max 5. Do not relax/refit; separate new family required.",
+      "evidence": "docs/FAC019_STRUCTURAL_H4_CAPACITY_REJECTION_2026-10-27.md"
     }
   ],
   "rules": [
@@ -862,6 +868,35 @@
       "active_annual_replays": 0,
       "reason": "Frozen >=26 consecutive complete H1 bars infeasible on 2012 original: max contiguous H1 23; FAC012B separately preregistered feasibility fix before opening its results.",
       "report": "docs/FAC012B_48000_ANNUAL_COMPRESSION_REJECTION_2026-10-27.md"
+    },
+    {
+      "id": "NRF-FAC-019-H4-INFEASIBLE",
+      "preregistration_commit": "530fc65c24d16b1733543f7bf7eceafb5b411542",
+      "status": "STRUCTURALLY_UNREACHABLE_SIGNAL_ONLY_LOCAL_SOURCE_AUDIT",
+      "years": [
+        2012,
+        2013
+      ],
+      "planned_correlated_specs_per_year": 16384,
+      "planned_annual_replays_not_executed": 32768,
+      "complete_h4_bars_by_year": [
+        1213,
+        1197
+      ],
+      "max_contiguous_complete_h4_bars_by_year": [
+        5,
+        5
+      ],
+      "required_contiguous_h4_bars": 8,
+      "eligible_h4_context_windows_by_year": [
+        0,
+        0
+      ],
+      "actual_annual_m1_backtests": 0,
+      "observed_monthly_pnl": 0,
+      "source_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
+      "evidence": "docs/FAC019_STRUCTURAL_H4_CAPACITY_REJECTION_2026-10-27.md",
+      "note": "Pre-outcome frozen; local original SHA-verified M1-to-H4 complete-bar reconstruction, not official checkout parity; 0 eligible H4 windows both years. No parameter refit or backtest; no change to bulk totals."
     }
   ],
   "pending_local_replays": []
