@@ -37,7 +37,7 @@ SPEC={'research_id':'NRF-FAC-022','preregistration_commit':PREREG,
                     'annual_floating_dd_max_each_year':100.}}
 
 def _ns(index):
-    return index.as_unit('ns').asi8
+    return pd.DatetimeIndex(index).as_unit('ns').asi8
 
 def path_events(m5,threshold):
     """Emit causal close-at events from complete contiguous M5 only; cooldown per threshold."""
