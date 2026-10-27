@@ -105,9 +105,9 @@ def test_purge_rejects_signal_after_entry_even_when_trade_would_be_purged():
     from norisk_quant.walkforward import purge_cross_boundary_trades
 
     trades = pd.DataFrame({
-        "signal_at": ["2016-12-02T00:00:00Z"],
-        "entry_at": ["2016-12-01T00:01:00Z"],
-        "closed_at": ["2016-12-01T00:05:00Z"],
+        "signal_at": ["2016-12-31T00:00:00Z"],
+        "entry_at": ["2016-12-30T00:01:00Z"],
+        "closed_at": ["2016-12-31T00:05:00Z"],
     })
     with pytest.raises(ValueError, match="signal occurs after entry"):
         purge_cross_boundary_trades(trades, _fold())
