@@ -36,6 +36,22 @@ SPEC={'research_id':'NRF-FAC-022','preregistration_commit':PREREG,
                     'annual_net_positive_both':True,'worst_month_min':-20.,
                     'annual_floating_dd_max_each_year':100.}}
 
+def strict_amounts_match(actual, expected, *, atol=1e-7):
+    """Fail-closed money parity: absolute tolerance only, finite values, equal shapes.
+
+    numpy.allclose's default relative tolerance can hide material dollar errors
+    when the reported P/L is large; matching infinities must not certify parity.
+    """
+    try:
+        left = np.asarray(actual, dtype=float)
+        right = np.asarray(expected, dtype=float)
+    except (TypeError, ValueError):
+        return False
+    return (left.shape == right.shape and np.isfinite(left).all()
+            and np.isfinite(right).all()
+            and np.allclose(left, right, rtol=0, atol=atol))
+
+
 def _ns(index):
     return pd.DatetimeIndex(index).as_unit('ns').asi8
 
@@ -175,8 +191,8 @@ def run_batch(m1,year,out,limit=TOTAL):
           'net_usd_oz','fees_usd','max_m1_dd','positive_months','worst_month']+monthcols
     table=pd.DataFrame(rows,columns=cols)
     if (not table.id.is_unique or
-        not np.allclose(table.net_usd_oz,table[monthcols].sum(axis=1),atol=1e-7) or
-        not np.allclose(table.fees_usd,.4*table.trades,atol=1e-7)):
+        not strict_amounts_match(table.net_usd_oz,table[monthcols].sum(axis=1)) or
+        not strict_amounts_match(table.fees_usd,.4*table.trades)):
         raise AssertionError('Monthly/fee/ID invariant failed')
     ranked=table.sort_values(['positive_months','worst_month','net_usd_oz'],
                              ascending=[False,False,False])
@@ -190,11 +206,13 @@ def run_batch(m1,year,out,limit=TOTAL):
                            weights=ref.trades.net_pnl.to_numpy(float),minlength=13)[1:]
         eq=ref.equity.equity
         dd=float((eq.cummax().clip(lower=0)-eq).clip(lower=0).max())
-        error=float(np.max(np.abs(booked-row[monthcols].to_numpy(float))))
-        if (error>1e-7 or abs(dd-row.max_m1_dd)>1e-7 or len(ref.trades)!=row.trades or
-            abs(ref.trades.net_pnl.sum()-row.net_usd_oz)>1e-7 or
-            abs(ref.trades.cost.sum()-row.fees_usd)>1e-7):
+        if (not strict_amounts_match(booked,row[monthcols].to_numpy(float)) or
+            not strict_amounts_match(dd,row.max_m1_dd) or
+            len(ref.trades)!=row.trades or
+            not strict_amounts_match(ref.trades.net_pnl.sum(),row.net_usd_oz) or
+            not strict_amounts_match(ref.trades.cost.sum(),row.fees_usd)):
             raise AssertionError(f'FAC022 canonical parity failed: {row.id}')
+        error=float(np.max(np.abs(booked-row[monthcols].to_numpy(float))))
         parity.append({'id':row.id,'trades':int(row.trades),
                        'monthly_max_error':error,'floating_dd_error':abs(dd-row.max_m1_dd)})
     table.to_csv(out/'all_candidates_monthly.csv',index=False)

@@ -18,7 +18,10 @@ def audit(zip_path,year,identifier,annual_csv):
     if sha256_file(zip_path)!=f.ORIGINAL:raise ValueError('Original ZIP mismatch')
     m1=load_market(zip_path,f'{year}-01-01',f'{year}-12-31')
     cache=f.signal_streams(m1)
-    table=pd.read_csv(annual_csv).set_index('id')
+    table=pd.read_csv(annual_csv)
+    if 'id' not in table or table['id'].isna().any() or not table['id'].is_unique:
+        raise ValueError('FAC022 annual export requires unique non-null IDs')
+    table=table.set_index('id')
     row=table.loc[identifier]
     t,s,b=cache[row.rule_id]
     signals=f.canonical_signals(t,s,b,float(row.stop_mult),float(row.target_mult))
@@ -33,14 +36,14 @@ def audit(zip_path,year,identifier,annual_csv):
     mc=[f'm{i:02d}' for i in range(1,13)]
     monthly=np.bincount(pd.to_datetime(ref.trades.closed_at,utc=True).dt.month,
                         weights=ref.trades.net_pnl.to_numpy(float),minlength=13)[1:]
-    if not np.allclose(monthly,row[mc].to_numpy(float),atol=1e-7):
+    if not f.strict_amounts_match(monthly,row[mc].to_numpy(float)):
         raise AssertionError('Monthly mismatch')
-    if len(ref.trades)!=row.trades or abs(ref.trades.net_pnl.sum()-row.net_usd_oz)>1e-7:
+    if len(ref.trades)!=row.trades or not f.strict_amounts_match(ref.trades.net_pnl.sum(),row.net_usd_oz):
         raise AssertionError('Trades/net mismatch')
-    if abs(ref.trades.cost.sum()-row.fees_usd)>1e-7:raise AssertionError('Fee mismatch')
+    if not f.strict_amounts_match(ref.trades.cost.sum(),row.fees_usd):raise AssertionError('Fee mismatch')
     eq=ref.equity.equity
     dd=float((eq.cummax().clip(lower=0)-eq).clip(lower=0).max())
-    if abs(dd-row.max_m1_dd)>1e-7:raise AssertionError('Floating DD mismatch')
+    if not f.strict_amounts_match(dd,row.max_m1_dd):raise AssertionError('Floating DD mismatch')
     return {'year':year,'status':'PASSED','id':identifier,'trades':len(ref.trades),
             'observed_m1_equity_marks':len(ref.equity),'trade_fields_checked':list(ref.trades.columns),
             'monthly_max_abs_error':float(np.max(np.abs(monthly-row[mc].to_numpy(float)))),
