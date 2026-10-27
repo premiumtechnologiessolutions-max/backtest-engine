@@ -302,7 +302,7 @@
     {
       "id": "NRF-FAC-015",
       "family": "M15 completed-candle lag-one sign autocorrelation fade with completed H1 range regime and DST-aware sessions",
-      "status": "REJECTED_EXPOSED_DESIGN_LOCAL_ORIGINAL_SOURCE_FAST_PARITY_AND_INDEPENDENT_SLOW_VERIFIED_CI_PENDING",
+      "status": "REJECTED_EXPOSED_DESIGN_ORIGINAL_PRIVATE_SOURCE_OFFICIAL_FULL_GRID_REPRODUCED_CI_PASSED",
       "preregistration_commit": "55ca1fd024dc691ec9fc98b2ba82fb5241a0c162",
       "unique_parameter_specs": 36000,
       "years": [
@@ -326,11 +326,18 @@
       "independent_slow_verified_trades": 139,
       "independent_slow_verified_m1_equity_marks": 705292,
       "original_source_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
-      "notes": "36k frozen correlated parameter specs x 2012/2013: 72k actually completed active annual M1 replays; 0 frozen joint passes. Max 21/24 +$105.07625/oz but only 62/77 fills vs frozen >=100/year: REJECT. 8 local official full-repo source run_fast parity samples, 2 independent slow M1 full-year exact all-mark checks (705,292 marks, 139 trades). 2012/2013 historically exposed, not clean OOS. Latest GitHub Actions and official post-commit artifact replay pending.",
+      "notes": "36k preregistered correlated specs x2 exposed years, 72k actual active annual M1 replays, 864k monthly values. 0 frozen passes, max 21/24 +$105.07625/oz but 62/77 fills vs >=100/year: REJECT. Official CI 777/777 on 885c3df, verified artifact 12700856953 replayed locally against SHA-verified private original M1: all 72k rows, 864k monthly values, max numeric delta zero. 8 official run_fast sample parity + 2 independent slow M1 full-year exact all-mark audits (705,292 marks, 139 trades). Not clean OOS, no shared-capacity portfolio or broker tick certification.",
       "file": "scripts/batch_sign_autocorr_fade_grid.py",
       "frozen_spec": "docs/FAC015_FROZEN_M15_SIGN_AUTOCORR_FADE_2026-10-27.md",
       "report": "docs/FAC015_72000_ANNUAL_SIGN_AUTOCORR_FADE_REJECTED_2026-10-27.md",
-      "aggregate_summary": "research/FAC015_COMBINED_SUMMARY_2026-10-27.json"
+      "aggregate_summary": "research/FAC015_COMBINED_SUMMARY_2026-10-27.json",
+      "official_checkout_verified_code_commit": "885c3dfbba946d7beead1b6b35eb319157a1cae4",
+      "official_checkout_verified_ci_run": 40427991598,
+      "official_checkout_verified_ci_tests": 777,
+      "official_checkout_source_artifact_id": 12700856953,
+      "official_checkout_full_grid_replayed_annual": 72000,
+      "official_checkout_full_grid_replayed_monthly": 864000,
+      "official_checkout_full_grid_max_numeric_delta": 0
     }
   ],
   "totals": {
@@ -346,7 +353,7 @@
     "total_yearly_parameter_executions_including_zero_trade_negative_control": 589668,
     "local_copy_fast_engine_parity_samples": 18,
     "independent_slow_m1_parity_samples": 38,
-    "annual_replays_pending_new_head_ci": 72000,
+    "annual_replays_pending_new_head_ci": 0,
     "canonical_replay_parity_samples_note": "Previous 48 full-repository canonical parity samples; FAC010 6 local fast_engine source-copy checks tracked separately until full-checkout verification.",
     "fac011_zero_trade_annual_executions": 600,
     "fac011_local_locked_chronology_parity_years": 3,
@@ -392,7 +399,13 @@
     "fac015_executed_annual_parameter_runs": 72000,
     "fac015_active_annual_replays": 72000,
     "fac015_independent_slow_verified_m1_marks": 705292,
-    "note_fac015": "FAC015 36k frozen correlated specs x2 exposed years; 72k active annual replays, 864k monthly values, max 21/24 but frozen min100 fills/year failed (62/77). 0 joint gate passes. Eight canonical run_fast checks and two independent slow M1 full-year parity checks. Current HEAD CI and official artifact code replay pending."
+    "note_fac015": "FAC015 36k frozen correlated specs x2 exposed years; 72k active annual M1 replays, 864k monthly values, max 21/24 but frozen min100 fills/year failed (62/77). 0 joint passes. Official GitHub CI 777/777 on 885c3df; source artifact 12700856953 replayed all 72k annual rows on private SHA-verified original M1, exact zero numeric delta; 8 canonical fast checks and 2 independent slow full-year audits (705,292 marks). Subsequent metadata-only head CI pending separately.",
+    "latest_fac015_ci_verified_code_commit": "885c3dfbba946d7beead1b6b35eb319157a1cae4",
+    "latest_fac015_ci_verified_run": 40427991598,
+    "latest_fac015_ci_pytest_passed": 777,
+    "fac015_official_full_checkout_annual_replays_verified": 72000,
+    "fac015_official_full_checkout_monthly_values_verified": 864000,
+    "fac015_official_full_checkout_max_numeric_delta": 0
   },
   "next_priorities": [
     {
