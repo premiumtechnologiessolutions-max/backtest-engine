@@ -137,7 +137,17 @@ def purge_cross_boundary_trades(trades: pd.DataFrame, fold: WalkForwardFold) -> 
     train_start = pd.Timestamp(fold.train_start_utc)
     if (close < ent).any():
         raise ValueError("Trade exits before entry")
-    return trades.loc[(ent >= train_start) & (close < boundary)].copy()
+    # A position may enter inside training even though its decision signal
+    # was formed before training started. Purging by entry/exit alone would
+    # silently retain that pre-training exposure. Signal timestamps are
+    # optional for compatibility with entry/exit-only trade ledgers.
+    eligible = (ent >= train_start) & (close < boundary)
+    if "signal_at" in trades:
+        signal = _strict_utc_trade_times(trades, "signal_at")
+        if (signal > ent).any():
+            raise ValueError("Trade signal occurs after entry")
+        eligible &= signal >= train_start
+    return trades.loc[eligible].copy()
 
 
 def fold_manifest(folds: list[WalkForwardFold]) -> list[dict]:
