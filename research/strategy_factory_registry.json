@@ -511,6 +511,53 @@
       "ci_pytest_passed": 660,
       "notes": "New default-off same-strategy signal deferral opt-in; exact independent run_fast 3-slot trade/monthly/M1 equity parity. 2012/13 exposed and two components historically selected. Not independent OOS.",
       "report": "docs/FAC006B_ORIGINAL_SHARED_CAPACITY_2012_2013_RESEARCH_2026-10-26.md"
+    },
+    {
+      "id": "NRF-FAC-015P",
+      "status": "COMPLETED_POSTHOC_SHARED_CAPACITY_DIAGNOSTIC_REJECTED_NOT_OOS",
+      "preregistration_commit": "36f7528e15cf9ded1d163adae1e9c11ece78f97d",
+      "years": [
+        2012,
+        2013
+      ],
+      "component_ids": [
+        "SAC15_N12_C+0.00_B1.50_CALM_NY_LOCAL_0930_1330_SL1.50_TP2.25",
+        "PDR15_K0.00_W4_FOLLOW_ALIGNED_HOT_ALL_SL1.25_TP1.00"
+      ],
+      "one_position_shared_capacity": true,
+      "priority_on_exact_confirmation_ties": "FAC015_BEFORE_FAC014",
+      "positive_months_by_year": [
+        10,
+        8
+      ],
+      "net_usd_oz_by_year": [
+        59.21625,
+        30.89375
+      ],
+      "shared_net_total_usd_oz": 90.11,
+      "shared_positive_months_out_of_24": 18,
+      "shared_trades_by_year": [
+        122,
+        128
+      ],
+      "shared_fees_usd_oz": 100,
+      "worst_utc_month_usd_oz": -15.18875,
+      "max_annual_observed_m1_floating_dd_usd_oz": 45.22375,
+      "submitted_signals_by_year": [
+        142,
+        165
+      ],
+      "expired_unfilled_signals_by_year": [
+        20,
+        37
+      ],
+      "standalone_sum_usd_oz_NOT_EXECUTABLE": 100.53,
+      "shared_capacity_vs_standalone_sum_difference_usd_oz": -10.42,
+      "original_source_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
+      "report": "docs/FAC015P_POSTHOC_SHARED_CAPACITY_NEGATIVE_CONTROL_2026-10-27.md",
+      "frozen_spec": "docs/FAC015P_FROZEN_POSTHOC_SHARED_CAPACITY_DIAGNOSTIC_2026-10-27.md",
+      "file": "scripts/run_fac015p_shared_portfolio.py",
+      "notes": "Actual one-position canonical run_fast shared-capacity M1 account on original private SHA-verified ZIP. Two previously rejected posthoc-selected components; selection bias, no clean OOS, not promoted. 18/24 months +$90.11 after $100 fees, worst -$15.18875, DD $45.22375. Standalone sums are not executable portfolio results. Does NOT add to bulk parameter or backtest totals. CI for new code pending."
     }
   ],
   "chronological_validation_experiments": [
