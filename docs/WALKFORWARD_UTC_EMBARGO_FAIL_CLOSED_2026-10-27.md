@@ -13,7 +13,7 @@ These are research-integrity issues: a time-based backtest must never silently i
 - Reject boolean or fractional year-fold arguments instead of interpreting them as valid integers.
 - Require explicitly UTC-aware, nonmissing trade entry/close times before training selection or position purging. Do not call `pd.to_datetime(..., utc=True)` on naive inputs.
 - Preserve empty trade tables and existing valid UTC fold behavior.
-- Add 13 focused regression cases for false embargo, non-UTC boundaries, naive/missing trade dates, and invalid integer parameters.
+- Add 16 focused regression cases for false embargo, non-UTC boundaries, naive/missing trade dates, and invalid integer parameters.
 
 ## Evidence and limitations
 
