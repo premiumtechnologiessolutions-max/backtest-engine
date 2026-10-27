@@ -60,3 +60,11 @@ def test_joint_preflight_same_id_only():
 def test_canonical_side_and_distances():
     a=canonical_signals(np.array([1000],np.int64),np.array([-1],np.int8),np.array([2.]),.5,1.5)
     assert len(a)==1 and a[0].side==-1 and a[0].stop_distance==1 and a[0].target_distance==3
+
+def test_cooldown_after_session_gate_per_rule():
+    times=np.array([0,300,600,1800,2100],np.int64)
+    sides=np.ones(5,np.int8);base=np.ones(5)
+    ht=np.array([0,1800],np.int64);hr=np.array([.8,.8])
+    masks={'ALL':np.array([False,True,True,True,True])}
+    result=h1_gate(times,sides,base,ht,hr,'CALM','ALL',masks)
+    assert result[0].tolist()==[300,2100]
