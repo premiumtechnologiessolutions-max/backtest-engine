@@ -1,0 +1,97 @@
+name: Quant Lab frozen batch acceptance
+
+on:
+  push:
+    branches:
+      - feat/quant-lab-batch-orchestrator
+  pull_request:
+    branches:
+      - feat/quant-engine-foundation
+    paths:
+      - scripts/research_batch_orchestrator.py
+      - tests/test_research_batch_orchestrator.py
+      - docs/QUANT_LAB_FROZEN_BATCH_2026-10-27.md
+      - .github/workflows/quant-lab-batch.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  batch-acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install research engine and test dependencies
+        run: python -m pip install -c constraints-ci.txt -e ".[dev]"
+      - name: Compile and test all existing research code
+        run: |
+          python -m compileall -q scripts src tests
+          python -m pytest -q
+      - name: Run real engine CLI through new orchestrator on invented XAUUSD-shaped minutes
+        shell: bash
+        run: |
+          python - <<'PY'
+          import hashlib
+          import json
+          import math
+          import os
+          import subprocess
+          import tempfile
+          import zipfile
+          from datetime import datetime, timedelta, timezone
+          from pathlib import Path
+          from scripts.research_batch_orchestrator import run_plan, SCHEMA, PASSED
+
+          with tempfile.TemporaryDirectory() as directory:
+              root = Path(directory)
+              archive = root / "SYNTHETIC_NO_REAL_QUOTES.zip"
+              start = datetime(2024, 1, 8, tzinfo=timezone.utc)
+              bars = []
+              for i in range(840):
+                  phase = i * 2 * math.pi / 65
+                  op = 2000 + 4 * math.sin(phase)
+                  cl = op + 0.15 * math.cos(phase)
+                  bars.append({
+                      "ts": int((start + timedelta(minutes=i)).timestamp()),
+                      "o": op, "h": max(op, cl) + .5,
+                      "l": min(op, cl) - .5, "c": cl,
+                      "ao": op + .4, "ah": max(op, cl) + .9,
+                      "al": min(op, cl) - .1, "ac": cl + .4, "v": 1
+                  })
+              with zipfile.ZipFile(archive, "w") as dest:
+                  dest.writestr("2024.json", json.dumps(bars))
+              commit = subprocess.check_output(
+                  ["git", "rev-parse", "HEAD"], text=True
+              ).strip()
+              frozen = {
+                  "schema": SCHEMA,
+                  "dataset": str(archive),
+                  "source_sha256": hashlib.sha256(archive.read_bytes()).hexdigest(),
+                  "engine_commit": commit,
+                  "exposure_context": "historical_exposed",
+                  "jobs": [{
+                      "id": "synthetic-smoke-only", "strategy": "ema",
+                      "timeframe": "M1", "execution": "fast",
+                      "start": "2024-01-08", "end": "2024-01-08",
+                      "parameters": {"fast": 5, "slow": 15, "stop_atr": 1, "rr": 1}
+                  }],
+                  "grids": []
+              }
+              out = root / "private-output"
+              dry = run_plan(frozen, out, dry_run=True)
+              assert dry["jobs"] == 1 and not out.exists()
+              completed = run_plan(frozen, out)
+              assert completed["reconciled_jobs"] == 1, completed
+              manifest = json.loads((out / "batch_manifest.json").read_text())
+              record = manifest["results"]["synthetic-smoke-only"]
+              assert record["status"] == PASSED and record["months_observed"] == 1
+              resumed = run_plan(frozen, out)
+              assert resumed["executed_this_invocation"] == 0
+              assert "synthetic-smoke-only" in (out / "research_batch_index.html").read_text()
+              print("SYNTHETIC_ORCHESTRATOR_SMOKE_PASS_NOT_REAL_GOLD_NOT_OOS")
+          PY
