@@ -49,10 +49,10 @@ def _reject_raw_boolean_cells(raw: pd.DataFrame) -> None:
     for name in RAW_COLUMNS:
         series = raw[name]
         if pd.api.types.is_bool_dtype(series.dtype):
-            raise ValueError(f"Source M1 contains boolean {name} cells")
+            raise ValueError(f"Source M1 requires numeric non-boolean timestamp/BID/ASK values: boolean {name} cells")
         if (pd.api.types.is_object_dtype(series.dtype)
                 and series.map(lambda value: isinstance(value, (bool, np.bool_))).any()):
-            raise ValueError(f"Source M1 contains boolean {name} cells")
+            raise ValueError(f"Source M1 requires numeric non-boolean timestamp/BID/ASK values: boolean {name} cells")
 
 
 def normalize(raw: pd.DataFrame, *, strict: bool = True) -> pd.DataFrame:
