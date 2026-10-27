@@ -201,6 +201,24 @@ def exact_ledger_check(ours: pd.DataFrame, reference: pd.DataFrame) -> dict:
             raise AssertionError(f"Ledger invariant: {label} fee differs from fixed $0.40/oz")
         if not np.allclose(net, gross - fee, rtol=0, atol=1e-7):
             raise AssertionError(f"Ledger invariant: {label} net != gross - fee")
+        # The frozen reference replays exactly ONE ounce. Two equally
+        # corrupted ledgers could otherwise match all 13 fields and agree
+        # that net == gross - fee while reporting a fabricated gross P/L.
+        side = ledger["side"].to_numpy(dtype=np.int64)
+        entry = ledger[fields["entry"]].to_numpy(dtype=float)
+        exit_price = ledger[fields["exit"]].to_numpy(dtype=float)
+        expected_gross = side * (exit_price - entry)
+        if not np.allclose(gross, expected_gross, rtol=0, atol=1e-7):
+            raise AssertionError(
+                f"Ledger invariant: {label} gross != side * (exit - entry) * 1oz"
+            )
+        stop = ledger[fields["stop"]].to_numpy(dtype=float)
+        target = ledger[fields["target"]].to_numpy(dtype=float)
+        if np.any(((side == 1) & ~((stop < entry) & (entry < target)))
+                  | ((side == -1) & ~((target < entry) & (entry < stop)))):
+            raise AssertionError(
+                f"Ledger invariant: {label} invalid directional stop/target geometry"
+            )
     return {
         "trades": len(ours),
         "fields": len(FIELDS),
