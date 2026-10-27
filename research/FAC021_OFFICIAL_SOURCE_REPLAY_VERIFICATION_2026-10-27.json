@@ -1,0 +1,25 @@
+{
+  "research_id": "NRF-FAC-021",
+  "status": "REJECTED_EXPOSED_HISTORICAL_DESIGN",
+  "preregistration_commit": "fb4e007f08547e078801a52bbfaf13a755205f23",
+  "official_source_commit": "c797c1115a6c11e9e1f42c136ff0727ef877fce8",
+  "official_ci_run": 40520133897,
+  "official_ci_tests": 1106,
+  "official_ci_conclusion": "success",
+  "official_source_artifact_id": 12741701416,
+  "original_private_zip_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
+  "years": [
+    2012,
+    2013
+  ],
+  "official_full_grid_replayed_annual": 4608,
+  "official_full_grid_replayed_monthly": 55296,
+  "official_full_grid_max_numeric_delta": 0,
+  "official_full_grid_id_mismatches": 0,
+  "canonical_fast_samples": 8,
+  "independent_slow_full_year_samples": 2,
+  "independent_slow_verified_trades": 58,
+  "independent_slow_verified_m1_equity_marks": 705292,
+  "independent_slow_max_m1_equity_delta": 0,
+  "note": "Exact official GitHub CI source artifact c797c111 was run locally against SHA-verified private original ZIP and matched prior local 2304/year full-grid output exactly. Subsequent FAC021 preflight-family-ID correction 4223d73 and its regression test f77b805 do not change the signal/exit algorithm; CI on later HEAD must be checked independently. No raw quotes uploaded, no clean OOS, no shared portfolio acceptance."
+}
