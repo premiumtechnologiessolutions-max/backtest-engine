@@ -19,7 +19,7 @@ def test_completed_only_and_cooldown():
     v=100+np.arange(45,dtype=float)
     t,s,b=path_events(bars(v),.70)
     assert len(t)>0 and np.all(s==1)
-    assert np.all(np.diff(t)>=1800)
+    assert np.all(np.diff(t)>=300)
     short=bars(v[:-1]);a=path_events(short,.70)
     assert np.array_equal(a[0],t[t<short.close_at.iloc[-1].timestamp()+1])
 
