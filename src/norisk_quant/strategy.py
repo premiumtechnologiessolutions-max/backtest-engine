@@ -24,7 +24,10 @@ def aggregate_bars(minutes: pd.DataFrame, timeframe: str) -> pd.DataFrame:
         raise ValueError("Source candles must have timezone-aware UTC DatetimeIndex")
     if minutes.index.has_duplicates or not minutes.index.is_monotonic_increasing:
         raise ValueError("Source M1 dates must be sorted and unique")
-    if (minutes.index.asi8 % 60_000_000_000 != 0).any():
+    # DatetimeIndex.asi8 uses the index's own unit (s/ms/us/ns), not
+    # necessarily nanoseconds. A fixed nanosecond modulo incorrectly rejects
+    # valid M1 bars when Pandas preserves second/millisecond precision.
+    if (minutes.index != minutes.index.floor("min")).any():
         raise ValueError("M1 candle opens must align exactly to minute boundaries")
     if minutes[list(required)].isna().any().any():
         raise ValueError("NaN in M1 source; never construct a fabricated full candle")
