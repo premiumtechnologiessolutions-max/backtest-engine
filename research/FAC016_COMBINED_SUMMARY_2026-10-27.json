@@ -1,7 +1,7 @@
 {
   "research_id": "NRF-FAC-016",
   "frozen_commit": "721387e06a81cfd47e0e33d5b31815a3dd6b0e96",
-  "status": "REJECTED_HISTORICALLY_EXPOSED_LOCAL_REPRODUCTION_CANONICAL_PARITY_VERIFIED",
+  "status": "REJECTED_HISTORICALLY_EXPOSED_OFFICIAL_GITHUB_SOURCE_FULL_GRID_REPRODUCED_CANONICAL_AND_SLOW_PARITY_VERIFIED",
   "original_zip_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
   "years": [
     2012,
@@ -50,8 +50,17 @@
   "top_posthoc_fees_usd_oz": 74,
   "top_posthoc_worst_month_usd_oz": -35.5475,
   "top_posthoc_max_annual_floating_m1_dd_usd_oz": 48.06,
-  "local_runner_provenance": "Manual transcription of frozen current GitHub runner; exact core dependency blob SHA matches current branch; byte-identical official runner checkout not certified",
+  "local_runner_provenance": "Initial manual transcription followed by exact full-grid reproduction using official GitHub CI source artifact; all 36,000 annual and 432,000 monthly rows match with zero numeric delta.",
   "source_quotes_uploaded": false,
-  "github_actions_for_result_commit": "PENDING",
-  "report": "docs/FAC016_36000_ANNUAL_H1_H4_FIB_CONFLUENCE_REJECTED_2026-10-27.md"
+  "github_actions_for_result_commit": "PASSED_795_ON_87fa2cb",
+  "report": "docs/FAC016_36000_ANNUAL_H1_H4_FIB_CONFLUENCE_REJECTED_2026-10-27.md",
+  "official_github_source_commit": "0320aaa7af34cd5f1c04a45a426d23a713eabed8",
+  "official_github_source_artifact_id": 12702503558,
+  "official_github_runner_blob_sha": "1521af1629c6c10fada5a9728201dfae5b5f168b",
+  "official_full_grid_replayed_annual": 36000,
+  "official_full_grid_replayed_monthly": 432000,
+  "official_full_grid_max_numeric_delta": 0,
+  "verified_ci_results_registry_commit": "87fa2cb154da36e810d462e20b862a2f96159514",
+  "verified_ci_run": 40437957678,
+  "verified_ci_tests": 795
 }
