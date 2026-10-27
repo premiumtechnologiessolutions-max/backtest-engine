@@ -1,6 +1,6 @@
 """FAC016 frozen, causal H1/H4 confirmed-pivot Fibonacci confluence grid.
 
-FROZEN at commit 1bd21fd6dee8f5b283deaeb5e698ed71aa319ab5, before any
+FROZEN at commit 721387e06a81cfd47e0e33d5b31815a3dd6b0e96, before any
 FAC016 source-data outcome. Exposed 2012/2013 design ONLY; never clean OOS.
 Raw BID/ASK source remains local. No future pivot confirmation at pivot time.
 """
@@ -23,13 +23,13 @@ from norisk_quant.strategy import aggregate_bars
 from scripts.batch_donchian_grid import HAS_JIT, ORIGINAL
 from scripts.batch_compression_h1_grid import local_session_masks, replay_normalized
 
-PIVOT_PAIRS = ((2, 2), (2, 3), (3, 2), (3, 3))
+PIVOT_PAIRS = ((2, 1), (2, 2), (3, 1), (3, 2))
 FIBS = (.5, .62, .705, .79, .87)
 TOLERANCES = (.5, 1., 1.5)
 SESSIONS = ('ALL', 'LONDON_LOCAL_08_12', 'NY_LOCAL_0930_1330')
 MULTS = tuple(.5 + .25*i for i in range(10))
 TOTAL = len(PIVOT_PAIRS)*len(FIBS)*len(TOLERANCES)*len(SESSIONS)*len(MULTS)**2
-PREREG = '1bd21fd6dee8f5b283deaeb5e698ed71aa319ab5'
+PREREG = '721387e06a81cfd47e0e33d5b31815a3dd6b0e96'
 SPEC = {
     'research_id': 'NRF-FAC-016', 'preregistration_commit': PREREG,
     'pivot_pairs_h1_h4': [list(p) for p in PIVOT_PAIRS],
@@ -50,7 +50,7 @@ def confirmed_pivot_waves(bars, width, tf_seconds, max_span_seconds):
     A pivot at j is emitted only at the close of j+width, never at j.
     All 2*width+1 completed bars must be exactly contiguous.
     """
-    if type(width) is not int or width not in (2, 3):
+    if type(width) is not int or width not in (1, 2, 3):
         raise ValueError('Nonfrozen pivot width')
     if type(tf_seconds) is not int or tf_seconds not in (3600, 14400):
         raise ValueError('Invalid timeframe')
