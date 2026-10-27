@@ -110,6 +110,21 @@ def require_training_only(frame: pd.DataFrame, fold: WalkForwardFold, *,
     b = pd.Timestamp(fold.train_end_exclusive_utc)
     if ((dates < a) | (dates >= b)).any():
         raise ValueError("Training selection includes embargo/evaluation/outside records")
+    # An exit inside the training window is not enough: a position could
+    # have entered (or its signal could have formed) before training began.
+    # Check all available trade timestamps, without requiring these fields
+    # on ordinary closed-at-only performance summaries.
+    if time_col == "closed_at":
+        previous = dates
+        for earlier_column in ("entry_at", "signal_at"):
+            if earlier_column in frame:
+                earlier = _strict_utc_trade_times(frame, earlier_column)
+                if ((earlier < a) | (earlier >= b) | (earlier > previous)).any():
+                    raise ValueError(
+                        f"Training selection has {earlier_column} outside training "
+                        "or after the subsequent trade event"
+                    )
+                previous = earlier
 
 
 def purge_cross_boundary_trades(trades: pd.DataFrame, fold: WalkForwardFold) -> pd.DataFrame:
