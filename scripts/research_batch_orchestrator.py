@@ -74,7 +74,7 @@ def check_spec(spec: object) -> dict:
             raise ValueError("Parameter must be a finite real number, not boolean")
         if name in INT_PARAMS and (type(value) is not int or value < 1):
             raise ValueError("Parameter requires positive integer")
-        if name not in INT_PARAMS and value <= (0 if name != "bos_min_gross_reward_fee_multiple" else -1):
+        if name not in INT_PARAMS and (value < 0 if name == "bos_min_gross_reward_fee_multiple" else value <= 0):
             raise ValueError("Parameter must be nonnegative or positive")
     if spec["strategy"] == "ema" and params.get("fast", 9) >= params.get("slow", 21):
         raise ValueError("EMA fast must be below slow")
@@ -216,6 +216,13 @@ def audit_run(folder: Path, spec: dict, source_sha: str, engine_sha: str) -> dic
     months = expected_months(spec["start"], spec["end"])
     if [row.get("period") for row in rows] != months:
         raise ValueError("Monthly rows do not fully cover requested interval")
+    # Three independently emitted ledgers must reconcile before promotion.
+    with (folder / "weekly.csv").open(newline="", encoding="utf-8") as handle:
+        weekly = list(csv.DictReader(handle))
+    with (folder / "trades.csv").open(newline="", encoding="utf-8") as handle:
+        individual = list(csv.DictReader(handle))
+    if not weekly:
+        raise ValueError("Weekly evidence missing")
     pnl, trades, fees, gaps, forced = {}, 0, 0.0, 0, 0
     for row in rows:
         if count(row.get("observed_m1_samples")) == 0:
@@ -225,6 +232,16 @@ def audit_run(folder: Path, spec: dict, source_sha: str, engine_sha: str) -> dic
         fees += finite(row.get("total_cost"), nonnegative=True)
         gaps += count(row.get("uncertain_gap_trades"))
         forced += count(row.get("synthetic_end_of_data_trades"))
+    weekly_pnl = sum(finite(row.get("net_pnl")) for row in weekly)
+    weekly_fees = sum(finite(row.get("total_cost"), nonnegative=True) for row in weekly)
+    weekly_trades = sum(count(row.get("trades")) for row in weekly)
+    trade_pnl = sum(finite(row.get("net_pnl")) for row in individual)
+    trade_fees = sum(finite(row.get("cost"), nonnegative=True) for row in individual)
+    if (weekly_trades != trades or len(individual) != trades
+            or not same(weekly_pnl, sum(pnl.values()))
+            or not same(trade_pnl, sum(pnl.values()))
+            or not same(weekly_fees, fees) or not same(trade_fees, fees)):
+        raise ValueError("Weekly, monthly and individual trade ledgers disagree")
     if (count(summary.get("trades")) != trades
             or not same(finite(summary.get("net_pnl")), sum(pnl.values()))
             or not same(finite(summary.get("total_fees")), fees)
@@ -241,6 +258,8 @@ def audit_run(folder: Path, spec: dict, source_sha: str, engine_sha: str) -> dic
         "synthetic_end_of_data_closures": forced,
         "summary_sha256": file_sha(folder / "summary.json"),
         "monthly_sha256": file_sha(folder / "monthly.csv"),
+        "weekly_sha256": file_sha(folder / "weekly.csv"),
+        "trades_sha256": file_sha(folder / "trades.csv"),
     }
 
 
@@ -253,6 +272,16 @@ def checkout_commit() -> str:
         raise ValueError("Git revision unavailable") from exc
     if not HEX40.fullmatch(result):
         raise ValueError("Invalid Git revision")
+    try:
+        dirty = subprocess.run(
+            ["git", "-C", str(Path(__file__).resolve().parents[1]),
+             "status", "--porcelain", "--untracked-files=no"],
+            check=True, capture_output=True, text=True, timeout=10,
+        ).stdout
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as exc:
+        raise ValueError("Cannot verify checkout cleanliness") from exc
+    if dirty.strip():
+        raise ValueError("Uncommitted changes invalidate frozen engine revision")
     return result
 
 
@@ -335,6 +364,9 @@ def run_plan(plan: dict, output: Path, *, max_jobs: int = 20, dry_run: bool = Fa
         manifest = {"schema": SCHEMA, "plan_sha256": plan_sha,
                     "source_sha256": plan["source_sha256"],
                     "engine_commit": revision, "results": {}}
+    known_ids = {j["id"] for j in jobs}
+    if not set(manifest["results"]).issubset(known_ids):
+        raise ValueError("Manifest contains unrecognized experiment identifiers")
     launched = 0
     for job in jobs:
         ident, spec = job["id"], job["spec"]
