@@ -111,8 +111,11 @@ def main(argv: list[str] | None = None) -> int:
         # Missing, stale, tampered, or unsafe snapshots abort the entire export.
         model["monthly_plans"] = [verify_plan(ROOT, job["fingerprint"])
                                   for job in model["jobs"]]
-    args.out.parent.mkdir(parents=True, exist_ok=True)
-    args.out.write_text(render_html(model), encoding="utf-8")
+    try:
+        from scripts.research_terminal_export import write_private_html
+    except ModuleNotFoundError:  # direct script invocation
+        from research_terminal_export import write_private_html
+    write_private_html(args.out, render_html(model))
     print(json.dumps({
         "status": "AUDITED_METADATA_ONLY_NOT_OOS_CERTIFIED",
         "html": str(args.out),
