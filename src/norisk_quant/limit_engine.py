@@ -14,6 +14,7 @@ import pandas as pd
 
 from .execution import Result
 from .model import Position, Settings
+from .executor_quote_contract import require_numeric_execution_ohlc
 
 
 @dataclass(frozen=True)
@@ -66,6 +67,7 @@ def run_limits(minutes: pd.DataFrame, orders: list[LimitOrder], settings: Settin
         raise ValueError("M1 candle opens must align to exact minute boundaries")
     if not {"o", "h", "l", "c"}.issubset(minutes):
         raise ValueError("Missing M1 reference OHLC")
+    require_numeric_execution_ohlc(minutes)
     for order in orders:
         if not isinstance(order, LimitOrder):
             raise TypeError("Expected LimitOrder objects")
