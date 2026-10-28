@@ -428,3 +428,18 @@ def test_symlinked_csv_is_rejected(tmp_path, ledger):
     path.symlink_to(original)
     with pytest.raises(ValueError, match="unsafe"):
         lab.audit_run(folder, spec(), SOURCE, COMMIT)
+
+
+@pytest.mark.parametrize("unsafe", ["symlink", "missing"])
+def test_summary_json_must_be_regular_file(tmp_path, unsafe):
+    folder = tmp_path / "job"
+    make_report(folder)
+    summary = folder / "summary.json"
+    if unsafe == "symlink":
+        original = folder / "summary.original"
+        summary.rename(original)
+        summary.symlink_to(original)
+    else:
+        summary.unlink()
+    with pytest.raises(ValueError, match="unsafe summary JSON"):
+        lab.audit_run(folder, spec(), SOURCE, COMMIT)
