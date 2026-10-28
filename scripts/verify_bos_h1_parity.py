@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import csv
 import hashlib
+import io
 import json
 from datetime import datetime
 from pathlib import Path
@@ -70,25 +71,28 @@ def read_reference_csv(path: Path, *, required_columns: set[str]) -> pd.DataFram
     if path.is_symlink() or not path.is_file():
         raise ValueError("Archived reference CSV must be an existing regular file, not a symlink")
     try:
+        # Parse and validate the SAME in-memory snapshot; a second read of
+        # path could otherwise ingest different bytes after validation.
         with path.open("r", encoding="utf-8-sig", newline="") as handle:
-            reader = csv.reader(handle, strict=True)
-            header = next(reader, None)
-            if not header or any(not name for name in header):
-                raise ValueError("Archived reference CSV has missing or empty header")
-            if len(set(header)) != len(header):
-                raise ValueError("Archived reference CSV has duplicate header names")
-            missing = required_columns - set(header)
-            if missing:
-                raise ValueError(f"Archived reference CSV missing required fields: {sorted(missing)}")
-            for row in reader:
-                if len(row) != len(header):
-                    raise ValueError(
-                        f"Archived reference CSV row has {len(row)} fields; "
-                        f"expected {len(header)} (line {reader.line_num})"
-                    )
+            snapshot = handle.read()
+        reader = csv.reader(io.StringIO(snapshot, newline=""), strict=True)
+        header = next(reader, None)
+        if not header or any(not name for name in header):
+            raise ValueError("Archived reference CSV has missing or empty header")
+        if len(set(header)) != len(header):
+            raise ValueError("Archived reference CSV has duplicate header names")
+        missing = required_columns - set(header)
+        if missing:
+            raise ValueError(f"Archived reference CSV missing required fields: {sorted(missing)}")
+        for row in reader:
+            if len(row) != len(header):
+                raise ValueError(
+                    f"Archived reference CSV row has {len(row)} fields; "
+                    f"expected {len(header)} (line {reader.line_num})"
+                )
     except (UnicodeError, csv.Error) as exc:
         raise ValueError("Archived reference CSV is malformed or not UTF-8") from exc
-    return pd.read_csv(path, encoding="utf-8-sig")
+    return pd.read_csv(io.StringIO(snapshot))
 
 
 def exact_ledger_check(ours: pd.DataFrame, reference: pd.DataFrame) -> dict:
