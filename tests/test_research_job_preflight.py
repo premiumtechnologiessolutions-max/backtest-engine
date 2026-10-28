@@ -162,3 +162,23 @@ def test_git_head_fails_closed_when_untracked_probe_times_out(tmp_path, monkeypa
     monkeypatch.setattr(gate.subprocess, "run", fake_run)
     with pytest.raises(ValueError, match="Cannot verify untracked source cleanliness"):
         gate._git_head(tmp_path)
+
+
+def test_git_head_real_repository_detects_untracked_python(tmp_path):
+    """Integration regression: Git HEAD alone must not bless a shadow module."""
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    source = tmp_path / "src" / "norisk_quant"
+    source.mkdir(parents=True)
+    (source / "known.py").write_text("VALUE = 1\n")
+    subprocess.run(["git", "add", "src/norisk_quant/known.py"], cwd=tmp_path, check=True)
+    subprocess.run(
+        ["git", "-c", "user.name=Quant Test", "-c", "user.email=quant@example.invalid",
+         "commit", "-qm", "fixture"], cwd=tmp_path, check=True,
+    )
+    assert gate._git_head(tmp_path) == subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=tmp_path,
+        capture_output=True, text=True, check=True,
+    ).stdout.strip()
+    (source / "shadow.py").write_text("VALUE = 2\n")
+    with pytest.raises(ValueError, match="Untracked source files"):
+        gate._git_head(tmp_path)
