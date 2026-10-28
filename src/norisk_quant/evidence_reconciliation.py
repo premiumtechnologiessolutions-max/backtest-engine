@@ -57,12 +57,31 @@ def _count(value: object) -> int:
     raise ValueError("Invalid period trade count")
 
 
-def verify_exit_periods(monthly: list[dict], weekly: list[dict], trades: list[dict]) -> None:
+def verify_exit_periods(
+    monthly: list[dict], weekly: list[dict], trades: list[dict], *,
+    first_utc_date: str | None = None, last_utc_date: str | None = None,
+) -> None:
     """Reject period shifts that net aggregate accounting cannot detect.
 
     Official report._periods groups by UTC close month and W-SUN week.
     Every recorded month/week must match its individual exits exactly.
+    Optional inclusive UTC date bounds prevent within-period window leakage.
     """
+    if (first_utc_date is None) != (last_utc_date is None):
+        raise ValueError("Both frozen UTC date bounds are required together")
+    first_day = last_day = None
+    if first_utc_date is not None:
+        if (type(first_utc_date) is not str or type(last_utc_date) is not str
+                or not re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", first_utc_date)
+                or not re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", last_utc_date)):
+            raise ValueError("Invalid frozen UTC date bounds")
+        try:
+            first_day = date.fromisoformat(first_utc_date)
+            last_day = date.fromisoformat(last_utc_date)
+        except ValueError as exc:
+            raise ValueError("Invalid frozen UTC date bounds") from exc
+        if first_day > last_day:
+            raise ValueError("Reversed frozen UTC date bounds")
     groups: dict[str, dict[str, list[float]]] = {"month": {}, "week": {}}
     for trade in trades:
         raw = trade.get("closed_at")
@@ -75,6 +94,8 @@ def verify_exit_periods(monthly: list[dict], weekly: list[dict], trades: list[di
         if closed.tzinfo is None or closed.utcoffset() != timedelta(0):
             raise ValueError("Trade close timestamp must be UTC")
         utc = closed.astimezone(timezone.utc)
+        if first_day is not None and not (first_day <= utc.date() <= last_day):
+            raise ValueError("Trade exit outside frozen UTC research window")
         monday = utc.date() - timedelta(days=utc.weekday())
         sunday = monday + timedelta(days=6)
         labels = {"month": utc.strftime("%Y-%m"),

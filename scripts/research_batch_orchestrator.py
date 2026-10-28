@@ -327,7 +327,8 @@ def audit_run(folder: Path, spec: dict, source_sha: str, engine_sha: str) -> dic
     trade_fees = sum(finite(row.get("cost"), nonnegative=True) for row in individual)
     if any(not same(finite(row.get("cost"), nonnegative=True), 0.40) for row in individual):
         raise ValueError("Individual trade fee differs from frozen $0.40/oz model")
-    verify_exit_periods(rows, weekly, individual)
+    verify_exit_periods(rows, weekly, individual,
+                        first_utc_date=spec["start"], last_utc_date=spec["end"])
     if (weekly_trades != trades or len(individual) != trades
             or not same(weekly_pnl, sum(pnl.values()))
             or not same(trade_pnl, sum(pnl.values()))

@@ -83,3 +83,32 @@ def test_accepts_valid_zero_trade_calendar_period():
     monthly.append({"period": "2024-03", "trades": "0", "net_pnl": "0", "total_cost": "0"})
     weekly.append({"period": "2024-01-08/2024-01-14", "trades": "0", "net_pnl": "0", "total_cost": "0"})
     verify_exit_periods(monthly, weekly, trades)
+
+
+@pytest.mark.parametrize("first,last", [
+    ("2024-01-03", "2024-02-29"),  # January exit is before start, but same month
+    ("2024-01-01", "2024-02-05"),  # February exit is after end, but same week
+])
+def test_rejects_exit_outside_inclusive_frozen_window(first, last):
+    monthly, weekly, trades = example()
+    # All weekly/monthly totals still agree: only the frozen date is violated.
+    with pytest.raises(ValueError, match="outside frozen UTC research window"):
+        verify_exit_periods(monthly, weekly, trades,
+                            first_utc_date=first, last_utc_date=last)
+
+
+def test_accepts_exits_within_inclusive_frozen_window():
+    monthly, weekly, trades = example()
+    verify_exit_periods(monthly, weekly, trades,
+                        first_utc_date="2024-01-02", last_utc_date="2024-02-06")
+
+
+@pytest.mark.parametrize("first,last", [
+    ("2024-01-01", None),
+    ("2024-02-01", "2024-01-31"),
+    ("2024-02-30", "2024-03-01"),
+    ("20240101", "2024-02-01"),
+])
+def test_rejects_incomplete_reversed_or_invalid_window(first, last):
+    with pytest.raises(ValueError, match="frozen UTC date bounds"):
+        verify_exit_periods(*example(), first_utc_date=first, last_utc_date=last)

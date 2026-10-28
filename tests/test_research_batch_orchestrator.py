@@ -670,3 +670,19 @@ def test_batch_index_symlink_cannot_overwrite_external_file(tmp_path, monkeypatc
     with pytest.raises(ValueError, match="symlinked export destination"):
         lab.run_plan(p, out)
     assert external.read_text(encoding="utf-8") == "KEEP"
+
+
+@pytest.mark.parametrize("field,bound", [
+    ("start", "2024-01-03"),  # existing 2024-01-02 exit predates requested start
+    ("end", "2024-02-05"),    # existing 2024-02-06 exit exceeds requested end
+])
+def test_audit_rejects_within_month_exit_outside_frozen_date_window(tmp_path, field, bound):
+    folder = tmp_path / "job"
+    make_report(folder)
+    summary_path = folder / "summary.json"
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    summary["run_parameters"][field] = bound
+    summary_path.write_text(json.dumps(summary), encoding="utf-8")
+    declared = spec(**{field: bound})
+    with pytest.raises(ValueError, match="outside frozen UTC research window"):
+        lab.audit_run(folder, declared, SOURCE, COMMIT)
