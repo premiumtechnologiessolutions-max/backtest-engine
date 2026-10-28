@@ -15,6 +15,8 @@ import re
 import subprocess
 import sys
 
+from norisk_quant.evidence_reconciliation import verify_exit_periods
+
 SCHEMA = "NRFX_FROZEN_BATCH_V1"
 PASSED = "ACCOUNTING_RECONCILED_HISTORICAL_EXPOSED_NOT_OOS"
 HEX40 = re.compile(r"[0-9a-f]{40}\Z")
@@ -240,6 +242,7 @@ def audit_run(folder: Path, spec: dict, source_sha: str, engine_sha: str) -> dic
     trade_fees = sum(finite(row.get("cost"), nonnegative=True) for row in individual)
     if any(not same(finite(row.get("cost"), nonnegative=True), 0.40) for row in individual):
         raise ValueError("Individual trade fee differs from frozen $0.40/oz model")
+    verify_exit_periods(rows, weekly, individual)
     if (weekly_trades != trades or len(individual) != trades
             or not same(weekly_pnl, sum(pnl.values()))
             or not same(trade_pnl, sum(pnl.values()))
