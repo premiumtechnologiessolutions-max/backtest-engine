@@ -92,7 +92,7 @@ def evaluate_causal_gate(
         # timestamp is not provably known when that signal is decided.
         pnl = _number(trade["net_usd_per_oz"], "net_usd_per_oz")
         if closed >= now or (previous_close is not None and closed < previous_close):
-            raise ValueError("Trade close must be strictly before signal and chronologically ordered")
+            raise ValueError("Future, same-instant, or out-of-order trade close is not causal")
         if closed.astimezone(NY).date() == today:
             realized += pnl
         previous_close = closed
