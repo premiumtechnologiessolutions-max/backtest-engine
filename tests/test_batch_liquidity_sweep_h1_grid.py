@@ -46,3 +46,24 @@ def test_gate_does_not_use_future_h1_or_stale_or_invalid_h1():
 def test_reject_out_of_grid():
     with pytest.raises(ValueError):sweep_rejections(_bars(),7,0.)
     with pytest.raises(ValueError):gate(np.array([],dtype=np.int64),np.array([],dtype=np.int8),np.array([]),np.array([]),np.array([]),np.array([]),'UNKNOWN','CALM','ALL')
+
+
+@pytest.mark.parametrize("unit", ["s", "ms", "us", "ns"])
+def test_frozen_sweep_same_signal_for_all_pandas_timestamp_units(unit):
+    """An M15 source stored in seconds must not look like a 50-bar gap."""
+    frame = _bars().copy()
+    frame.index = frame.index.as_unit(unit)
+    frame["close_at"] = pd.DatetimeIndex(frame["close_at"]).as_unit(unit)
+    expected = sweep_rejections(_bars(), 6, 0.)
+    actual = sweep_rejections(frame, 6, 0.)
+    for left, right in zip(actual, expected):
+        np.testing.assert_array_equal(left, right)
+    assert len(actual[0]) == 1
+
+
+@pytest.mark.parametrize("unit", ["s", "ms", "us", "ns"])
+def test_frozen_sweep_missing_prior_bar_rejected_all_timestamp_units(unit):
+    frame = _bars(gap=True).copy()
+    frame.index = frame.index.as_unit(unit)
+    frame["close_at"] = pd.DatetimeIndex(frame["close_at"]).as_unit(unit)
+    assert len(sweep_rejections(frame, 36, 0.)[0]) == 0
