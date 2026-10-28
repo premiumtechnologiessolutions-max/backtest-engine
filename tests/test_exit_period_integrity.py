@@ -53,3 +53,33 @@ def test_empty_trades_with_zero_periods():
         [{"period":"2024-01-01/2024-01-07", "trades":"0", "net_pnl":"0", "total_cost":"0"}],
         [],
     )
+
+
+@pytest.mark.parametrize("kind,label", [
+    ("month", "2024-13"),
+    ("month", "2024-00"),
+    ("month", "2024-1"),
+    ("month", "0000-01"),
+    ("month", "2024-01-01"),
+    ("week", "2024-01-02/2024-01-08"),  # Tuesday to Monday
+    ("week", "2024-01-01/2024-01-08"),  # eight days
+    ("week", "2024-02-30/2024-03-03"),  # impossible date
+    ("week", "2024-01-01/2024-01-06"),  # Saturday end
+    ("week", "2024-01-01/2024-01-07 "),
+])
+def test_rejects_malformed_zero_trade_period_labels(kind, label):
+    monthly, weekly, trades = example()
+    extra = {"period": label, "trades": "0", "net_pnl": "0", "total_cost": "0"}
+    if kind == "month":
+        monthly.append(extra)
+    else:
+        weekly.append(extra)
+    with pytest.raises(ValueError, match="period|Weekly"):
+        verify_exit_periods(monthly, weekly, trades)
+
+
+def test_accepts_valid_zero_trade_calendar_period():
+    monthly, weekly, trades = example()
+    monthly.append({"period": "2024-03", "trades": "0", "net_pnl": "0", "total_cost": "0"})
+    weekly.append({"period": "2024-01-08/2024-01-14", "trades": "0", "net_pnl": "0", "total_cost": "0"})
+    verify_exit_periods(monthly, weekly, trades)
