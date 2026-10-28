@@ -36,9 +36,10 @@ def _git_head(root: Path) -> str:
     sha = result.stdout.strip()
     if not COMMIT.fullmatch(sha):
         raise ValueError("Invalid local Git checkout HEAD")
-    # HEAD alone does not bind uncommitted tracked strategy/engine edits.
-    # Untracked files are deliberately outside this check; a future isolated
-    # worker must also reject import-path shadowing and enforce a clean build.
+    # HEAD alone does not bind local edits. Check tracked files throughout
+    # the checkout, then reject untracked source/scripts that could shadow
+    # imported code even though they do not change the frozen Git SHA.
+    # This remains metadata-only; a future worker needs a sandboxed build.
     try:
         dirty = subprocess.run(
             ["git", "status", "--porcelain", "--untracked-files=no"], cwd=root,
@@ -48,6 +49,15 @@ def _git_head(root: Path) -> str:
         raise ValueError("Cannot verify tracked checkout cleanliness") from exc
     if dirty.strip():
         raise ValueError("Tracked checkout differs from frozen Git revision")
+    try:
+        untracked = subprocess.run(
+            ["git", "ls-files", "--others", "--exclude-standard", "--", "src", "scripts"],
+            cwd=root, capture_output=True, text=True, check=True, timeout=5,
+        ).stdout
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
+        raise ValueError("Cannot verify untracked source cleanliness") from exc
+    if untracked.strip():
+        raise ValueError("Untracked source files invalidate frozen Git revision")
     return sha
 
 
