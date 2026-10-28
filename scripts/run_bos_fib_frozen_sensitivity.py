@@ -22,6 +22,7 @@ from norisk_quant.evidence_reconciliation import verify_exit_periods
 from norisk_quant.h1_regime import H1RegimeSettings, filter_orders_h1
 from norisk_quant.limit_engine import run_limits
 from norisk_quant.model import Settings
+from norisk_quant.persisted_trade_integrity import verify_persisted_trade_ledger
 from norisk_quant.report import report
 
 SOURCE_SHA = "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121"
@@ -144,6 +145,10 @@ def execute(gold_zip: Path, years: list[int], destination: Path) -> dict:
         # between months or weeks. Recompute each UTC exit bucket from the
         # persisted trade ledger before certifying the frozen annual report.
         exported_trades = pd.read_csv(subdirectory / "trades.csv")
+        # Compare persisted trades with the ACTUAL in-memory executor ledger.
+        # Matching period totals cannot detect altered prices, timestamps,
+        # direction, or trade order when the P/L sum remains unchanged.
+        verify_persisted_trade_ledger(result.trades, exported_trades)
         verify_exit_periods(
             monthly.to_dict(orient="records"),
             weekly.to_dict(orient="records"),
