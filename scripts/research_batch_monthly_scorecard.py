@@ -8,6 +8,43 @@ try:
 except ModuleNotFoundError:
     import research_batch_orchestrator as lab
 
+try:
+    from scripts import research_equity_m1_audit as equity_audit
+except ModuleNotFoundError:
+    import research_equity_m1_audit as equity_audit
+
+
+def validate_equity_pins(pins: dict | None, plan: dict, digest: str,
+                         manifest: dict) -> dict:
+    """Require independently frozen, plan-scoped M1 hashes; never self-pin."""
+    if pins is None:
+        return {}
+    if (type(pins) is not dict
+            or set(pins) != {"schema", "plan_sha256", "source_sha256",
+                             "engine_commit", "jobs"}
+            or pins["schema"] != "NRFX_EQUITY_PINS_V1"
+            or pins["plan_sha256"] != digest
+            or pins["source_sha256"] != plan["source_sha256"]
+            or pins["engine_commit"] != plan["engine_commit"]
+            or type(pins["jobs"]) is not dict):
+        raise ValueError("Invalid or stale independently frozen equity pin manifest")
+    accepted = manifest["results"]
+    for ident, hashes in pins["jobs"].items():
+        if (type(ident) is not str or ident not in accepted
+                or not isinstance(accepted[ident], dict)
+                or accepted[ident].get("status") != lab.PASSED):
+            raise ValueError("Equity pin references unexecuted or failed job")
+        if (type(hashes) is not dict
+                or set(hashes) != {"summary.json", "monthly.csv", "equity_m1.csv"}
+                or any(type(value) is not str or not lab.HEX64.fullmatch(value)
+                       for value in hashes.values())):
+            raise ValueError("Invalid independently frozen equity evidence hashes")
+        if (hashes["summary.json"] != accepted[ident]["summary_sha256"]
+                or hashes["monthly.csv"] != accepted[ident]["monthly_sha256"]):
+            raise ValueError("Equity pins conflict with original canonical manifest")
+    return pins["jobs"]
+
+
 def monthly_downside(months: list[dict], start: str, end: str) -> dict:
     """Risk from source-reconciled exit-booked months, not M1 floating equity.
 
@@ -75,7 +112,7 @@ def monthly_downside(months: list[dict], start: str, end: str) -> dict:
     }
 
 
-def scorecard(plan: dict, output: Path) -> dict:
+def scorecard(plan: dict, output: Path, *, equity_pins: dict | None = None) -> dict:
     jobs, digest = lab.expand(plan)
     if len(jobs) > 500:
         raise ValueError("Scorecard maximum is 500 jobs")
@@ -100,6 +137,7 @@ def scorecard(plan: dict, output: Path) -> dict:
         raise ValueError("Frozen batch manifest mismatch")
     if not set(manifest["results"]).issubset({j["id"] for j in jobs}):
         raise ValueError("Unknown job in batch manifest")
+    pinned = validate_equity_pins(equity_pins, plan, digest, manifest)
     results = []
     for job in jobs:
         name = job["id"]
@@ -129,6 +167,29 @@ def scorecard(plan: dict, output: Path) -> dict:
         } for r in rows]
         if not months:
             raise ValueError("Missing monthly evidence")
+        floating_dd = None
+        for month in months:
+            month["max_observed_m1_global_peak_drawdown_usd_per_oz"] = None
+            month["observed_m1_gap_events_from_prior_mark"] = None
+        if name in pinned:
+            # Recompute from the actual canonical M1 equity file. Never trust
+            # a submitted numeric risk report or derive a hash from that file.
+            verified_equity = equity_audit.audit_equity(
+                folder, source, plan["source_sha256"], plan["engine_commit"],
+                pinned[name])
+            equity_months = verified_equity["monthly"]
+            if len(equity_months) != len(months):
+                raise ValueError("Pinned M1 month coverage differs from P/L ledger")
+            for month, observed in zip(months, equity_months):
+                if (month["month_utc"] != observed["month_utc"]
+                        or month["observed_m1_samples"] != observed["observed_m1_samples"]):
+                    raise ValueError("Pinned M1 month or sample count mismatch")
+                month["max_observed_m1_global_peak_drawdown_usd_per_oz"] = (
+                    observed["max_observed_m1_global_peak_drawdown_usd_per_oz"])
+                month["observed_m1_gap_events_from_prior_mark"] = (
+                    observed["observed_gap_events_from_prior_mark"])
+            floating_dd = verified_equity[
+                "max_observed_m1_global_peak_drawdown_usd_per_oz"]
         worst = min(months, key=lambda m: (m["net_usd_per_oz"], m["month_utc"]))
         results.append({
             "id": name, "status": "HISTORICAL_EXPOSED_STANDALONE_NOT_APPROVED",
@@ -141,11 +202,15 @@ def scorecard(plan: dict, output: Path) -> dict:
             "worst_month_net_usd_per_oz": worst["net_usd_per_oz"],
             "net_usd_per_oz": verified["net_pnl"],
             "all_in_fees_usd_per_oz": verified["total_cost"],
-            "observed_m1_floating_drawdown_usd_per_oz": None,
+            "observed_m1_floating_drawdown_usd_per_oz": floating_dd,
             "shared_capacity_verified": False, "clean_prospective_oos": False,
             "monthly": months,
-            "evidence_sha256": {k: verified[k] for k in (
-                "summary_sha256", "monthly_sha256", "weekly_sha256", "trades_sha256")},
+            "evidence_sha256": {
+                **{k: verified[k] for k in (
+                    "summary_sha256", "monthly_sha256", "weekly_sha256", "trades_sha256")},
+                **({"equity_m1_sha256": pinned[name]["equity_m1.csv"]}
+                   if name in pinned else {}),
+            },
         })
     return {
         "status": "RE_AUDITED_HISTORICAL_STANDALONE_NOT_OOS_NOT_APPROVED",
@@ -156,7 +221,13 @@ def scorecard(plan: dict, output: Path) -> dict:
         "not_executed_jobs": len(jobs) - len(results),
         "independent_hypotheses": None,
         "shared_capacity_portfolio_net_usd_per_oz": None,
-        "floating_m1_drawdown_status": "N/A_NOT_IN_VERIFIED_MONTHLY_LEDGER",
+        "floating_m1_drawdown_status": (
+            "HASH_PINNED_OBSERVED_M1_FOR_ALL_EXECUTED"
+            if results and len(pinned) == len(results)
+            else "PARTIAL_HASH_PINNED_OBSERVED_M1"
+            if pinned else "N/A_NO_INDEPENDENT_EQUITY_HASH_PINS"),
+        "hash_pinned_m1_jobs": len(pinned),
+        "unverified_floating_m1_jobs": len(results) - len(pinned),
         "prospective_months": 0, "approved_strategies": 0,
         "jobs": results,
     }
@@ -165,8 +236,12 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--plan", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument("--equity-pins", type=Path,
+                        help="Previously independently frozen, plan-scoped M1 evidence hashes")
     args = parser.parse_args(argv)
-    print(json.dumps(scorecard(lab.read_strict_json(args.plan), args.out), indent=2))
+    pins = lab.read_strict_json(args.equity_pins) if args.equity_pins else None
+    print(json.dumps(scorecard(lab.read_strict_json(args.plan), args.out,
+                               equity_pins=pins), indent=2))
     return 0
 
 if __name__ == "__main__":

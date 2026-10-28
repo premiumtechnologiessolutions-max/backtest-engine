@@ -195,3 +195,121 @@ def test_monthly_scorecard_includes_downside_metrics(tmp_path, monkeypatch):
     assert result["longest_nonpositive_observed_month_streak"] == 1
     assert result["worst_three_complete_calendar_months_net_usd_per_oz"] is None
     assert result["partial_requested_calendar_months_utc"] == []
+
+
+def frozen_pins(plan, record):
+    _, digest = lab.expand(plan)
+    return {
+        "schema": "NRFX_EQUITY_PINS_V1",
+        "plan_sha256": digest,
+        "source_sha256": plan["source_sha256"],
+        "engine_commit": plan["engine_commit"],
+        "jobs": {"synthetic-ema": {
+            "summary.json": record["summary_sha256"],
+            "monthly.csv": record["monthly_sha256"],
+            "equity_m1.csv": "a" * 64,
+        }},
+    }
+
+
+def fake_equity_result():
+    return {
+        "max_observed_m1_global_peak_drawdown_usd_per_oz": 4.5,
+        "monthly": [
+            {"month_utc": "2024-01", "observed_m1_samples": 123,
+             "max_observed_m1_global_peak_drawdown_usd_per_oz": 2.5,
+             "observed_gap_events_from_prior_mark": 3},
+            {"month_utc": "2024-02", "observed_m1_samples": 111,
+             "max_observed_m1_global_peak_drawdown_usd_per_oz": 4.5,
+             "observed_gap_events_from_prior_mark": 1},
+        ],
+    }
+
+
+def test_hash_pinned_m1_months_join_only_after_independent_audit(tmp_path, monkeypatch):
+    plan, out, _, record = sample(tmp_path, monkeypatch)
+    pins = frozen_pins(plan, record)
+    calls = []
+    def verifier(folder, archive, source, engine, hashes):
+        calls.append((folder, archive, source, engine, hashes))
+        return fake_equity_result()
+    monkeypatch.setattr(score.equity_audit, "audit_equity", verifier)
+    report = score.scorecard(plan, out, equity_pins=pins)
+    job = report["jobs"][0]
+    assert len(calls) == 1
+    assert calls[0][4] == pins["jobs"]["synthetic-ema"]
+    assert job["observed_m1_floating_drawdown_usd_per_oz"] == 4.5
+    assert [m["max_observed_m1_global_peak_drawdown_usd_per_oz"]
+            for m in job["monthly"]] == [2.5, 4.5]
+    assert [m["observed_m1_gap_events_from_prior_mark"]
+            for m in job["monthly"]] == [3, 1]
+    assert job["evidence_sha256"]["equity_m1_sha256"] == "a" * 64
+    assert report["hash_pinned_m1_jobs"] == 1
+    assert report["unverified_floating_m1_jobs"] == 0
+    assert report["approved_strategies"] == 0
+
+
+def test_missing_pins_remain_explicit_na_per_month(tmp_path, monkeypatch):
+    plan, out, _, _ = sample(tmp_path, monkeypatch)
+    report = score.scorecard(plan, out)
+    assert report["hash_pinned_m1_jobs"] == 0
+    assert report["unverified_floating_m1_jobs"] == 1
+    assert all(month["max_observed_m1_global_peak_drawdown_usd_per_oz"] is None
+               for month in report["jobs"][0]["monthly"])
+    assert "equity_m1_sha256" not in report["jobs"][0]["evidence_sha256"]
+
+
+@pytest.mark.parametrize("mutation", ["bad-schema", "bad-plan", "bad-source",
+                                       "bad-engine", "bad-hash", "bad-summary",
+                                       "unknown-job"])
+def test_equity_pins_fail_closed_on_stale_or_untrusted_evidence(
+        tmp_path, monkeypatch, mutation):
+    plan, out, _, record = sample(tmp_path, monkeypatch)
+    pins = frozen_pins(plan, record)
+    if mutation == "bad-schema":
+        pins["schema"] = "NOT_FROZEN"
+    elif mutation == "bad-plan":
+        pins["plan_sha256"] = "0" * 64
+    elif mutation == "bad-source":
+        pins["source_sha256"] = "0" * 64
+    elif mutation == "bad-engine":
+        pins["engine_commit"] = "0" * 40
+    elif mutation == "bad-hash":
+        pins["jobs"]["synthetic-ema"]["equity_m1.csv"] = "invalid"
+    elif mutation == "bad-summary":
+        pins["jobs"]["synthetic-ema"]["summary.json"] = "0" * 64
+    else:
+        pins["jobs"]["not-executed"] = pins["jobs"].pop("synthetic-ema")
+    with pytest.raises(ValueError):
+        score.scorecard(plan, out, equity_pins=pins)
+
+
+@pytest.mark.parametrize("mutation", ["wrong-month", "wrong-samples", "missing-month"])
+def test_equity_audit_must_reconcile_exact_months_and_samples(
+        tmp_path, monkeypatch, mutation):
+    plan, out, _, record = sample(tmp_path, monkeypatch)
+    result = fake_equity_result()
+    if mutation == "wrong-month":
+        result["monthly"][1]["month_utc"] = "2024-03"
+    elif mutation == "wrong-samples":
+        result["monthly"][0]["observed_m1_samples"] = 124
+    else:
+        result["monthly"].pop()
+    monkeypatch.setattr(score.equity_audit, "audit_equity", lambda *args: result)
+    with pytest.raises(ValueError, match="month|sample"):
+        score.scorecard(plan, out, equity_pins=frozen_pins(plan, record))
+
+
+def test_pin_to_unexecuted_job_rejected_without_inventing_months(tmp_path, monkeypatch):
+    plan, out, _, record = sample(tmp_path, monkeypatch, executed=False)
+    with pytest.raises(ValueError, match="unexecuted"):
+        score.scorecard(plan, out, equity_pins=frozen_pins(plan, record))
+
+
+def test_equity_audit_failure_is_not_silently_downgraded_to_na(tmp_path, monkeypatch):
+    plan, out, _, record = sample(tmp_path, monkeypatch)
+    def reject(*args):
+        raise ValueError("Frozen evidence SHA mismatch")
+    monkeypatch.setattr(score.equity_audit, "audit_equity", reject)
+    with pytest.raises(ValueError, match="SHA mismatch"):
+        score.scorecard(plan, out, equity_pins=frozen_pins(plan, record))
