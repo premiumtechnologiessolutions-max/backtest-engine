@@ -357,3 +357,24 @@ def test_impossible_exposure_counts_cannot_exceed_trade_count(tmp_path, field):
         writer.writerows(rows)
     with pytest.raises(ValueError, match="counts exceed executed trades"):
         lab.audit_run(folder, spec(), SOURCE, COMMIT)
+
+
+@pytest.mark.parametrize("shifted_exit", [
+    "2024-02-02T12:00:00+00:00",  # different month, same total net P/L
+    "2024-01-08T12:00:00+00:00",  # different W-SUN week, same month
+    "2024-01-02T12:00:00",        # timezone-naive exit
+])
+def test_audit_rejects_period_shift_despite_matching_total_pnl(tmp_path, shifted_exit):
+    folder = tmp_path / "job"
+    make_report(folder)
+    path = folder / "trades.csv"
+    with path.open(newline="", encoding="utf-8") as handle:
+        rows = list(csv.DictReader(handle))
+    rows[0]["closed_at"] = shifted_exit
+    with path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=rows[0])
+        writer.writeheader()
+        writer.writerows(rows)
+    assert sum(float(row["net_pnl"]) for row in rows) == pytest.approx(1)
+    with pytest.raises(ValueError, match="exit allocation|timestamp"):
+        lab.audit_run(folder, spec(), SOURCE, COMMIT)
