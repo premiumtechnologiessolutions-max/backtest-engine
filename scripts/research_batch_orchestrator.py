@@ -57,6 +57,37 @@ def file_sha(path: Path) -> str:
     return digest.hexdigest()
 
 
+
+def read_strict_json(path: Path) -> object:
+    """Fail closed on ambiguous frozen JSON keys, constants, and symlinks.
+
+    Applies to plans, summary evidence and resumable batch manifests.
+    Standard json.load silently overwrites duplicate object keys and accepts
+    NaN/Infinity extensions, neither of which belongs in frozen evidence.
+    """
+    path = Path(path)
+    if path.is_symlink() or not path.is_file():
+        raise ValueError("Missing or unsafe research JSON")
+
+    def unique_keys(pairs: list[tuple[str, object]]) -> dict:
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("Duplicate research JSON key")
+            result[key] = value
+        return result
+
+    def reject_constant(value: str) -> object:
+        raise ValueError("Nonfinite research JSON constant: " + value)
+
+    try:
+        with path.open("r", encoding="utf-8") as handle:
+            return json.load(handle, object_pairs_hook=unique_keys,
+                             parse_constant=reject_constant)
+    except (json.JSONDecodeError, UnicodeError) as exc:
+        raise ValueError("Malformed research JSON") from exc
+
+
 def check_spec(spec: object) -> dict:
     if not isinstance(spec, dict) or set(spec) != BASE | {"parameters"}:
         raise ValueError("Unexpected or missing strategy specification field")
@@ -219,7 +250,7 @@ def audit_run(folder: Path, spec: dict, source_sha: str, engine_sha: str) -> dic
     summary_path = folder / "summary.json"
     if summary_path.is_symlink() or not summary_path.is_file():
         raise ValueError("Missing or unsafe summary JSON")
-    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    summary = read_strict_json(summary_path)
     rows = read_ledger_csv(folder / "monthly.csv")
     if not isinstance(summary, dict) or not rows:
         raise ValueError("Missing evidence")
@@ -460,7 +491,7 @@ def run_plan(plan: dict, output: Path, *, max_jobs: int = 20, dry_run: bool = Fa
         if manifest_path.is_symlink():
             raise ValueError("Unsafe batch manifest symlink")
         if manifest_path.exists():
-            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest = read_strict_json(manifest_path)
             if (not isinstance(manifest, dict)
                     or set(manifest) != {"schema", "plan_sha256", "source_sha256", "engine_commit", "results"}
                     or manifest["schema"] != SCHEMA
@@ -534,7 +565,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--max-jobs", type=int, default=20)
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args(argv)
-    plan = json.loads(args.plan.read_text(encoding="utf-8"))
+    plan = read_strict_json(args.plan)
     print(json.dumps(run_plan(plan, args.out, max_jobs=args.max_jobs,
                               dry_run=args.dry_run), indent=2))
     return 0
