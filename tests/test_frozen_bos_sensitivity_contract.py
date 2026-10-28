@@ -179,3 +179,51 @@ def test_frozen_runner_rejects_output_symlink(tmp_path):
     with pytest.raises(FileExistsError, match="symlink"):
         validate_output_destination(destination)
     assert list(target.iterdir()) == []
+
+
+def test_frozen_runner_rejects_shifted_monthly_pnl_even_when_total_matches(tmp_path, monkeypatch):
+    """A zero-sum monthly redistribution must not pass annual reconciliation.
+
+    All market data, strategy and report results are synthetic. This tests the
+    official runner's wiring to independent UTC exit-bucket reconciliation.
+    """
+    from types import SimpleNamespace
+
+    source = tmp_path / "SYNTHETIC_NOT_REAL_GOLD.zip"
+    source.write_bytes(b"synthetic fixture only")
+    monkeypatch.setattr(frozen, "sha256_file", lambda _: SOURCE_SHA)
+    monkeypatch.setattr(frozen, "load_market", lambda *args, **kwargs: _monthly_sample())
+    monkeypatch.setattr(frozen, "bos_fib_limit_orders", lambda *args, **kwargs: [])
+    monkeypatch.setattr(frozen, "filter_orders_h1", lambda *args, **kwargs: [])
+    monkeypatch.setattr(
+        frozen, "run_limits",
+        lambda *args, **kwargs: SimpleNamespace(
+            trades=pd.DataFrame({"net_pnl": pd.Series(dtype=float)})
+        ),
+    )
+
+    def corrupted_report(result, settings, output, **kwargs):
+        output.mkdir(parents=True, exist_ok=True)
+        monthly = pd.DataFrame({
+            "period": [f"2012-{month:02d}" for month in range(1, 13)],
+            "trades": [0] * 12,
+            "net_pnl": [1.0, -1.0] + [0.0] * 10,
+            "total_cost": [0.0] * 12,
+        })
+        monthly.to_csv(output / "monthly.csv", index=False)
+        pd.DataFrame({
+            "period": ["2011-12-26/2012-01-01"],
+            "trades": [0], "net_pnl": [0.0], "total_cost": [0.0],
+        }).to_csv(output / "weekly.csv", index=False)
+        pd.DataFrame(columns=["closed_at", "net_pnl", "cost"]).to_csv(
+            output / "trades.csv", index=False
+        )
+        return {
+            "net_pnl": 0.0, "total_fees": 0.0,
+            "months_observed": 12, "months_with_m1_observations": 12,
+        }
+
+    monkeypatch.setattr(frozen, "report", corrupted_report)
+    with pytest.raises(ValueError, match="Trade exit allocation disagrees"):
+        frozen.execute(source, [2012], tmp_path / "out")
+    assert not (tmp_path / "out" / "frozen_sensitivity_summary.json").exists()
