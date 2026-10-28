@@ -388,6 +388,8 @@ def run_plan(plan: dict, output: Path, *, max_jobs: int = 20, dry_run: bool = Fa
     output = output.resolve()
     output.mkdir(parents=True, exist_ok=True)
     manifest_path = output / "batch_manifest.json"
+    if manifest_path.is_symlink():
+        raise ValueError("Unsafe batch manifest symlink")
     if manifest_path.exists():
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         if (not isinstance(manifest, dict)
@@ -409,6 +411,8 @@ def run_plan(plan: dict, output: Path, *, max_jobs: int = 20, dry_run: bool = Fa
     for job in jobs:
         ident, spec = job["id"], job["spec"]
         folder = output / "runs" / ident
+        if folder.is_symlink():
+            raise ValueError("Unsafe experiment directory symlink")
         existing = manifest["results"].get(ident)
         if existing is not None:
             if existing.get("status") != PASSED:
