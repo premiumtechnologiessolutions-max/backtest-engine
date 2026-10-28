@@ -16,6 +16,7 @@ The original market-data archive is read as annual JSON only.
 from __future__ import annotations
 
 import argparse
+import csv
 import hashlib
 import json
 from datetime import datetime
@@ -56,6 +57,38 @@ def file_sha256(path: Path) -> str:
         for buf in iter(lambda: file.read(8 * 1024 * 1024), b""):
             h.update(buf)
     return h.hexdigest()
+
+
+
+def read_reference_csv(path: Path, *, required_columns: set[str]) -> pd.DataFrame:
+    """Read archived replay CSV without pandas' silent header repair.
+
+    Reject duplicate/missing headers, ragged rows, malformed CSV and symlinks.
+    This checks transport/schema integrity, not the truth of executions.
+    """
+    path = Path(path)
+    if path.is_symlink() or not path.is_file():
+        raise ValueError("Archived reference CSV must be an existing regular file, not a symlink")
+    try:
+        with path.open("r", encoding="utf-8-sig", newline="") as handle:
+            reader = csv.reader(handle, strict=True)
+            header = next(reader, None)
+            if not header or any(not name for name in header):
+                raise ValueError("Archived reference CSV has missing or empty header")
+            if len(set(header)) != len(header):
+                raise ValueError("Archived reference CSV has duplicate header names")
+            missing = required_columns - set(header)
+            if missing:
+                raise ValueError(f"Archived reference CSV missing required fields: {sorted(missing)}")
+            for row in reader:
+                if len(row) != len(header):
+                    raise ValueError(
+                        f"Archived reference CSV row has {len(row)} fields; "
+                        f"expected {len(header)} (line {reader.line_num})"
+                    )
+    except (UnicodeError, csv.Error) as exc:
+        raise ValueError("Archived reference CSV is malformed or not UTF-8") from exc
+    return pd.read_csv(path, encoding="utf-8-sig")
 
 
 def exact_ledger_check(ours: pd.DataFrame, reference: pd.DataFrame) -> dict:
@@ -285,7 +318,10 @@ def verify(gold_zip: Path, reference_root: Path, years: list[int]) -> dict:
     sha = file_sha256(gold_zip)
     if sha != EXPECTED_MARKET_SHA256:
         raise ValueError("Dataset SHA-256 differs from archived reference gold source")
-    yearly = pd.read_csv(reference_root / "yearly.csv")
+    yearly = read_reference_csv(
+        reference_root / "yearly.csv",
+        required_columns={"year", "variant", "trades", "orders", "net_usd_oz"},
+    )
     complete = []
     for year in years:
         # Read annual JSON only and don't allow unseen feed replacement.
@@ -303,8 +339,9 @@ def verify(gold_zip: Path, reference_root: Path, years: list[int]) -> dict:
             result = run_limits(m1, orders, Settings(
                 ounces=1.0, roundtrip_cost_per_ounce=0.40,
             ))
-            baseline = pd.read_csv(
-                reference_root / "results" / str(year) / name / "trades.csv"
+            baseline = read_reference_csv(
+                reference_root / "results" / str(year) / name / "trades.csv",
+                required_columns=set(FIELDS.values()),
             )
             check = exact_ledger_check(result.trades, baseline)
             summary_row = yearly.loc[
