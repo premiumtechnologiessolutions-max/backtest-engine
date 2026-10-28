@@ -27,6 +27,7 @@ def test_duplicate_keys_rejected_at_every_depth(tmp_path, payload):
 
 @pytest.mark.parametrize("payload", [
     '{"x":NaN}', '{"x":Infinity}', '{"x":-Infinity}',
+    '{"x":1e999}', '{"x":-1e999}', '{"nested":[{"cost":1e309}]}',
 ])
 def test_nonstandard_nonfinite_json_rejected(tmp_path, payload):
     path = tmp_path / "evidence.json"
@@ -112,3 +113,23 @@ def test_cli_refuses_ambiguous_plan_before_running(tmp_path, monkeypatch):
     monkeypatch.setattr(lab, "run_plan", forbidden)
     with pytest.raises(ValueError, match="Duplicate research JSON key"):
         lab.main(["--plan", str(plan), "--out", str(tmp_path / "out")])
+
+
+def test_finite_large_exponent_remains_valid(tmp_path):
+    path = tmp_path / "evidence.json"
+    path.write_text('{"cost":1e308,"tiny":1e-100}', encoding="utf-8")
+    evidence = lab.read_strict_json(path)
+    assert evidence["cost"] == 1e308
+    assert evidence["tiny"] == 1e-100
+
+
+@pytest.mark.parametrize("payload", [
+    '{"settings":{"roundtrip_cost_per_ounce":1e999}}',
+    '{"settings":{"roundtrip_cost_per_ounce":-1e999}}',
+])
+def test_summary_rejects_overflow_before_csv(tmp_path, payload):
+    folder = tmp_path / "job"
+    folder.mkdir()
+    (folder / "summary.json").write_text(payload, encoding="utf-8")
+    with pytest.raises(ValueError, match="Nonfinite research JSON"):
+        lab.audit_run(folder, {}, "a" * 64, "b" * 40)
