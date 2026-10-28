@@ -157,6 +157,7 @@ def render_verified_monthly_html(report: dict) -> str:
             '<article class="card"><h2>' + ident + '</h2>'
             '<p>Historical standalone · NOT APPROVED · shared capacity N/A</p>'
             '<div class="facts"><span>Net: <b>' + _money(job["net_usd_per_oz"]) + '</b></span>'
+            '<span>All-in fees: <b>' + f'{job["all_in_fees_usd_per_oz"]:,.2f}' + '</b></span>'
             '<span>Positive months: <b>' + str(job["positive_months"]) + '/'
             + str(job["months_observed"]) + '</b></span>'
             '<span>Worst: <b>' + worst + ' · ' + _money(job["worst_month_net_usd_per_oz"]) + '</b></span>'
