@@ -496,8 +496,12 @@ def render_index(manifest: dict) -> str:
             + "".join(body) + '</tbody></table></div></body></html>')
 
 
-def run_plan(plan: dict, output: Path, *, max_jobs: int = 20, dry_run: bool = False) -> dict:
+def run_plan(plan: dict, output: Path, *, max_jobs: int = 20, dry_run: bool = False,
+             recover_verified_orphans: bool = False) -> dict:
+    """Resume frozen batches; orphan recovery requires explicit opt-in and full audit."""
     jobs, plan_sha = expand(plan)
+    if type(recover_verified_orphans) is not bool:
+        raise ValueError("Orphan recovery flag must be boolean")
     if type(max_jobs) is not int or not 1 <= max_jobs <= 500:
         raise ValueError("Per-invocation job cap is 1..500")
     if dry_run:
@@ -535,9 +539,13 @@ def run_plan(plan: dict, output: Path, *, max_jobs: int = 20, dry_run: bool = Fa
         if not set(manifest["results"]).issubset(known_ids):
             raise ValueError("Manifest contains unrecognized experiment identifiers")
         launched = 0
+        recovered = 0
+        runs_root = output / "runs"
+        if runs_root.is_symlink() or (runs_root.exists() and not runs_root.is_dir()):
+            raise ValueError("Unsafe research runs directory")
         for job in jobs:
             ident, spec = job["id"], job["spec"]
-            folder = output / "runs" / ident
+            folder = runs_root / ident
             if folder.is_symlink():
                 raise ValueError("Unsafe experiment directory symlink")
             existing = manifest["results"].get(ident)
@@ -547,10 +555,29 @@ def run_plan(plan: dict, output: Path, *, max_jobs: int = 20, dry_run: bool = Fa
                 if audit_run(folder, spec, plan["source_sha256"], revision) != existing:
                     raise ValueError("Previously accepted evidence was modified")
                 continue
+            if folder.exists():
+                if not folder.is_dir():
+                    raise ValueError("Unsafe experiment output path")
+                if any(folder.iterdir()):
+                    if not recover_verified_orphans:
+                        raise ValueError("Unknown existing run output requires inspection")
+                    # An interrupted process may finish canonical report files
+                    # before its manifest record is durably published. Re-admit
+                    # ONLY complete, exactly source/commit/spec-reconciled
+                    # evidence. Never infer success from a folder's existence.
+                    try:
+                        recovered_record = audit_run(
+                            folder, spec, plan["source_sha256"], revision)
+                    except (ValueError, OSError, FileNotFoundError, KeyError) as exc:
+                        raise ValueError(
+                            "Orphaned run failed canonical evidence audit; "
+                            "manual investigation required") from exc
+                    manifest["results"][ident] = recovered_record
+                    atomic_manifest(manifest_path, manifest)
+                    recovered += 1
+                    continue
             if launched >= max_jobs:
                 break
-            if folder.exists() and any(folder.iterdir()):
-                raise ValueError("Unknown existing run output requires inspection")
             folder.mkdir(parents=True, exist_ok=True)
             cmd = [sys.executable, "-m", "norisk_quant.cli", "backtest",
                    "--data", str(dataset), "--start", spec["start"], "--end", spec["end"],
@@ -582,7 +609,8 @@ def run_plan(plan: dict, output: Path, *, max_jobs: int = 20, dry_run: bool = Fa
             "status": "HISTORICAL_RESEARCH_ONLY", "defined_jobs": len(jobs),
             "reconciled_jobs": sum(
                 rec.get("status") == PASSED for rec in manifest["results"].values()),
-            "executed_this_invocation": launched, "plan_sha256": plan_sha,
+            "executed_this_invocation": launched,
+            "recovered_verified_orphans": recovered, "plan_sha256": plan_sha,
             "index": str(index),
         }
 
@@ -593,10 +621,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", required=True, type=Path)
     parser.add_argument("--max-jobs", type=int, default=20)
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--recover-verified-orphans", action="store_true",
+        help="Opt in to canonical re-audit of complete unmanifested run outputs")
     args = parser.parse_args(argv)
     plan = read_strict_json(args.plan)
-    print(json.dumps(run_plan(plan, args.out, max_jobs=args.max_jobs,
-                              dry_run=args.dry_run), indent=2))
+    print(json.dumps(run_plan(
+        plan, args.out, max_jobs=args.max_jobs, dry_run=args.dry_run,
+        recover_verified_orphans=args.recover_verified_orphans), indent=2))
     return 0
 
 

@@ -686,3 +686,78 @@ def test_audit_rejects_within_month_exit_outside_frozen_date_window(tmp_path, fi
     declared = spec(**{field: bound})
     with pytest.raises(ValueError, match="outside frozen UTC research window"):
         lab.audit_run(folder, declared, SOURCE, COMMIT)
+
+
+def _orphan_fixture(tmp_path, monkeypatch):
+    data = tmp_path / "synthetic-private.zip"
+    data.write_bytes(b"synthetic fixture only")
+    frozen = plan(tmp_path)
+    frozen["dataset"] = str(data)
+    frozen["source_sha256"] = lab.file_sha(data)
+    monkeypatch.setattr(lab, "checkout_commit", lambda: COMMIT)
+    output = tmp_path / "batch"
+    folder = output / "runs" / "test-ema"
+    make_report(folder, source=frozen["source_sha256"])
+    return frozen, output, folder
+
+
+def test_opt_in_reconciles_completed_orphan_without_rerunning(tmp_path, monkeypatch):
+    frozen, output, folder = _orphan_fixture(tmp_path, monkeypatch)
+
+    def no_engine(*args, **kwargs):
+        pytest.fail("A verified orphan must not trigger a duplicate backtest")
+
+    monkeypatch.setattr(lab.subprocess, "run", no_engine)
+    with pytest.raises(ValueError, match="Unknown existing run"):
+        lab.run_plan(frozen, output)
+    assert not (output / "batch_manifest.json").exists()
+    result = lab.run_plan(frozen, output, recover_verified_orphans=True)
+    assert result["executed_this_invocation"] == 0
+    assert result["recovered_verified_orphans"] == 1
+    record = lab.read_strict_json(output / "batch_manifest.json")["results"]["test-ema"]
+    assert record == lab.audit_run(folder, spec(), frozen["source_sha256"], COMMIT)
+    repeat = lab.run_plan(frozen, output, recover_verified_orphans=True)
+    assert repeat["recovered_verified_orphans"] == 0
+    assert repeat["executed_this_invocation"] == 0
+
+
+@pytest.mark.parametrize("corruption", ["missing_weekly", "wrong_source", "altered_fees"])
+def test_orphan_recovery_rejects_incomplete_or_tampered_evidence(
+        tmp_path, monkeypatch, corruption):
+    frozen, output, folder = _orphan_fixture(tmp_path, monkeypatch)
+    if corruption == "missing_weekly":
+        (folder / "weekly.csv").unlink()
+    elif corruption == "wrong_source":
+        summary_path = folder / "summary.json"
+        summary = json.loads(summary_path.read_text(encoding="utf-8"))
+        summary["source_fingerprints"]["source_file_sha256"] = SOURCE
+        summary_path.write_text(json.dumps(summary), encoding="utf-8")
+    else:
+        summary_path = folder / "summary.json"
+        summary = json.loads(summary_path.read_text(encoding="utf-8"))
+        summary["settings"]["roundtrip_cost_per_ounce"] = 0.39
+        summary_path.write_text(json.dumps(summary), encoding="utf-8")
+    monkeypatch.setattr(
+        lab.subprocess, "run",
+        lambda *args, **kwargs: pytest.fail("Never run an unverified orphan"))
+    with pytest.raises(ValueError, match="Orphaned run failed canonical evidence audit"):
+        lab.run_plan(frozen, output, recover_verified_orphans=True)
+    assert not (output / "batch_manifest.json").exists()
+
+
+def test_recovery_rejects_symlinked_runs_root(tmp_path, monkeypatch):
+    frozen, output, _ = _orphan_fixture(tmp_path, monkeypatch)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (output / "runs" / "test-ema").rename(outside / "test-ema")
+    (output / "runs").rmdir()
+    (output / "runs").symlink_to(outside, target_is_directory=True)
+    with pytest.raises(ValueError, match="Unsafe research runs directory"):
+        lab.run_plan(frozen, output, recover_verified_orphans=True)
+    assert not (output / "batch_manifest.json").exists()
+
+
+def test_orphan_recovery_requires_explicit_boolean(tmp_path):
+    with pytest.raises(ValueError, match="flag must be boolean"):
+        lab.run_plan(plan(tmp_path), tmp_path / "out",
+                     recover_verified_orphans="yes", dry_run=True)
