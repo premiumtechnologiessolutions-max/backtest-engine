@@ -18,6 +18,7 @@ import pandas as pd
 
 from norisk_quant.bos_fib import BosFibSettings, bos_fib_limit_orders
 from norisk_quant.data import fingerprint_loaded_m1, load_market, sha256_file
+from norisk_quant.evidence_reconciliation import verify_exit_periods
 from norisk_quant.h1_regime import H1RegimeSettings, filter_orders_h1
 from norisk_quant.limit_engine import run_limits
 from norisk_quant.model import Settings
@@ -135,6 +136,17 @@ def execute(gold_zip: Path, years: list[int], destination: Path) -> dict:
         weekly = pd.read_csv(subdirectory / "weekly.csv")
         if abs(float(weekly["net_pnl"].sum()) - total) > 1e-7:
             raise AssertionError("Weekly P/L differs from executed trades")
+        # Aggregate sums alone cannot detect a fabricated redistribution of P/L
+        # between months or weeks. Recompute each UTC exit bucket from the
+        # persisted trade ledger before certifying the frozen annual report.
+        exported_trades = pd.read_csv(subdirectory / "trades.csv")
+        verify_exit_periods(
+            monthly.to_dict(orient="records"),
+            weekly.to_dict(orient="records"),
+            exported_trades.to_dict(orient="records"),
+            first_utc_date=f"{year}-01-01",
+            last_utc_date=f"{year}-12-31",
+        )
         records.append({
             "year": year,
             "m1_rows": len(quotes),
