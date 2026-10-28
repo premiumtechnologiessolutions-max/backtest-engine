@@ -79,7 +79,7 @@ def normalize(raw: pd.DataFrame, *, strict: bool = True) -> pd.DataFrame:
         invalid = (
             pd.Series(~np.isfinite(price_array).all(axis=1), index=frame.index)
             | (frame[list(PRICE_COLUMNS)] <= 0).any(axis=1)
-            | (frame.index.asi8 % 60_000_000_000 != 0)
+            | (frame.index.as_unit("ns").asi8 % 60_000_000_000 != 0)
             | (frame["h"] < frame[["o", "c", "l"]].max(axis=1))
             | (frame["l"] > frame[["o", "c", "h"]].min(axis=1))
             | (frame["ah"] < frame[["ao", "ac", "al"]].max(axis=1))
@@ -142,7 +142,7 @@ def fingerprint_loaded_m1(frame: pd.DataFrame) -> str:
         raise ValueError("Expected nonempty M1 time series")
     if frame.index.tz is None or frame.index.has_duplicates or not frame.index.is_monotonic_increasing:
         raise ValueError("M1 index must be timezone-aware, sorted and unique")
-    if (frame.index.asi8 % 60_000_000_000 != 0).any():
+    if (frame.index.as_unit("ns").asi8 % 60_000_000_000 != 0).any():
         raise ValueError("M1 timestamps must align exactly to minute opens")
     if not set(required).issubset(frame.columns):
         raise ValueError("Missing original Bid/Ask price columns")
@@ -154,7 +154,7 @@ def fingerprint_loaded_m1(frame: pd.DataFrame) -> str:
     digest.update(b"NRF-XAUUSD-M1-BIDASK-SLICE-V1\x00")
     digest.update(",".join(required).encode("ascii"))
     digest.update(b"\x00")
-    digest.update(frame.index.asi8.astype("<i8", copy=False).tobytes(order="C"))
+    # Pandas 2.x DatetimeIndex.asi8 reflects the index storage unit (s/ms/us/ns).\n    # Canonicalize to nanoseconds so identical instants have identical hashes.\n    digest.update(frame.index.as_unit("ns").asi8.astype("<i8", copy=False).tobytes(order="C"))
     digest.update(prices.tobytes(order="C"))
     return digest.hexdigest()
 
@@ -229,7 +229,7 @@ def import_gold_zip(source: str | Path, destination: str | Path) -> dict:
                 + checks["nonpositive_price_rows"]
             )
             wrong_year = int((frame.index.year != year).sum())
-            off_minute = int(((frame.index.asi8 // 1_000_000_000) % 60 != 0).sum())
+            off_minute = int(((frame.index.as_unit("ns").asi8 // 1_000_000_000) % 60 != 0).sum())
             accepted = anomalies == 0 and wrong_year == 0 and off_minute == 0
             row = {
                 "year": year, "source_member": name,
@@ -274,7 +274,7 @@ def validate_loaded_m1(frame: pd.DataFrame) -> pd.DataFrame:
     idx = frame.index
     if (idx.tz is None or str(idx.tz) != "UTC" or idx.hasnans or
             idx.has_duplicates or not idx.is_monotonic_increasing or
-            (idx.asi8 % 60_000_000_000 != 0).any()):
+            (idx.as_unit("ns").asi8 % 60_000_000_000 != 0).any()):
         raise ValueError("Loaded M1 requires unique sorted UTC minute opens")
     missing = set(PRICE_COLUMNS) - set(frame.columns)
     if missing:
