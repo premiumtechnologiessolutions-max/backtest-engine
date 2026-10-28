@@ -208,7 +208,10 @@ def read_ledger_csv(path: Path) -> list[dict[str, str]]:
 
 def audit_run(folder: Path, spec: dict, source_sha: str, engine_sha: str) -> dict:
     """Reconcile actual engine output without certifying broker execution."""
-    summary = json.loads((folder / "summary.json").read_text(encoding="utf-8"))
+    summary_path = folder / "summary.json"
+    if summary_path.is_symlink() or not summary_path.is_file():
+        raise ValueError("Missing or unsafe summary JSON")
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
     rows = read_ledger_csv(folder / "monthly.csv")
     if not isinstance(summary, dict) or not rows:
         raise ValueError("Missing evidence")
