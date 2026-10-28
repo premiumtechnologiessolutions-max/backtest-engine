@@ -6,6 +6,8 @@ module has no data fetching, trading interfaces, or inferred P/L curves.
 from __future__ import annotations
 
 from html import escape
+import hashlib
+import json
 from urllib.parse import quote
 import re
 
@@ -20,6 +22,71 @@ def _n(value: int) -> str:
     if type(value) is not int or value < 0:
         raise ValueError("Display totals must be nonnegative integers")
     return format(value, ",")
+
+
+def _render_month_plans(plans: object) -> str:
+    """Show only integrity-checked, explicitly opted-in planning metadata.
+
+    No execution or P/L can be inferred from an immutable slot snapshot.
+    """
+    if plans is None:
+        return '<p class="sub">Monthly plan snapshots not loaded (opt-in required).</p>'
+    if type(plans) is not list or len(plans) > 20:
+        raise ValueError("Invalid local monthly-plan collection")
+    if not plans:
+        return '<p class="sub">No verified local monthly plan snapshots.</p>'
+    sections = []
+    seen = set()
+    for plan in plans:
+        expected = {"schema_version", "request_fingerprint", "status",
+                    "source_verified_months", "backtests_executed", "slots",
+                    "snapshot_sha256"}
+        if type(plan) is not dict or set(plan) != expected:
+            raise ValueError("Malformed monthly-plan snapshot")
+        fingerprint = plan["request_fingerprint"]
+        digest = plan["snapshot_sha256"]
+        if (type(plan["schema_version"]) is not int or plan["schema_version"] != 1
+                or plan["status"] != "PLANNED_ONLY_NOT_EXECUTED"
+                or type(plan["backtests_executed"]) is not int or plan["backtests_executed"] != 0
+                or type(plan["source_verified_months"]) is not int or plan["source_verified_months"] != 0
+                or type(fingerprint) is not str or not re.fullmatch(r"[0-9a-f]{64}", fingerprint)
+                or type(digest) is not str or not re.fullmatch(r"[0-9a-f]{64}", digest)
+                or fingerprint in seen):
+            raise ValueError("Unverified monthly-plan provenance or state")
+        body = {k: v for k, v in plan.items() if k != "snapshot_sha256"}
+        calculated = hashlib.sha256(json.dumps(body, sort_keys=True,
+            separators=(",", ":"), ensure_ascii=True).encode("ascii")).hexdigest()
+        if calculated != digest:
+            raise ValueError("Monthly-plan snapshot digest mismatch")
+        seen.add(fingerprint)
+        slots = plan["slots"]
+        if type(slots) is not list or not 1 <= len(slots) <= 120:
+            raise ValueError("Invalid monthly-plan slot count")
+        rows = []
+        seen_months = set()
+        for slot in slots:
+            if (type(slot) is not dict or set(slot) !=
+                    {"month", "start_utc", "end_exclusive_utc", "slot_fingerprint"}):
+                raise ValueError("Invalid month-slot schema")
+            if (any(type(slot[k]) is not str for k in slot)
+                    or not re.fullmatch(r"[0-9]{4}-(0[1-9]|1[0-2])", slot["month"])
+                    or not re.fullmatch(r"[0-9a-f]{64}", slot["slot_fingerprint"])
+                    or slot["month"] in seen_months):
+                raise ValueError("Invalid or duplicated month-slot identity")
+            seen_months.add(slot["month"])
+            rows.append('<tr><td>' + _e(slot["month"]) + '</td><td><code>'
+                + _e(slot["slot_fingerprint"][:12]) + '</code></td>'
+                + '<td><span class="pill neutral">PLANNED · NOT EXECUTED</span></td>'
+                + '<td>N/A</td><td>N/A</td><td>N/A</td></tr>')
+        sections.append('<details class="panel"><summary>Frozen request '
+            + _e(fingerprint[:16]) + ' · ' + str(len(slots))
+            + ' planned UTC months · 0 executed</summary>'
+            + '<p class="sub">Source coverage, canonical parity and future performance are NOT verified.</p>'
+            + '<div class="tablewrap"><table><caption>Immutable month slots; no observed trading results</caption>'
+            + '<thead><tr><th>UTC month</th><th>Slot fingerprint</th><th>State</th>'
+            + '<th>Source verified</th><th>Monthly P/L</th><th>Floating M1 DD</th>'
+            + '</tr></thead><tbody>' + "".join(rows) + '</tbody></table></div></details>')
+    return '<h2>Verified immutable monthly plans · planning only</h2>' + "".join(sections)
 
 
 def render_premium_html(model: dict) -> str:
@@ -137,7 +204,7 @@ def render_premium_html(model: dict) -> str:
 <div class="section-head"><div><h2 data-i18n="catalogue">Experiment catalogue</h2><p>Performance values here are historical design metrics, not verified expected returns.</p></div><div class="controls"><input type="search" id="filter" placeholder="Search name, ID or status" aria-label="Search experiment catalogue"><select id="statusFilter" aria-label="Filter by research status"><option value="all">All statuses</option><option value="rejected">Rejected</option><option value="unverified">Other / unverified</option><option value="neutral">No-trade / control</option></select><select id="sort" aria-label="Sort research families"><option value="months">Best positive months</option><option value="specs">Most parameter specs</option><option value="id">Experiment ID</option></select></div></div>
 <div class="tablewrap"><table><thead><tr><th>Compare / ID</th><th>Hypothesis</th><th>Specs</th><th>Annual replays</th><th>Best months</th><th>Reported state</th><th>Evidence</th></tr></thead><tbody id="experimentRows">__ROWS__</tbody></table></div><div class="subtle-line" id="count" role="status" aria-live="polite"></div>
 <article class="panel compare-panel"><div class="panel-head"><div><h2 data-i18n="comparison">Research comparison</h2><p class="sub">Select up to three families. Comparison is descriptive, not a strategy recommendation.</p></div><button type="button" class="ghost" id="clearCompare" data-i18n="clear">Clear</button></div><div id="selection" class="selection" aria-live="polite"><span class="message">Select families above to compare audited metadata.</span></div><div id="compareGrid" class="compare-grid"></div></article></section>
-<section class="view" id="jobs" hidden><div class="hero"><div><div class="eyebrow">OFFLINE QUEUE</div><h1><span data-i18n="jobs">Research Jobs</span> <span class="accent">/ Local</span></h1><p>Verified frozen requests only. This page never starts workers or changes a job's state.</p></div><div class="hero-mark">NO EXECUTION</div></div><div class="warning"><b>Research-only:</b> Queue state is not an execution result. Preflight is separate and must run on the exact clean checkout. No private quotes, live trading or broker access.</div>__JOBS__</section>
+<section class="view" id="jobs" hidden><div class="hero"><div><div class="eyebrow">OFFLINE QUEUE</div><h1><span data-i18n="jobs">Research Jobs</span> <span class="accent">/ Local</span></h1><p>Verified frozen requests only. This page never starts workers or changes a job's state.</p></div><div class="hero-mark">NO EXECUTION</div></div><div class="warning"><b>Research-only:</b> Queue state is not an execution result. Preflight is separate and must run on the exact clean checkout. No private quotes, live trading or broker access.</div>__JOBS__<div class="section-head">__MONTH_PLANS__</div></section>
 <section class="view" id="method" hidden><div class="hero"><div><div class="eyebrow">EVIDENCE & VALIDATION</div><h1><span data-i18n="trust">Trust the</span> <span class="accent" data-i18n="process">process.</span></h1><p>Clear boundaries around what the engine has measured—and what remains unproven.</p></div><div class="hero-mark">NO OOS CERTIFICATE</div></div><div class="method-grid"><div class="panel"><h3 data-i18n="provenance">Data provenance</h3><p>Factory counts are derived from its published registry, which is arithmetically audited. This page does not fetch or expose the raw gold archive.</p></div><div class="panel"><h3 data-i18n="assumptions">Backtesting assumptions</h3><p>Research fixed-cost scenario: $__FEE__ per ounce, all-in round trip. Actual broker spread, ticks, fill sequence and slippage need separate verification.</p></div><div class="panel"><h3 data-i18n="designOos">Design vs. independent OOS</h3><p>Previously examined 2012–2013 results can support method development only. A prospective holdout, frozen rules and robust performance gates are required before advancing a candidate.</p></div><div class="panel"><h3 data-i18n="availability">Performance availability</h3><p>Weekly/monthly P&amp;L, win rates and equity curves are <b>N/A in this dashboard</b> until run-level verified files are attached. No illustrative curve is shown as real performance.</p></div></div><div class="warning"><b>Registry status:</b> __STATUS__<br><b>Last updated:</b> __UPDATED__ (source-provided UTC)</div></section>
 <footer class="footer"><span>NO RISK FX © 2026 · QUANT RESEARCH</span><span>Offline read-only HTML · No external scripts, analytics or broker access</span><span>Registry: __UPDATED__</span></footer></main></div>
 <script>
@@ -186,6 +253,7 @@ languageToggle.addEventListener('click',()=>setLanguage(document.documentElement
             .replace("__RANKS__", "".join(ranks) if ranks else '<p class="sub">No active families in audited registry.</p>')
             .replace("__ROWS__", "\n".join(row_html))
             .replace("__JOBS__", jobs_html)
+            .replace("__MONTH_PLANS__", _render_month_plans(model.get("monthly_plans")))
             .replace("__UPDATED__", _e(model["updated_utc"]))
             .replace("__STATUS__", _e(model["research_status"]))
             .replace("__FEE__", _e(format(float(model["fee"]), ".2f"))))

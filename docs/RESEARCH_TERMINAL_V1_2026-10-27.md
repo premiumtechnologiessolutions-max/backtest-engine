@@ -46,3 +46,27 @@ running, completed, or preflight-approved. All P/L, worst-month and floating-DD
 fields are N/A. This is static local metadata, not a worker, scheduling service,
 resume system, OOS result, broker interface or authorization to execute.
 Avoid sharing generated HTML containing opt-in local job fingerprints.
+
+
+## Verified immutable month plans in the offline terminal (2026-10-28)
+
+Only after a frozen request has been queued and its immutable monthly plan
+persisted on the **exact clean frozen checkout**, an operator may opt in to
+viewing month-slot metadata:
+
+```bash
+python scripts/research_terminal.py --include-local-jobs --include-local-month-plans
+```
+
+The two opt-ins are required together. Every queued request must have a
+persisted plan: missing, tampered, stale, unsafe or mismatched snapshots abort
+the entire HTML export. At most 20 requests × 120 months are displayed.
+The UI re-verifies snapshots via `verify_plan`, including exact-checkout
+preflight, and renders immutable UTC month identifiers and abbreviated
+fingerprints. The HTML contains local request metadata and should not be
+shared publicly.
+
+**All month slots are PLANNED / NOT EXECUTED.** Source verification, monthly
+net P/L and floating M1 drawdown display N/A. This is not a worker, checkpoint,
+resume mechanism, market data validation, future OOS proof or a live connection.
+The published registry is not modified by planning-only changes.

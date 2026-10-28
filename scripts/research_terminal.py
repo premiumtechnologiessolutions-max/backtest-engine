@@ -87,7 +87,11 @@ def main(argv: list[str] | None = None) -> int:
                         default=ROOT / "reports" / "research_terminal.html")
     parser.add_argument("--include-local-jobs", action="store_true",
                         help="Opt in to verified local queue metadata in offline HTML")
+    parser.add_argument("--include-local-month-plans", action="store_true",
+                        help="Opt in to verified immutable local month-plan snapshots (requires --include-local-jobs)")
     args = parser.parse_args(argv)
+    if args.include_local_month_plans and not args.include_local_jobs:
+        parser.error("--include-local-month-plans requires --include-local-jobs")
     model = dashboard_model(json.loads(args.registry.read_text(encoding="utf-8")))
     if args.include_local_jobs:
         try:
@@ -96,6 +100,17 @@ def main(argv: list[str] | None = None) -> int:
             from research_job_queue import list_jobs
         # Invalid, tampered or unsafe local queue records fail closed.
         model["jobs"] = list_jobs(ROOT)
+    if args.include_local_month_plans:
+        if len(model["jobs"]) > 20:
+            raise ValueError("Monthly plan export is capped at 20 local jobs")
+        try:
+            from scripts.research_job_plan_snapshot import verify_plan
+        except ModuleNotFoundError:  # direct invocation from repository root
+            from research_job_plan_snapshot import verify_plan
+        # Every snapshot is rechecked against exact clean-checkout preflight.
+        # Missing, stale, tampered, or unsafe snapshots abort the entire export.
+        model["monthly_plans"] = [verify_plan(ROOT, job["fingerprint"])
+                                  for job in model["jobs"]]
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(render_html(model), encoding="utf-8")
     print(json.dumps({
@@ -106,6 +121,7 @@ def main(argv: list[str] | None = None) -> int:
         "passing_24_of_24": model["passing_24_of_24"],
         "local_jobs_included": args.include_local_jobs,
         "local_jobs": len(model["jobs"]) if args.include_local_jobs else None,
+        "local_month_plans": len(model["monthly_plans"]) if args.include_local_month_plans else None,
     }, indent=2))
     return 0
 

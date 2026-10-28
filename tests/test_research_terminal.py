@@ -139,3 +139,65 @@ def test_opt_in_empty_queue_is_explicit(tmp_path, monkeypatch):
     assert terminal.main(["--registry", str(path), "--out", str(output),
                           "--include-local-jobs"]) == 0
     assert "No queued local requests" in output.read_text()
+
+
+def test_month_plan_opt_in_renders_verified_snapshot_only(tmp_path, monkeypatch):
+    from datetime import datetime, timezone
+    from scripts import research_terminal as terminal
+    from scripts import research_job_plan_snapshot as snap
+    from scripts.research_job_month_plan import plan_month_slots
+    registry_file, job = _local_queue_fixture(tmp_path)
+    monkeypatch.setattr(terminal, "ROOT", tmp_path)
+    slots = plan_month_slots(job, datetime(2026, 10, 28, tzinfo=timezone.utc))
+    monkeypatch.setattr(snap, "plan_job", lambda root, fingerprint: {
+        "request_fingerprint": fingerprint, "planning_only": True, "slots": slots,
+    })
+    snap.persist_plan(tmp_path, job["fingerprint"])
+    output = tmp_path / "terminal.html"
+    assert terminal.main(["--registry", str(registry_file), "--out", str(output),
+                          "--include-local-jobs"]) == 0
+    assert "Monthly plan snapshots not loaded" in output.read_text()
+    assert job["fingerprint"][:16] in output.read_text()
+    assert terminal.main(["--registry", str(registry_file), "--out", str(output),
+                          "--include-local-jobs", "--include-local-month-plans"]) == 0
+    html = output.read_text()
+    assert "Verified immutable monthly plans" in html
+    assert "2026-11" in html and "2027-10" in html
+    assert "12 planned UTC months" in html
+    assert "PLANNED · NOT EXECUTED" in html
+    assert "Floating M1 DD" in html and "N/A" in html
+    assert "0 executed" in html
+
+
+def test_month_plan_flag_requires_explicit_local_queue_optin(tmp_path, monkeypatch):
+    from scripts import research_terminal as terminal
+    registry_file, _ = _local_queue_fixture(tmp_path)
+    monkeypatch.setattr(terminal, "ROOT", tmp_path)
+    with pytest.raises(SystemExit) as exc:
+        terminal.main(["--registry", str(registry_file),
+                       "--out", str(tmp_path / "terminal.html"),
+                       "--include-local-month-plans"])
+    assert exc.value.code == 2
+    assert not (tmp_path / "terminal.html").exists()
+
+
+def test_missing_month_plan_fails_closed_without_export(tmp_path, monkeypatch):
+    from scripts import research_terminal as terminal
+    registry_file, _ = _local_queue_fixture(tmp_path)
+    monkeypatch.setattr(terminal, "ROOT", tmp_path)
+    output = tmp_path / "terminal.html"
+    with pytest.raises((ValueError, FileNotFoundError)):
+        terminal.main(["--registry", str(registry_file), "--out", str(output),
+                       "--include-local-jobs", "--include-local-month-plans"])
+    assert not output.exists()
+
+
+def test_render_rejects_forged_completed_month_plan():
+    model = dashboard_model(registry())
+    model["monthly_plans"] = [{
+        "schema_version": 1, "request_fingerprint": "a" * 64,
+        "status": "COMPLETED", "source_verified_months": 12,
+        "backtests_executed": 100, "slots": [], "snapshot_sha256": "b" * 64,
+    }]
+    with pytest.raises(ValueError, match="provenance|state"):
+        render_html(model)
