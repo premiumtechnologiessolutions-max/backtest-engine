@@ -2,6 +2,7 @@ import pandas as pd
 import pytest
 
 import scripts.run_bos_fib_frozen_sensitivity as frozen
+from norisk_quant.persisted_trade_integrity import FIELDS as TRADE_FIELDS
 from scripts.run_bos_fib_frozen_sensitivity import (
     EXECUTION_SETTINGS, H1_SETTINGS, SOURCE_SHA, YEARLY_SETTINGS,
     validate_annual_month_coverage, validate_year_selection,
@@ -118,8 +119,17 @@ def test_frozen_runner_synthetic_end_to_end_writes_reconciled_reports(tmp_path, 
     with zipfile.ZipFile(source, "w") as archive:
         archive.writestr("2012.json", json.dumps(rows))
     monkeypatch.setattr(frozen, "sha256_file", lambda _: SOURCE_SHA)
+    original_verify = frozen.verify_persisted_trade_ledger
+    verified = []
+
+    def record_parity(executed, exported):
+        verified.append((len(executed), len(exported)))
+        return original_verify(executed, exported)
+
+    monkeypatch.setattr(frozen, "verify_persisted_trade_ledger", record_parity)
     output = tmp_path / "reports"
     result = frozen.execute(source, [2012], output)
+    assert verified == [(0, 0)]
     assert result["status"] == "ACCOUNTING_RECONCILED_NOT_BROKER_CERTIFIED"
     assert result["years_visited_independently"] == [2012]
     assert result["sampled_months"] == 12
@@ -246,7 +256,7 @@ def test_frozen_runner_rejects_shifted_monthly_pnl_even_when_total_matches(tmp_p
             "period": ["2011-12-26/2012-01-01"],
             "trades": [0], "net_pnl": [0.0], "total_cost": [0.0],
         }).to_csv(output / "weekly.csv", index=False)
-        pd.DataFrame(columns=["closed_at", "net_pnl", "cost"]).to_csv(
+        pd.DataFrame(columns=TRADE_FIELDS).to_csv(
             output / "trades.csv", index=False
         )
         return {
