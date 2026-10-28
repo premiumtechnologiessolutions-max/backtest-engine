@@ -112,3 +112,23 @@ def verify_persisted_trade_ledger(executed: pd.DataFrame, exported: pd.DataFrame
             if not (pd.Timestamp(row.signal_at) <= pd.Timestamp(row.entry_at)
                     <= pd.Timestamp(row.closed_at)):
                 raise ValueError(f"{label} trade has reversed signal/entry/exit chronology")
+
+            # The executor's named exit paths have distinct price contracts.
+            # A ledger can match itself and balance financially while claiming
+            # a target fill below TP or a stop fill better than the stop.
+            # This verifies only price/reason consistency, NOT whether M1
+            # quotes actually touched the claimed level.
+            reason = row.exit_reason
+            if reason in ("stop", "ambiguous_stop_first"):
+                if not math.isclose(row.exit_price, row.stop, rel_tol=0, abs_tol=1e-7):
+                    raise ValueError(f"{label} stop exit price differs from stop")
+            elif reason in ("target", "open_target"):
+                if not math.isclose(row.exit_price, row.target, rel_tol=0, abs_tol=1e-7):
+                    raise ValueError(f"{label} target exit price differs from target")
+            elif reason in ("open_stop", "gap_stop", "entry_open_beyond_stop"):
+                # An adverse opening print may slip THROUGH the stop, never
+                # improve the fill relative to that stop in this simulator.
+                if row.side * (row.exit_price - row.stop) > 1e-7:
+                    raise ValueError(f"{label} adverse open exit improved beyond stop")
+            elif reason != "end_of_data":
+                raise ValueError(f"{label} trade has unknown exit reason")
