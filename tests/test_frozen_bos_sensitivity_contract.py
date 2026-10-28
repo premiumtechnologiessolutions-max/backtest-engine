@@ -181,6 +181,35 @@ def test_frozen_runner_rejects_output_symlink(tmp_path):
     assert list(target.iterdir()) == []
 
 
+def test_frozen_runner_rejects_symlinked_parent_of_output(tmp_path):
+    # The leaf itself is not a symlink: a parent is redirected outside the
+    # intended evidence directory. Do not create reports in the target.
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    link = tmp_path / "redirect"
+    link.symlink_to(outside, target_is_directory=True)
+    destination = link / "new" / "reports"
+    with pytest.raises(FileExistsError, match="symlink"):
+        validate_output_destination(destination)
+    assert list(outside.iterdir()) == []
+
+
+def test_frozen_runner_rejects_symlinked_parent_before_source_hash(tmp_path, monkeypatch):
+    source = tmp_path / "SYNTHETIC_NOT_REAL_GOLD.zip"
+    source.write_bytes(b"synthetic fixture")
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    link = tmp_path / "redirect"
+    link.symlink_to(outside, target_is_directory=True)
+    monkeypatch.setattr(
+        frozen, "sha256_file",
+        lambda _: (_ for _ in ()).throw(AssertionError("source hash must not run")),
+    )
+    with pytest.raises(FileExistsError, match="symlink"):
+        frozen.execute(source, [2012], link / "reports")
+    assert list(outside.iterdir()) == []
+
+
 def test_frozen_runner_rejects_shifted_monthly_pnl_even_when_total_matches(tmp_path, monkeypatch):
     """A zero-sum monthly redistribution must not pass annual reconciliation.
 
