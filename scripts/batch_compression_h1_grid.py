@@ -48,7 +48,8 @@ def compression_breaks(m15, lookback, squeeze):
         raise ValueError('Non-frozen compression parameters')
     if len(m15) < 22:
         return np.empty(0,np.int64),np.empty(0,np.int8),np.empty(0,float)
-    segment = np.cumsum(np.r_[True,np.diff(m15.index.asi8)!=900_000_000_000])
+    # Compare M15 intervals in nanoseconds regardless of source index unit.
+    segment = np.cumsum(np.r_[True,np.diff(m15.index.as_unit('ns').asi8)!=900_000_000_000])
     high=m15.h.to_numpy(float);low=m15.l.to_numpy(float);close=m15.c.to_numpy(float)
     ranges=high-low
     baseline=pd.Series(ranges).shift(2).rolling(20,min_periods=20).median().to_numpy()
@@ -62,14 +63,14 @@ def compression_breaks(m15, lookback, squeeze):
     up=eligible&(close>previous_high)
     down=eligible&(close<previous_low)
     selected=np.flatnonzero(up|down)
-    stamps=np.asarray(m15.close_at.array.asi8//1_000_000_000,dtype=np.int64)
+    stamps=np.asarray(m15.close_at.array.as_unit('ns').asi8//1_000_000_000,dtype=np.int64)
     return stamps[selected],np.where(up[selected],1,-1).astype(np.int8),baseline[selected]
 
 def h1_context(h1):
     """Observed completed H1 only; EMA and previous24 range within 168h."""
     if h1.empty:
         return np.empty(0,np.int64),np.empty(0,np.int8),np.empty(0,float)
-    stamps=np.asarray(h1.close_at.array.asi8//1_000_000_000,dtype=np.int64)
+    stamps=np.asarray(h1.close_at.array.as_unit('ns').asi8//1_000_000_000,dtype=np.int64)
     segment=np.cumsum(np.r_[True,np.diff(stamps)>168*3600])
     groups=pd.Series(segment,index=h1.index)
     close=h1.c.astype(float)
@@ -195,7 +196,7 @@ def run_batch(m1,year,out,limit=TOTAL):
     started=time.perf_counter()
     m15=aggregate_bars(m1,'M15');h1=aggregate_bars(m1,'H1')
     ht,trend,ratio=h1_context(h1)
-    stamps=np.asarray(m1.index.asi8//1_000_000_000,dtype=np.int64)
+    stamps=np.asarray(m1.index.as_unit('ns').asi8//1_000_000_000,dtype=np.int64)
     op,hi,lo,cl=(m1[k].to_numpy(float) for k in ('o','h','l','c'))
     months=(m1.index.month.to_numpy(np.int16)-1).astype(np.int8)
     rows=[];cache={};hashes=set()
