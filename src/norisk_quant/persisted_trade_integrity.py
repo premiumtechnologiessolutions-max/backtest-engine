@@ -83,3 +83,22 @@ def verify_persisted_trade_ledger(executed: pd.DataFrame, exported: pd.DataFrame
             match = (abs(left - right) <= 1e-7).all()
         if not match:
             raise ValueError(f"Persisted trade ledger differs from execution: {field}")
+
+    # Matching execution/export rows are not enough: both could contain the
+    # same corrupted accounting. Independently reconstruct each trade using
+    # the FROZEN $0.40/oz all-in model. Never infer a valid fee from a total.
+    for label, frame in (("execution", executed), ("export", exported)):
+        for row in frame.itertuples(index=False):
+            if row.ounces <= 0:
+                raise ValueError(f"{label} trade has nonpositive ounces")
+            expected_fee = 0.40 * row.ounces
+            expected_gross = row.side * (row.exit_price - row.entry_price) * row.ounces
+            if not math.isclose(row.cost, expected_fee, rel_tol=0, abs_tol=1e-9):
+                raise ValueError(f"{label} trade fee differs from fixed $0.40/oz")
+            if not math.isclose(row.gross_pnl, expected_gross, rel_tol=0, abs_tol=1e-7):
+                raise ValueError(f"{label} trade gross P/L differs from price movement")
+            if not math.isclose(row.net_pnl, row.gross_pnl - row.cost, rel_tol=0, abs_tol=1e-7):
+                raise ValueError(f"{label} trade net P/L differs from gross less fee")
+            if not (pd.Timestamp(row.signal_at) <= pd.Timestamp(row.entry_at)
+                    <= pd.Timestamp(row.closed_at)):
+                raise ValueError(f"{label} trade has reversed signal/entry/exit chronology")
