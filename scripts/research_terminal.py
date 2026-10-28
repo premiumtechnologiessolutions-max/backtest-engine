@@ -89,10 +89,36 @@ def main(argv: list[str] | None = None) -> int:
                         help="Opt in to verified local queue metadata in offline HTML")
     parser.add_argument("--include-local-month-plans", action="store_true",
                         help="Opt in to verified immutable local month-plan snapshots (requires --include-local-jobs)")
+    parser.add_argument("--verified-monthly-plan", type=Path,
+                        help="Opt in to fresh private canonical batch re-audit")
+    parser.add_argument("--verified-monthly-output", type=Path,
+                        help="Local canonical batch output to re-audit")
+    parser.add_argument("--verified-monthly-equity-pins", type=Path,
+                        help="Optional independently frozen M1 equity SHA256 pins")
     args = parser.parse_args(argv)
+    if bool(args.verified_monthly_plan) != bool(args.verified_monthly_output):
+        parser.error("--verified-monthly-plan and --verified-monthly-output are required together")
+    if args.verified_monthly_equity_pins and not args.verified_monthly_plan:
+        parser.error("--verified-monthly-equity-pins requires --verified-monthly-plan")
     if args.include_local_month_plans and not args.include_local_jobs:
         parser.error("--include-local-month-plans requires --include-local-jobs")
     model = dashboard_model(json.loads(args.registry.read_text(encoding="utf-8")))
+    if args.verified_monthly_plan:
+        try:
+            from scripts import research_batch_monthly_scorecard as scorecard
+            from scripts import research_batch_orchestrator as lab
+        except ModuleNotFoundError as exc:
+            if exc.name != "scripts":
+                raise
+            import research_batch_monthly_scorecard as scorecard
+            import research_batch_orchestrator as lab
+        plan = lab.read_strict_json(args.verified_monthly_plan)
+        pins = (lab.read_strict_json(args.verified_monthly_equity_pins)
+                if args.verified_monthly_equity_pins else None)
+        # Re-read and reconcile canonical source on the exact checkout.
+        # A precomputed scorecard JSON is never accepted as evidence.
+        model["verified_monthly"] = scorecard.scorecard(
+            plan, args.verified_monthly_output, equity_pins=pins)
     if args.include_local_jobs:
         try:
             from scripts.research_job_queue import list_jobs
@@ -123,6 +149,7 @@ def main(argv: list[str] | None = None) -> int:
         "specifications": model["specifications"],
         "passing_24_of_24": model["passing_24_of_24"],
         "local_jobs_included": args.include_local_jobs,
+        "verified_monthly_included": args.verified_monthly_plan is not None,
         "local_jobs": len(model["jobs"]) if args.include_local_jobs else None,
         "local_month_plans": len(model["monthly_plans"]) if args.include_local_month_plans else None,
     }, indent=2))
