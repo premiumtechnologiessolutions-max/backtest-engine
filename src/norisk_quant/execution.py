@@ -7,6 +7,7 @@ import math
 import pandas as pd
 
 from .model import Position, Settings, Signal
+from .executor_quote_contract import require_numeric_execution_ohlc
 
 
 @dataclass
@@ -44,6 +45,7 @@ def run(minutes: pd.DataFrame, signals: Iterable[Signal], settings: Settings) ->
     required = {"o", "h", "l", "c"}
     if not required.issubset(minutes):
         raise ValueError("Market data missing OHLC columns")
+    require_numeric_execution_ohlc(minutes)
 
     ordered = sorted(signals, key=lambda signal: pd.Timestamp(signal.confirmed_at))
     cost = settings.roundtrip_cost_per_ounce * settings.ounces
