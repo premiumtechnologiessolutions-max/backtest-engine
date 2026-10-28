@@ -199,3 +199,44 @@ def test_queue_listing_rejects_public_monthly_plan_directory(tmp_path):
     directory.chmod(0o755)
     with pytest.raises(ValueError, match="owner-only"):
         list_jobs(root)
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX symlink provenance test")
+def test_symlinked_docs_ancestor_inside_checkout_is_rejected(tmp_path):
+    root = root_fixture(tmp_path)
+    real_docs = root / "docs_real"
+    (root / "docs").rename(real_docs)
+    (root / "docs").symlink_to(real_docs, target_is_directory=True)
+    with pytest.raises(ValueError, match="symlinked ancestor"):
+        request(root)
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX symlink provenance test")
+def test_nested_symlinked_spec_parent_inside_checkout_is_rejected(tmp_path):
+    root = root_fixture(tmp_path)
+    actual = root / "docs" / "actual"
+    actual.mkdir()
+    (actual / "FROZEN.md").write_text("frozen before results\\n")
+    (root / "docs" / "alias").symlink_to(actual, target_is_directory=True)
+    with pytest.raises(ValueError, match="symlinked ancestor"):
+        frozen_request(root, "NRF-FAC-024", "docs/alias/FROZEN.md",
+                       "a" * 40, "2026-11-01", "2027-10-31")
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX symlink provenance test")
+def test_symlinked_registry_parent_inside_checkout_is_rejected(tmp_path):
+    root = root_fixture(tmp_path)
+    real_research = root / "research_real"
+    (root / "research").rename(real_research)
+    (root / "research").symlink_to(real_research, target_is_directory=True)
+    with pytest.raises(ValueError, match="symlinked ancestor"):
+        request(root)
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX symlink provenance test")
+def test_symlinked_checkout_root_is_rejected(tmp_path):
+    root = root_fixture(tmp_path)
+    alias = tmp_path / "checkout_alias"
+    alias.symlink_to(root, target_is_directory=True)
+    with pytest.raises(ValueError, match="root must not be symlinked"):
+        request(alias)

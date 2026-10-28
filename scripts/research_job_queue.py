@@ -30,11 +30,26 @@ def _sha(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def _checked_repository_path(root: Path, relative: str) -> Path:
+    """Reject symlinked path components, not only the final input file.
+
+    This is a local provenance preflight, not a race-free filesystem sandbox.
+    """
+    if root.is_symlink():
+        raise ValueError("Frozen input root must not be symlinked")
+    candidate = root
+    for part in PurePosixPath(relative).parts:
+        candidate = candidate / part
+        if candidate.is_symlink():
+            raise ValueError("Frozen input path contains a symlinked ancestor")
+    return candidate
+
+
 def _read_source(root: Path, relative: str) -> str:
     if not SAFE_SPEC.fullmatch(relative) or ".." in PurePosixPath(relative).parts:
         raise ValueError("Frozen spec must be a safe docs/ or research/ markdown/JSON path")
-    candidate = root / relative
-    if candidate.is_symlink() or not candidate.is_file() or not candidate.resolve().is_relative_to(root.resolve()):
+    candidate = _checked_repository_path(root, relative)
+    if not candidate.is_file() or not candidate.resolve().is_relative_to(root.resolve()):
         raise ValueError("Frozen spec missing, symlinked, or outside repository")
     if candidate.stat().st_size > MAX_SOURCE_BYTES:
         raise ValueError("Frozen spec exceeds size limit")
@@ -42,8 +57,8 @@ def _read_source(root: Path, relative: str) -> str:
 
 
 def _registry_hash(root: Path) -> str:
-    registry = root / "research" / "strategy_factory_registry.json"
-    if registry.is_symlink() or not registry.is_file() or not registry.resolve().is_relative_to(root.resolve()):
+    registry = _checked_repository_path(root, "research/strategy_factory_registry.json")
+    if not registry.is_file() or not registry.resolve().is_relative_to(root.resolve()):
         raise ValueError("Registry unavailable or unsafe")
     if registry.stat().st_size > MAX_SOURCE_BYTES:
         raise ValueError("Registry exceeds size limit")
