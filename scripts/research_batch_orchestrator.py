@@ -186,11 +186,30 @@ def same(a: float, b: float) -> bool:
     return math.isfinite(a) and math.isfinite(b) and abs(a - b) <= 1e-6
 
 
+def read_ledger_csv(path: Path) -> list[dict[str, str]]:
+    """Reject ambiguous headers, ragged rows and symlinked frozen CSV ledgers.
+
+    csv.DictReader otherwise silently overwrites duplicate column names and
+    puts overflow cells under a None key, hiding contradictory evidence.
+    """
+    if path.is_symlink() or not path.is_file():
+        raise ValueError("Missing or unsafe ledger CSV")
+    with path.open(newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        names = reader.fieldnames
+        if (not names or len(names) != len(set(names))
+                or any(not name or name.strip() != name for name in names)):
+            raise ValueError("Duplicate or invalid ledger CSV header")
+        rows = list(reader)
+    if any(None in row or any(value is None for value in row.values()) for row in rows):
+        raise ValueError("Ragged ledger CSV row")
+    return rows
+
+
 def audit_run(folder: Path, spec: dict, source_sha: str, engine_sha: str) -> dict:
     """Reconcile actual engine output without certifying broker execution."""
     summary = json.loads((folder / "summary.json").read_text(encoding="utf-8"))
-    with (folder / "monthly.csv").open(newline="", encoding="utf-8") as handle:
-        rows = list(csv.DictReader(handle))
+    rows = read_ledger_csv(folder / "monthly.csv")
     if not isinstance(summary, dict) or not rows:
         raise ValueError("Missing evidence")
     if summary.get("execution") != "synthetic_same_reference_bid_ohlc_fixed_all_in_fee":
@@ -218,10 +237,8 @@ def audit_run(folder: Path, spec: dict, source_sha: str, engine_sha: str) -> dic
     if [row.get("period") for row in rows] != months:
         raise ValueError("Monthly rows do not fully cover requested interval")
     # Three independently emitted ledgers must reconcile before promotion.
-    with (folder / "weekly.csv").open(newline="", encoding="utf-8") as handle:
-        weekly = list(csv.DictReader(handle))
-    with (folder / "trades.csv").open(newline="", encoding="utf-8") as handle:
-        individual = list(csv.DictReader(handle))
+    weekly = read_ledger_csv(folder / "weekly.csv")
+    individual = read_ledger_csv(folder / "trades.csv")
     if not weekly:
         raise ValueError("Weekly evidence missing")
     pnl, trades, fees, gaps, forced = {}, 0, 0.0, 0, 0
