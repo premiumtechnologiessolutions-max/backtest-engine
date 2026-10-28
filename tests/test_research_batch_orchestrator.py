@@ -590,3 +590,81 @@ def test_real_batch_run_holds_output_lock_through_canonical_execution(tmp_path, 
     result = lab.run_plan(p, tmp_path / "output", max_jobs=1)
     assert result["executed_this_invocation"] == 1
     assert len(calls) == 1
+
+
+def test_same_frozen_spec_with_different_job_ids_is_rejected(tmp_path):
+    p = plan(tmp_path, jobs=[
+        {"id": "first", **spec()},
+        {"id": "second", **spec()},
+    ])
+    with pytest.raises(ValueError, match="Duplicate frozen strategy specification"):
+        lab.expand(p)
+
+
+def test_duplicate_spec_across_explicit_job_and_grid_is_rejected(tmp_path):
+    p = plan(tmp_path, grids=[{
+        "id_prefix": "same-spec", "strategy": "ema", "timeframe": "M15",
+        "execution": "fast", "start": "2024-01-01", "end": "2024-02-29",
+        "grid": {"fast": [9], "slow": [21], "stop_atr": [1.5], "rr": [2.0]},
+    }])
+    with pytest.raises(ValueError, match="Duplicate frozen strategy specification"):
+        lab.expand(p)
+
+
+def test_duplicate_spec_across_distinct_grid_prefixes_is_rejected(tmp_path):
+    grid = {
+        "strategy": "ema", "timeframe": "M15", "execution": "fast",
+        "start": "2024-01-01", "end": "2024-02-29",
+        "grid": {"fast": [8], "slow": [24]},
+    }
+    p = plan(tmp_path, jobs=[], grids=[
+        {"id_prefix": "grid-a", **grid},
+        {"id_prefix": "grid-b", **grid},
+    ])
+    with pytest.raises(ValueError, match="Duplicate frozen strategy specification"):
+        lab.expand(p)
+
+
+def test_batch_index_is_private_after_reconciled_execution(tmp_path, monkeypatch):
+    import os
+    data = tmp_path / "private-synthetic.zip"
+    data.write_bytes(b"synthetic data only")
+    p = plan(tmp_path)
+    p["source_sha256"] = lab.file_sha(data)
+    monkeypatch.setattr(lab, "checkout_commit", lambda: COMMIT)
+
+    def fake_engine(command, **kwargs):
+        folder = Path(command[command.index("--out") + 1])
+        make_report(folder, source=p["source_sha256"])
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(lab.subprocess, "run", fake_engine)
+    out = tmp_path / "out"
+    assert lab.run_plan(p, out)["reconciled_jobs"] == 1
+    index = out / "research_batch_index.html"
+    assert "2024-01" in index.read_text(encoding="utf-8")
+    if os.name == "posix":
+        assert index.stat().st_mode & 0o077 == 0
+
+
+def test_batch_index_symlink_cannot_overwrite_external_file(tmp_path, monkeypatch):
+    data = tmp_path / "private-synthetic.zip"
+    data.write_bytes(b"synthetic data only")
+    p = plan(tmp_path)
+    p["source_sha256"] = lab.file_sha(data)
+    monkeypatch.setattr(lab, "checkout_commit", lambda: COMMIT)
+
+    def fake_engine(command, **kwargs):
+        folder = Path(command[command.index("--out") + 1])
+        make_report(folder, source=p["source_sha256"])
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(lab.subprocess, "run", fake_engine)
+    out = tmp_path / "out"
+    out.mkdir()
+    external = tmp_path / "external-private.txt"
+    external.write_text("KEEP", encoding="utf-8")
+    (out / "research_batch_index.html").symlink_to(external)
+    with pytest.raises(ValueError, match="symlinked export destination"):
+        lab.run_plan(p, out)
+    assert external.read_text(encoding="utf-8") == "KEEP"

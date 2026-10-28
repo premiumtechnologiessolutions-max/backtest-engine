@@ -25,6 +25,13 @@ except ImportError:  # no POSIX flock: execution fails closed
 
 from norisk_quant.evidence_reconciliation import verify_exit_periods
 
+try:
+    from scripts.research_terminal_export import write_private_html
+except ModuleNotFoundError as exc:
+    if exc.name != "scripts":
+        raise
+    from research_terminal_export import write_private_html
+
 SCHEMA = "NRFX_FROZEN_BATCH_V1"
 PASSED = "ACCOUNTING_RECONCILED_HISTORICAL_EXPOSED_NOT_OOS"
 HEX40 = re.compile(r"[0-9a-f]{40}\Z")
@@ -144,14 +151,25 @@ def expand(plan: dict, *, limit: int = 50000) -> tuple[list[dict], str]:
         raise ValueError("Invalid limit")
     jobs = []
     ids = set()
+    # One exact frozen specification is one backtest, regardless of its label.
+    # This does not claim that different parameter sets are independent hypotheses.
+    seen_specs: dict[str, str] = {}
 
     def add(ident: str, spec: dict):
         if type(ident) is not str or not JOB_ID.fullmatch(ident):
             raise ValueError("Unsafe job ID")
         if ident in ids or len(jobs) >= limit:
             raise ValueError("Duplicate ID or batch expansion cap reached")
+        validated = check_spec(spec)
+        fingerprint = hashlib.sha256(canonical(validated)).hexdigest()
+        if fingerprint in seen_specs:
+            raise ValueError(
+                "Duplicate frozen strategy specification: "
+                + seen_specs[fingerprint] + " and " + ident
+            )
+        seen_specs[fingerprint] = ident
         ids.add(ident)
-        jobs.append({"id": ident, "spec": check_spec(spec)})
+        jobs.append({"id": ident, "spec": validated})
 
     for item in plan["jobs"]:
         if not isinstance(item, dict) or set(item) != BASE | {"parameters", "id"}:
@@ -548,7 +566,9 @@ def run_plan(plan: dict, output: Path, *, max_jobs: int = 20, dry_run: bool = Fa
             atomic_manifest(manifest_path, manifest)
             launched += 1
         index = output / "research_batch_index.html"
-        index.write_text(render_index(manifest), encoding="utf-8")
+        # Monthly results and local evidence links are private by default.
+        # Never follow a pre-planted HTML symlink or expose under a loose umask.
+        write_private_html(index, render_index(manifest))
         return {
             "status": "HISTORICAL_RESEARCH_ONLY", "defined_jobs": len(jobs),
             "reconciled_jobs": sum(
