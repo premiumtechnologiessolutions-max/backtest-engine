@@ -80,3 +80,32 @@ def test_adverse_gap_through():
     monthly,n,net,fee,dd,expired=replay_normalized(stamps,op,hi,lo,op.copy(),
          np.zeros(3,np.int8),np.array([0],np.int64),np.array([1],np.int8),np.array([1.]),1.,2.)
     assert n==1 and abs(net+5.4)<1e-8 and abs(fee-.4)<1e-8
+
+
+@pytest.mark.parametrize("unit", ["s", "ms", "us", "ns"])
+def test_frozen_compression_unit_invariance(unit):
+    frame = _bars().copy()
+    frame.index = frame.index.as_unit(unit)
+    frame["close_at"] = pd.DatetimeIndex(frame["close_at"]).as_unit(unit)
+    actual = compression_breaks(frame, 4, .55)
+    expected = compression_breaks(_bars(), 4, .55)
+    for left, right in zip(actual, expected):
+        np.testing.assert_array_equal(left, right)
+    assert len(actual[0]) == 1
+
+
+@pytest.mark.parametrize("unit", ["s", "ms", "us", "ns"])
+def test_h1_context_unit_invariance(unit):
+    idx = pd.date_range("2026-01-05", periods=40, freq="h", tz="UTC")
+    x = np.arange(40, dtype=float) + 100
+    original = pd.DataFrame({
+        "o": x, "h": x + 2, "l": x - 1, "c": x + 1,
+        "close_at": idx + pd.Timedelta(hours=1),
+    }, index=idx)
+    frame = original.copy()
+    frame.index = frame.index.as_unit(unit)
+    frame["close_at"] = pd.DatetimeIndex(frame["close_at"]).as_unit(unit)
+    actual = h1_context(frame)
+    expected = h1_context(original)
+    for left, right in zip(actual, expected):
+        np.testing.assert_array_equal(left, right)
