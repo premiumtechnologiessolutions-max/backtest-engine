@@ -2,7 +2,7 @@
 
 **Status: v0.1 research foundation — NOT a validated trading engine.**
 
-A single reproducible XAUUSD backtesting foundation. Private repository. No live trading, no orders, no guaranteed monthly profit.
+A single reproducible XAUUSD backtesting foundation. Repository visibility: PUBLIC as verified 2026-10-28; do not commit raw quotes, credentials or private research artifacts. No live trading, no orders, no guaranteed monthly profit.
 
 ## What is implemented today
 
@@ -21,7 +21,7 @@ A single reproducible XAUUSD backtesting foundation. Private repository. No live
 
 ## Install (Python 3.11+)
 
-Clone this private repo in a trusted Python environment:
+Clone the repository in a trusted Python environment:
 
     git clone https://github.com/premiumtechnologiessolutions-max/backtest-engine.git
     cd backtest-engine
