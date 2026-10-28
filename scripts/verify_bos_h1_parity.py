@@ -256,6 +256,41 @@ def exact_ledger_check(ours: pd.DataFrame, reference: pd.DataFrame) -> dict:
             raise AssertionError(
                 f"Ledger invariant: {label} invalid directional stop/target geometry"
             )
+        # Identical reference/engine rows can still fabricate an exit reason.
+        # The limit executor always fills stop/target at the configured bound,
+        # except an adverse opening gap/first quote can worsen a stop.
+        # End-of-data closes at the last observed market close.
+        reasons = ledger[fields["exit_reason"]].tolist()
+        fixed_stop_reasons = {"stop", "ambiguous_stop_first"}
+        fixed_target_reasons = {"target", "open_target"}
+        adverse_open_reasons = {"gap_stop", "open_stop", "entry_open_beyond_stop"}
+        allowed_reasons = (
+            fixed_stop_reasons | fixed_target_reasons
+            | adverse_open_reasons | {"end_of_data"}
+        )
+        if any(reason not in allowed_reasons for reason in reasons):
+            raise AssertionError(
+                f"Ledger invariant: {label} unknown exit reason"
+            )
+        stop_mask = np.asarray([reason in fixed_stop_reasons for reason in reasons])
+        target_mask = np.asarray([reason in fixed_target_reasons for reason in reasons])
+        adverse_mask = np.asarray([reason in adverse_open_reasons for reason in reasons])
+        exit_price = ledger[fields["exit"]].to_numpy(dtype=float)
+        if not np.allclose(exit_price[stop_mask], stop[stop_mask], rtol=0, atol=1e-7):
+            raise AssertionError(
+                f"Ledger invariant: {label} stop exit price differs from stop"
+            )
+        if not np.allclose(exit_price[target_mask], target[target_mask], rtol=0, atol=1e-7):
+            raise AssertionError(
+                f"Ledger invariant: {label} target exit price differs from target"
+            )
+        # A long's adverse stop-open fill cannot exceed its stop; a short's
+        # cannot be below its stop.  Never upgrade an opening gap to a
+        # favorable fill while preserving a misleading stop exit label.
+        if np.any(side[adverse_mask] * (exit_price[adverse_mask] - stop[adverse_mask]) > 1e-7):
+            raise AssertionError(
+                f"Ledger invariant: {label} favorable price on adverse open stop"
+            )
     return {
         "trades": len(ours),
         "fields": len(FIELDS),
