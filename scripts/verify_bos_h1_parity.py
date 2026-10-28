@@ -211,12 +211,14 @@ def exact_ledger_check(ours: pd.DataFrame, reference: pd.DataFrame) -> dict:
             "exit_time": "closed_at", "entry": "entry_price",
             "exit": "exit_price", "stop": "stop", "target": "target",
             "fee": "cost", "gross": "gross_pnl", "net": "net_pnl",
+            "exit_reason": "exit_reason",
         }),
         ("archive", reference, {
             "signal": "signal_time", "entry_time": "entry_time",
             "exit_time": "exit_time", "entry": "entry",
             "exit": "exit", "stop": "stop", "target": "target",
             "fee": "fee", "gross": "gross", "net": "net",
+            "exit_reason": "exit_reason",
         }),
     ):
         def times(key: str) -> np.ndarray:
