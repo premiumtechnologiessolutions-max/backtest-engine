@@ -73,8 +73,12 @@ def validate_annual_month_coverage(quotes: pd.DataFrame, year: int) -> None:
 
 def validate_output_destination(destination: Path) -> None:
     """Do not overwrite earlier frozen replay evidence or follow output symlinks."""
-    if destination.is_symlink():
-        raise FileExistsError("Frozen report destination must not be a symlink")
+    # A non-symlink final directory can still escape through a symlinked
+    # parent. Reject the entire existing ancestor chain before any report is
+    # created; this is a preflight guard, not a defense against concurrent
+    # filesystem replacement by an adversary.
+    if any(path.is_symlink() for path in (destination, *destination.parents)):
+        raise FileExistsError("Frozen report destination or parent must not be a symlink")
     if destination.exists():
         if not destination.is_dir():
             raise FileExistsError("Frozen report destination exists and is not a directory")
