@@ -378,3 +378,53 @@ def test_audit_rejects_period_shift_despite_matching_total_pnl(tmp_path, shifted
     assert sum(float(row["net_pnl"]) for row in rows) == pytest.approx(1)
     with pytest.raises(ValueError, match="exit allocation|timestamp"):
         lab.audit_run(folder, spec(), SOURCE, COMMIT)
+
+
+@pytest.mark.parametrize("ledger", ["monthly", "weekly", "trades"])
+def test_duplicate_csv_header_is_rejected_even_when_values_match(tmp_path, ledger):
+    folder = tmp_path / "job"
+    make_report(folder)
+    path = folder / (ledger + ".csv")
+    lines = path.read_text(encoding="utf-8").splitlines()
+    # DictReader previously silently selected one of two identical columns.
+    lines[0] += ",net_pnl"
+    lines[1:] = [line + "," + line.split(",")[1] for line in lines[1:]]
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="Duplicate or invalid"):
+        lab.audit_run(folder, spec(), SOURCE, COMMIT)
+
+
+@pytest.mark.parametrize("ledger", ["monthly", "weekly", "trades"])
+def test_extra_csv_cell_is_rejected(tmp_path, ledger):
+    folder = tmp_path / "job"
+    make_report(folder)
+    path = folder / (ledger + ".csv")
+    lines = path.read_text(encoding="utf-8").splitlines()
+    lines[1] += ",unexpected"
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="Ragged"):
+        lab.audit_run(folder, spec(), SOURCE, COMMIT)
+
+
+@pytest.mark.parametrize("ledger", ["monthly", "weekly", "trades"])
+def test_missing_csv_cell_is_rejected(tmp_path, ledger):
+    folder = tmp_path / "job"
+    make_report(folder)
+    path = folder / (ledger + ".csv")
+    lines = path.read_text(encoding="utf-8").splitlines()
+    lines[1] = lines[1].rsplit(",", 1)[0]
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="Ragged"):
+        lab.audit_run(folder, spec(), SOURCE, COMMIT)
+
+
+@pytest.mark.parametrize("ledger", ["monthly", "weekly", "trades"])
+def test_symlinked_csv_is_rejected(tmp_path, ledger):
+    folder = tmp_path / "job"
+    make_report(folder)
+    path = folder / (ledger + ".csv")
+    original = folder / (ledger + ".original")
+    path.rename(original)
+    path.symlink_to(original)
+    with pytest.raises(ValueError, match="unsafe"):
+        lab.audit_run(folder, spec(), SOURCE, COMMIT)
