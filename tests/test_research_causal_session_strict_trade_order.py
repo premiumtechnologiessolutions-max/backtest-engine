@@ -19,7 +19,8 @@ def _sample():
         }
         for i in range(4)
     ]
-    return signal_at, bars
+    # Completed M15 close must precede the decision instant.
+    return signal_at + timedelta(seconds=1), bars
 
 
 @pytest.mark.parametrize("net", [-10.0, 10.0, 0.0])

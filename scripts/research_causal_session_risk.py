@@ -66,7 +66,9 @@ def evaluate_causal_gate(
         }:
             raise ValueError("Malformed observed M15 bar")
         end = _utc(bar["end_at"], "bar end")
-        if end > now or (previous is not None and end <= previous):
+        if end >= now:
+            raise ValueError("Future or same-instant M15 bar is not preknown")
+        if previous is not None and end <= previous:
             raise ValueError("Future or out-of-order M15 bar")
         if end.second or end.microsecond or end.minute % 15:
             raise ValueError("M15 bar end not on UTC quarter-hour")

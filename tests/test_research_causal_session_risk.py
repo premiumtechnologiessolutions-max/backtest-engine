@@ -14,7 +14,8 @@ def context(month=1, day=5, hour=13):
          "observed_m1_count": 15}
         for i in range(4)
     ]
-    return now, bars
+    # Completed M15 close must precede the decision instant.
+    return now + timedelta(seconds=1), bars
 
 
 def gate(now, bars, trades=None, **kwargs):
