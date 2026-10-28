@@ -4,10 +4,36 @@ Does not validate broker fills, profitability, provenance or OOS status.
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 import math
+import re
 
 TOLERANCE = 1e-6
+MONTH_LABEL = re.compile(r"[0-9]{4}-(?:0[1-9]|1[0-2])\Z")
+WEEK_LABEL = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}/[0-9]{4}-[0-9]{2}-[0-9]{2}\Z")
+
+
+def _validate_period_label(kind: str, label: str) -> None:
+    """Check canonical UTC report period labels, including empty periods."""
+    if kind == "month":
+        if not MONTH_LABEL.fullmatch(label):
+            raise ValueError("Invalid UTC monthly period label")
+        try:
+            date.fromisoformat(label + "-01")
+        except ValueError as exc:
+            raise ValueError("Invalid UTC monthly period label") from exc
+        return
+    if not WEEK_LABEL.fullmatch(label):
+        raise ValueError("Invalid UTC weekly period label")
+    start_raw, end_raw = label.split("/")
+    try:
+        start = date.fromisoformat(start_raw)
+        end = date.fromisoformat(end_raw)
+    except ValueError as exc:
+        raise ValueError("Invalid UTC weekly period label") from exc
+    if start.weekday() != 0 or end.weekday() != 6 or end - start != timedelta(days=6):
+        raise ValueError("Weekly period must run Monday through Sunday UTC")
+
 
 
 def _amount(value: object) -> float:
@@ -69,6 +95,7 @@ def verify_exit_periods(monthly: list[dict], weekly: list[dict], trades: list[di
             label = row.get("period")
             if not isinstance(label, str) or label in seen:
                 raise ValueError("Duplicate or invalid accounting period")
+            _validate_period_label(kind, label)
             seen.add(label)
             expected = groups[kind].get(label, [0, 0.0, 0.0])
             observed = [_count(row.get("trades")), _amount(row.get("net_pnl")),
