@@ -167,3 +167,35 @@ def test_reversed_monthly_ledger_rejected(tmp_path):
     hashes["monthly.csv"] = audit._hash(path)
     with pytest.raises(ValueError, match="ordering"):
         audit.audit_equity(run, archive, SOURCE, ENGINE, hashes)
+
+
+@pytest.mark.parametrize("fee", [0.4000005, "0.40", True])
+def test_exact_canonical_fee_rejects_near_miss_or_non_numeric_type(tmp_path, fee):
+    run, archive, hashes = fixture(tmp_path)
+    path = run / "summary.json"
+    summary = json.loads(path.read_text())
+    summary["settings"]["roundtrip_cost_per_ounce"] = fee
+    path.write_text(json.dumps(summary))
+    hashes["summary.json"] = audit._hash(path)
+    with pytest.raises(ValueError, match="source/code/cost"):
+        audit.audit_equity(run, archive, SOURCE, ENGINE, hashes)
+
+
+@pytest.mark.parametrize("token", ["1e999", "-1e999", "1e309"])
+def test_overflowing_json_exponent_rejected_even_in_unused_nested_field(tmp_path, token):
+    run, archive, hashes = fixture(tmp_path)
+    path = run / "summary.json"
+    original = path.read_text()
+    path.write_text(original[:-1] + ', "unused": {"value": ' + token + '}}')
+    hashes["summary.json"] = audit._hash(path)
+    with pytest.raises(ValueError, match="Nonfinite JSON evidence"):
+        audit.audit_equity(run, archive, SOURCE, ENGINE, hashes)
+
+
+def test_large_but_finite_json_exponent_is_accepted(tmp_path):
+    run, archive, hashes = fixture(tmp_path)
+    path = run / "summary.json"
+    original = path.read_text()
+    path.write_text(original[:-1] + ', "unused": {"value": 1e308}}')
+    hashes["summary.json"] = audit._hash(path)
+    assert audit.audit_equity(run, archive, SOURCE, ENGINE, hashes)["observed_m1_samples"] == 5
