@@ -77,7 +77,9 @@ def test_unknown_job_rejected(tmp_path, monkeypatch):
         score.scorecard(plan, out)
 
 def test_tampered_record_rejected(tmp_path, monkeypatch):
-    plan, out, manifest, _ = sample(tmp_path, monkeypatch)
+    plan, out, manifest, record = sample(tmp_path, monkeypatch)
+    original = dict(record)  # keep the canonical fixture independent of the tampered manifest
+    monkeypatch.setattr(lab, "audit_run", lambda *a: original)
     manifest["results"]["synthetic-ema"]["net_pnl"] = 999
     (out / "batch_manifest.json").write_text(json.dumps(manifest))
     with pytest.raises(ValueError, match="differs"):
