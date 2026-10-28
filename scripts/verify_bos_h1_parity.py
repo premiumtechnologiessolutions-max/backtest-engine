@@ -307,6 +307,36 @@ def exact_ledger_check(ours: pd.DataFrame, reference: pd.DataFrame) -> dict:
     }
 
 
+
+def validate_replay_market_year(m1: pd.DataFrame, year: int) -> None:
+    """Require a valid UTC M1 calendar-year scope before replay certification.
+
+    Month presence is necessary but not sufficient for a complete market
+    history: weekends, broker closures, and missing minutes need separate
+    source-quality assessment. This prevents a truncated annual source from
+    being certified solely because its archived trade ledger also truncates.
+    """
+    index = m1.index
+    if (
+        not isinstance(index, pd.DatetimeIndex)
+        or index.empty
+        or index.tz is None
+        or str(index.tz) != "UTC"
+        or index.hasnans
+        or index.has_duplicates
+        or not index.is_monotonic_increasing
+    ):
+        raise ValueError("Historical replay requires nonempty sorted unique UTC M1 timestamps")
+    if (index.year != year).any():
+        raise ValueError(f"Historical replay M1 includes timestamps outside {year}")
+    missing = sorted(set(range(1, 13)) - set(index.month.tolist()))
+    if missing:
+        raise ValueError(
+            f"Historical replay year {year} omits calendar months: {missing}; "
+            "cannot certify a full annual source replay"
+        )
+
+
 def validate_replay_years(years: list[int]) -> None:
     """Never report PASSED when no scenarios were requested or years repeat."""
     if not isinstance(years, (list, tuple)) or not years:
@@ -367,6 +397,7 @@ def verify(gold_zip: Path, reference_root: Path, years: list[int]) -> dict:
     for year in years:
         # Read annual JSON only and don't allow unseen feed replacement.
         m1 = load_market(gold_zip, f"{year}-01-01", f"{year}-12-31")
+        validate_replay_market_year(m1, year)
         setups = bos_fib_limit_orders(m1, settings=BosFibSettings())
         h1_aligned = filter_orders_h1(m1, setups)
         variants = {
