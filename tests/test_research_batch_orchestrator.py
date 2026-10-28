@@ -52,15 +52,16 @@ def make_report(folder: Path, source=SOURCE, commit=COMMIT, *, outcome=(3.0, -2.
     with (folder / "weekly.csv").open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=["period", "net_pnl", "trades", "total_cost"])
         writer.writeheader()
-        for month, gain in zip(("2024-01", "2024-02"), outcome):
-            writer.writerow({"period": month, "net_pnl": gain,
+        for week, gain in zip(("2024-01-01/2024-01-07", "2024-02-05/2024-02-11"), outcome):
+            writer.writerow({"period": week, "net_pnl": gain,
                              "trades": 2, "total_cost": 0.8})
     with (folder / "trades.csv").open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=["net_pnl", "cost"])
+        writer = csv.DictWriter(handle, fieldnames=["net_pnl", "cost", "closed_at"])
         writer.writeheader()
-        for gain in outcome:
+        for stamp, gain in zip(("2024-01-02T12:00:00+00:00", "2024-02-06T12:00:00+00:00"), outcome):
             for _ in range(2):
-                writer.writerow({"net_pnl": gain / 2, "cost": 0.4})
+                writer.writerow({"net_pnl": gain / 2, "cost": 0.4,
+                                 "closed_at": stamp})
     summary = {
         "execution": "synthetic_same_reference_bid_ohlc_fixed_all_in_fee",
         "settings": {"roundtrip_cost_per_ounce": 0.4},
