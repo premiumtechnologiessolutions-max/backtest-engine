@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from html import escape
 from urllib.parse import quote
+import re
 
 REPO = "https://github.com/premiumtechnologiessolutions-max/backtest-engine/blob/feat/quant-engine-foundation/"
 
@@ -64,6 +65,47 @@ def render_premium_html(model: dict) -> str:
 <td><div class="months"><progress max="24" value="''' + str(row["best_positive_months"]) + '''">''' + str(row["best_positive_months"]) + ''' / 24</progress><span>''' + str(row["best_positive_months"]) + ''' / 24</span></div></td>
 <td><span class="pill ''' + color + '''">''' + _e(status) + '''</span></td>
 <td>''' + link + '''</td></tr>''')
+    # Queue records are an explicit local-only opt-in, verified by list_jobs().
+    # Never infer execution, preflight success, or performance from QUEUED state.
+    jobs = model.get("jobs")
+    if jobs is None:
+        jobs_html = '<p class="sub">Local queue not loaded. Rebuild with --include-local-jobs to view verified local requests.</p>'
+    else:
+        if type(jobs) is not list or len(jobs) > 500:
+            raise ValueError("Invalid or oversized local research queue")
+        job_rows = []
+        for job in jobs:
+            if (type(job) is not dict
+                    or job.get("status") != "QUEUED_NOT_EXECUTED"
+                    or type(job.get("fingerprint")) is not str
+                    or not re.fullmatch(r"[0-9a-f]{64}", job["fingerprint"])
+                    or type(job.get("source_commit")) is not str
+                    or not re.fullmatch(r"[0-9a-f]{40}", job["source_commit"])
+                    or type(job.get("family")) is not str
+                    or not re.fullmatch(r"NRF-FAC-[0-9]{3}[A-Z]?", job["family"])
+                    or any(type(job.get(k)) is not str
+                           or not re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", job[k])
+                           for k in ("evaluation_start", "evaluation_end"))):
+                raise ValueError("Unverified local research job")
+            job_rows.append(
+                "<tr><td><code>" + _e(job["fingerprint"]) + "</code></td>"
+                + "<td>" + _e(job["family"]) + "</td>"
+                + "<td>" + _e(job["evaluation_start"]) + " — " + _e(job["evaluation_end"]) + "</td>"
+                + "<td><code>" + _e(job["source_commit"][:12]) + "</code></td>"
+                + "<td><span class='pill neutral'>QUEUED · NOT EXECUTED</span></td>"
+                + "<td>N/A</td><td>N/A</td><td>N/A</td></tr>"
+            )
+        jobs_html = (
+            '<p class="sub">' + str(len(jobs)) + ' locally verified queued request(s). '
+            'These are not running, completed or profitable. Preflight: N/A; '
+            'monthly P/L, worst month and floating drawdown: N/A.</p>'
+            + ('<div class="tablewrap"><table><thead><tr>'
+               '<th>Fingerprint</th><th>Family</th><th>Evaluation window</th>'
+               '<th>Frozen commit</th><th>Queue state</th><th>Monthly P/L</th>'
+               '<th>Worst month</th><th>Floating DD</th></tr></thead><tbody>'
+               + "".join(job_rows) + '</tbody></table></div>' if jobs else
+               '<p class="sub">No queued local requests.</p>')
+        )
     metric_defs = [
         ("PARAMETER SPECS", "specifications", "Correlated configurations"),
         ("ANNUAL REPLAYS", "annual_replays", "Runs with filled trades"),
@@ -85,7 +127,7 @@ def render_premium_html(model: dict) -> str:
 @media(max-width:1150px){.app{grid-template-columns:75px minmax(0,1fr)}.sidebar{padding:22px 11px}.brand>div:last-child,.nav-button .nav-text,.nav-caption,.sidebar-note{display:none}.nav-button{justify-content:center}.brand{justify-content:center}.grid-two{grid-template-columns:1fr}.stats{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:680px){.app{display:block}.sidebar{padding:12px 14px;display:flex;flex-direction:row;align-items:center;gap:14px;border-right:0;border-bottom:1px solid var(--line)}.brand>div:last-child{display:block}.nav-list{display:flex;gap:3px;margin-left:auto}.nav-button{padding:9px}.nav-caption{display:none}.sidebar-note{display:none}.main{padding:16px 14px 38px}.top{align-items:flex-start}.hero{display:block;padding:26px 0 18px}.hero-mark{display:inline-block;margin-top:16px}.stats{gap:9px}.metric{padding:14px;min-height:120px}.metric-value{font-size:25px}.metric-label{font-size:9px}.metric-hint{font-size:10px}.panel{padding:17px}.bar-row{grid-template-columns:88px minmax(0,1fr) 38px;gap:6px}.controls,.controls input,.controls select{width:100%}.method-grid,.compare-grid{grid-template-columns:1fr}}
 @media(prefers-reduced-motion:no-preference){button,.nav-button,.metric{transition:background .18s ease, border-color .18s ease}.metric:hover{border-color:#527096}}
 </style></head><body>
-<div class="app"><aside class="sidebar"><div class="brand"><div class="emblem" aria-hidden="true">✧</div><div><strong>NO RISK FX</strong><span>QUANT RESEARCH</span></div></div><nav class="nav-list" aria-label="Main sections"><span class="nav-caption">WORKSPACE</span><button type="button" class="nav-button active" data-view="overview" aria-current="page"><span class="nav-icon">◈</span><span class="nav-text" data-i18n="overview">Overview</span></button><button type="button" class="nav-button" data-view="catalog"><span class="nav-icon">▤</span><span class="nav-text" data-i18n="strategyLab">Strategy Lab</span></button><button type="button" class="nav-button" data-view="method"><span class="nav-icon">◇</span><span class="nav-text" data-i18n="verification">Verification</span></button></nav><div class="sidebar-note"><b>RESEARCH ENVIRONMENT</b><br>Offline metadata viewer only.<br>No orders, broker keys, live accounts or API access.</div></aside>
+<div class="app"><aside class="sidebar"><div class="brand"><div class="emblem" aria-hidden="true">✧</div><div><strong>NO RISK FX</strong><span>QUANT RESEARCH</span></div></div><nav class="nav-list" aria-label="Main sections"><span class="nav-caption">WORKSPACE</span><button type="button" class="nav-button active" data-view="overview" aria-current="page"><span class="nav-icon">◈</span><span class="nav-text" data-i18n="overview">Overview</span></button><button type="button" class="nav-button" data-view="catalog"><span class="nav-icon">▤</span><span class="nav-text" data-i18n="strategyLab">Strategy Lab</span></button><button type="button" class="nav-button" data-view="jobs"><span class="nav-icon">◷</span><span class="nav-text" data-i18n="jobs">Research Jobs</span></button><button type="button" class="nav-button" data-view="method"><span class="nav-icon">◇</span><span class="nav-text" data-i18n="verification">Verification</span></button></nav><div class="sidebar-note"><b>RESEARCH ENVIRONMENT</b><br>Offline metadata viewer only.<br>No orders, broker keys, live accounts or API access.</div></aside>
 <main class="main"><div class="top"><div class="eyebrow">INSTITUTIONAL RESEARCH DESK <span class="accent">/ XAUUSD</span></div><div class="status-top"><span class="dot" aria-hidden="true"></span><span data-i18n="readOnly">READ ONLY · HISTORICAL</span><button type="button" id="languageToggle" class="ghost" lang="ar" aria-label="Switch to Arabic" aria-pressed="false">العربية</button></div></div>
 <section class="view" id="overview"><div class="hero"><div><div class="eyebrow">RESEARCH INTELLIGENCE</div><h1><span data-i18n="quantResearch">Quant Research</span><br><span class="accent" data-i18n="commandCenter">Command Center.</span></h1><p>Track systematic hypotheses, evaluate historical research coverage and examine evidence—without confusing backtest statistics with verified future returns.</p></div><div class="hero-mark">v1.1 / VERIFIED COUNTS ONLY</div></div><div class="stats">__CARDS__</div>
 <div class="grid-two"><article class="panel"><div class="panel-head"><div><h2 data-i18n="coverage">Historical design-month coverage</h2><p class="sub">Maximum positive months achieved by a parameter specification in each family (2012–2013 exposed design). Not an equity curve or forward result.</p></div><span class="tag">TOP 6 · EXPOSED</span></div><div class="bar-list">__RANKS__</div></article><article class="panel"><div class="panel-head"><div><h2 data-i18n="pathway">Validation pathway</h2><p class="sub">Research gates and what the metadata can verify.</p></div></div><div class="checkpoint"><div class="step">01</div><div><b>Registry integrity</b><span>Arithmetic checked before the page is generated.</span></div></div><div class="checkpoint"><div class="step">02</div><div><b>Execution fidelity</b><span>Inspect each experiment report; no automatic broker-fill certification.</span></div></div><div class="checkpoint"><div class="step">03</div><div><b>Independent prospective OOS</b><span>Not established by this historical registry. Do not promote to live.</span></div></div></article></div>
@@ -95,6 +137,7 @@ def render_premium_html(model: dict) -> str:
 <div class="section-head"><div><h2 data-i18n="catalogue">Experiment catalogue</h2><p>Performance values here are historical design metrics, not verified expected returns.</p></div><div class="controls"><input type="search" id="filter" placeholder="Search name, ID or status" aria-label="Search experiment catalogue"><select id="statusFilter" aria-label="Filter by research status"><option value="all">All statuses</option><option value="rejected">Rejected</option><option value="unverified">Other / unverified</option><option value="neutral">No-trade / control</option></select><select id="sort" aria-label="Sort research families"><option value="months">Best positive months</option><option value="specs">Most parameter specs</option><option value="id">Experiment ID</option></select></div></div>
 <div class="tablewrap"><table><thead><tr><th>Compare / ID</th><th>Hypothesis</th><th>Specs</th><th>Annual replays</th><th>Best months</th><th>Reported state</th><th>Evidence</th></tr></thead><tbody id="experimentRows">__ROWS__</tbody></table></div><div class="subtle-line" id="count" role="status" aria-live="polite"></div>
 <article class="panel compare-panel"><div class="panel-head"><div><h2 data-i18n="comparison">Research comparison</h2><p class="sub">Select up to three families. Comparison is descriptive, not a strategy recommendation.</p></div><button type="button" class="ghost" id="clearCompare" data-i18n="clear">Clear</button></div><div id="selection" class="selection" aria-live="polite"><span class="message">Select families above to compare audited metadata.</span></div><div id="compareGrid" class="compare-grid"></div></article></section>
+<section class="view" id="jobs" hidden><div class="hero"><div><div class="eyebrow">OFFLINE QUEUE</div><h1><span data-i18n="jobs">Research Jobs</span> <span class="accent">/ Local</span></h1><p>Verified frozen requests only. This page never starts workers or changes a job's state.</p></div><div class="hero-mark">NO EXECUTION</div></div><div class="warning"><b>Research-only:</b> Queue state is not an execution result. Preflight is separate and must run on the exact clean checkout. No private quotes, live trading or broker access.</div>__JOBS__</section>
 <section class="view" id="method" hidden><div class="hero"><div><div class="eyebrow">EVIDENCE & VALIDATION</div><h1><span data-i18n="trust">Trust the</span> <span class="accent" data-i18n="process">process.</span></h1><p>Clear boundaries around what the engine has measured—and what remains unproven.</p></div><div class="hero-mark">NO OOS CERTIFICATE</div></div><div class="method-grid"><div class="panel"><h3 data-i18n="provenance">Data provenance</h3><p>Factory counts are derived from its published registry, which is arithmetically audited. This page does not fetch or expose the raw gold archive.</p></div><div class="panel"><h3 data-i18n="assumptions">Backtesting assumptions</h3><p>Research fixed-cost scenario: $__FEE__ per ounce, all-in round trip. Actual broker spread, ticks, fill sequence and slippage need separate verification.</p></div><div class="panel"><h3 data-i18n="designOos">Design vs. independent OOS</h3><p>Previously examined 2012–2013 results can support method development only. A prospective holdout, frozen rules and robust performance gates are required before advancing a candidate.</p></div><div class="panel"><h3 data-i18n="availability">Performance availability</h3><p>Weekly/monthly P&amp;L, win rates and equity curves are <b>N/A in this dashboard</b> until run-level verified files are attached. No illustrative curve is shown as real performance.</p></div></div><div class="warning"><b>Registry status:</b> __STATUS__<br><b>Last updated:</b> __UPDATED__ (source-provided UTC)</div></section>
 <footer class="footer"><span>NO RISK FX © 2026 · QUANT RESEARCH</span><span>Offline read-only HTML · No external scripts, analytics or broker access</span><span>Registry: __UPDATED__</span></footer></main></div>
 <script>
@@ -114,7 +157,7 @@ clear.addEventListener('click',()=>{for(const r of rows)r.querySelector('.compar
 const languageToggle=document.getElementById('languageToggle');
 const englishLabels=Object.fromEntries([...document.querySelectorAll('[data-i18n]')].map(el=>[el.dataset.i18n,el.textContent]));
 const arabicLabels={
- overview:'نظرة عامة',strategyLab:'مختبر الاستراتيجيات',verification:'التحقّق',
+ overview:'نظرة عامة',strategyLab:'مختبر الاستراتيجيات',verification:'التحقّق',jobs:'مهام البحث',
  readOnly:'للقراءة فقط · نتائج تاريخية',quantResearch:'البحث الكمي',commandCenter:'مركز التحكّم',
  explore:'استكشف',factory:'عائلات البحث',trust:'ثق في',process:'منهجية التحقّق',
  coverage:'تغطية الأشهر التاريخية للتصميم',pathway:'مراحل التحقّق',
@@ -142,6 +185,7 @@ languageToggle.addEventListener('click',()=>setLanguage(document.documentElement
     return (html.replace("__CARDS__", cards)
             .replace("__RANKS__", "".join(ranks) if ranks else '<p class="sub">No active families in audited registry.</p>')
             .replace("__ROWS__", "\n".join(row_html))
+            .replace("__JOBS__", jobs_html)
             .replace("__UPDATED__", _e(model["updated_utc"]))
             .replace("__STATUS__", _e(model["research_status"]))
             .replace("__FEE__", _e(format(float(model["fee"]), ".2f"))))

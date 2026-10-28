@@ -85,8 +85,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--registry", type=Path, default=DEFAULT_REGISTRY)
     parser.add_argument("--out", type=Path,
                         default=ROOT / "reports" / "research_terminal.html")
+    parser.add_argument("--include-local-jobs", action="store_true",
+                        help="Opt in to verified local queue metadata in offline HTML")
     args = parser.parse_args(argv)
     model = dashboard_model(json.loads(args.registry.read_text(encoding="utf-8")))
+    if args.include_local_jobs:
+        try:
+            from scripts.research_job_queue import list_jobs
+        except ModuleNotFoundError:  # direct invocation from repository root
+            from research_job_queue import list_jobs
+        # Invalid, tampered or unsafe local queue records fail closed.
+        model["jobs"] = list_jobs(ROOT)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(render_html(model), encoding="utf-8")
     print(json.dumps({
@@ -95,6 +104,8 @@ def main(argv: list[str] | None = None) -> int:
         "families": len(model["rows"]),
         "specifications": model["specifications"],
         "passing_24_of_24": model["passing_24_of_24"],
+        "local_jobs_included": args.include_local_jobs,
+        "local_jobs": len(model["jobs"]) if args.include_local_jobs else None,
     }, indent=2))
     return 0
 

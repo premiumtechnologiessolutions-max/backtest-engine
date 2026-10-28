@@ -29,3 +29,20 @@ The registry contains strongly correlated parameter choices tested against histo
 This first increment intentionally does not start backtests, retrieve live market data, send orders, control MT5, ingest the private Gold ZIP or compute hypothetical metrics. It is a read-only view over existing auditable metadata, not yet an automated all-in-one Quant Lab.
 
 Keep PR #1 as Draft/unmerged pending full-head CI, source checks and independent evidence.
+
+
+## Optional verified local Research Jobs view (2026-10-28)
+
+Use `python scripts/research_terminal.py --include-local-jobs` to opt in to
+displaying local queued job metadata in the generated offline HTML. Without the
+flag, the HTML **does not embed local job fingerprints**. The queue reader
+`scripts.research_job_queue.list_jobs` validates each entry, ownership,
+permissions, schema and SHA256; any unsafe/tampered record aborts the export
+before writing HTML. At most 500 verified jobs may be rendered.
+
+The new Research Jobs tab shows frozen request fingerprints, families,
+evaluation windows and source-commit prefixes. **QUEUED_NOT_EXECUTED** is not
+running, completed, or preflight-approved. All P/L, worst-month and floating-DD
+fields are N/A. This is static local metadata, not a worker, scheduling service,
+resume system, OOS result, broker interface or authorization to execute.
+Avoid sharing generated HTML containing opt-in local job fingerprints.

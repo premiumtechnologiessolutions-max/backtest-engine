@@ -1,4 +1,5 @@
 """Fail-closed tests for the research-only static terminal."""
+import json
 import pytest
 from scripts.research_terminal import dashboard_model, render_html
 
@@ -68,3 +69,73 @@ def test_boolean_replay_count_rejected():
     bad["completed_batches"][0]["active_annual_replays"] = True
     with pytest.raises(ValueError):
         dashboard_model(bad)
+
+
+def _local_queue_fixture(tmp_path):
+    from scripts.research_job_queue import enqueue, frozen_request
+    data = registry()
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "research").mkdir()
+    (tmp_path / "docs" / "FAC024_FROZEN.md").write_text("Frozen source\\n")
+    registry_file = tmp_path / "research" / "strategy_factory_registry.json"
+    registry_file.write_text(json.dumps(data))
+    job = frozen_request(tmp_path, "NRF-FAC-024", "docs/FAC024_FROZEN.md",
+                         "a" * 40, "2026-11-01", "2027-10-31")
+    enqueue(tmp_path, job)
+    return registry_file, job
+
+
+def test_local_queue_is_opt_in_and_never_claims_execution(tmp_path, monkeypatch):
+    from scripts import research_terminal as terminal
+    registry_file, job = _local_queue_fixture(tmp_path)
+    monkeypatch.setattr(terminal, "ROOT", tmp_path)
+    output = tmp_path / "terminal.html"
+    assert terminal.main(["--registry", str(registry_file), "--out", str(output)]) == 0
+    default_html = output.read_text()
+    assert job["fingerprint"] not in default_html
+    assert "Local queue not loaded" in default_html
+    assert terminal.main(["--registry", str(registry_file), "--out", str(output),
+                          "--include-local-jobs"]) == 0
+    html = output.read_text()
+    assert job["fingerprint"] in html
+    assert "QUEUED · NOT EXECUTED" in html
+    assert "Preflight: N/A" in html
+    assert "floating drawdown: N/A" in html
+    assert "Research Jobs" in html
+    assert "<script src=" not in html
+
+
+def test_tampered_queue_prevents_dashboard_export(tmp_path, monkeypatch):
+    from scripts import research_terminal as terminal
+    registry_file, job = _local_queue_fixture(tmp_path)
+    monkeypatch.setattr(terminal, "ROOT", tmp_path)
+    queue_file = tmp_path / "reports" / "research_jobs" / (job["fingerprint"] + ".json")
+    queue_file.write_text('{"status":"COMPLETED"}')
+    output = tmp_path / "terminal.html"
+    with pytest.raises(ValueError):
+        terminal.main(["--registry", str(registry_file), "--out", str(output),
+                       "--include-local-jobs"])
+    assert not output.exists()
+
+
+def test_render_rejects_unverified_job_status():
+    model = dashboard_model(registry())
+    model["jobs"] = [{
+        "fingerprint": "a" * 64, "source_commit": "b" * 40,
+        "family": "NRF-FAC-024", "evaluation_start": "2026-11-01",
+        "evaluation_end": "2027-10-31", "status": "COMPLETED",
+    }]
+    with pytest.raises(ValueError, match="Unverified local research job"):
+        render_html(model)
+
+
+def test_opt_in_empty_queue_is_explicit(tmp_path, monkeypatch):
+    from scripts import research_terminal as terminal
+    (tmp_path / "research").mkdir()
+    path = tmp_path / "research" / "strategy_factory_registry.json"
+    path.write_text(json.dumps(registry()))
+    monkeypatch.setattr(terminal, "ROOT", tmp_path)
+    output = tmp_path / "terminal.html"
+    assert terminal.main(["--registry", str(path), "--out", str(output),
+                          "--include-local-jobs"]) == 0
+    assert "No queued local requests" in output.read_text()
