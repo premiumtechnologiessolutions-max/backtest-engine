@@ -91,6 +91,16 @@ def verify_persisted_trade_ledger(executed: pd.DataFrame, exported: pd.DataFrame
         for row in frame.itertuples(index=False):
             if row.ounces <= 0:
                 raise ValueError(f"{label} trade has nonpositive ounces")
+            # Original M1 OHLC and LimitOrder contracts forbid nonpositive
+            # prices and reversed protective stop/target geometry. A matching
+            # corruption in both ledgers must not bypass those invariants.
+            if any(price <= 0 for price in (
+                row.entry_price, row.exit_price, row.stop, row.target
+            )):
+                raise ValueError(f"{label} trade has nonpositive price")
+            if ((row.side == 1 and not row.stop < row.entry_price < row.target)
+                    or (row.side == -1 and not row.target < row.entry_price < row.stop)):
+                raise ValueError(f"{label} trade has invalid stop/target geometry")
             expected_fee = 0.40 * row.ounces
             expected_gross = row.side * (row.exit_price - row.entry_price) * row.ounces
             if not math.isclose(row.cost, expected_fee, rel_tol=0, abs_tol=1e-9):

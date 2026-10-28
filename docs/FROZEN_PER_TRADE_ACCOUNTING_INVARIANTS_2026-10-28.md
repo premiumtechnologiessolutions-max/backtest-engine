@@ -19,3 +19,15 @@ The new synthetic regression module `tests/test_persisted_trade_accounting_invar
 Seven focused tests were reproduced locally with a manually reconstructed copy of the validator under Python/pandas and **7/7 passed**. This is a scoped isolated smoke check, **not** a full test of the actual GitHub checkout or CI. The test module and production validator have been committed to `feat/quant-engine-foundation`; run the full pinned GitHub test suite on the exact final HEAD before claiming release acceptance.
 
 No original Gold data.zip was available in this environment. No actual-source annual replay, 13-field original-archive comparison, new OOS result, tick execution certification, or new profitability result is claimed. The original source SHA-256 and frozen $0.40/oz cost remain unchanged. No raw quotes or archived trade ledgers were uploaded. PR #1 must remain Draft and unmerged.
+
+
+## Matching protective-price corruption negative controls (2026-10-28)
+
+The independent 15-field trade-ledger validator also requires positive entry,
+exit, stop and target prices, and the frozen `LimitOrder` protective geometry:
+long `stop < entry < target`, short `target < entry < stop`. This
+catches matching corruption in both in-memory and persisted ledgers even when
+P/L and fees are arithmetically consistent. An exit **beyond** the stop remains
+valid for an adverse observed gap-through, and short-side trades remain valid.
+Ten new synthetic parameterized/control cases are included; this is **not**
+broker/tick certification, prospective OOS or original-source replay.

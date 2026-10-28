@@ -68,3 +68,56 @@ def test_valid_two_ounce_trade_still_passes_fixed_per_ounce_cost():
     ]
     exported = pd.read_csv(io.StringIO(executed.to_csv(index=False)))
     verify_persisted_trade_ledger(executed, exported)
+
+
+@pytest.mark.parametrize("field,value", [
+    ("entry_price", -100.0),
+    ("exit_price", 0.0),
+    ("stop", 0.0),
+    ("target", -1.0),
+])
+def test_matching_nonpositive_price_is_rejected(field, value):
+    executed, _ = ledgers()
+    executed.loc[0, field] = value
+    exported = pd.read_csv(io.StringIO(executed.to_csv(index=False)))
+    with pytest.raises(ValueError, match="nonpositive price"):
+        verify_persisted_trade_ledger(executed, exported)
+
+
+@pytest.mark.parametrize("field,value", [
+    ("stop", 100.0), ("stop", 101.0),
+    ("target", 100.0), ("target", 99.0),
+])
+def test_matching_invalid_long_protective_geometry_is_rejected(field, value):
+    executed, _ = ledgers()
+    executed.loc[0, field] = value
+    exported = pd.read_csv(io.StringIO(executed.to_csv(index=False)))
+    with pytest.raises(ValueError, match="invalid stop/target geometry"):
+        verify_persisted_trade_ledger(executed, exported)
+
+
+def test_matching_invalid_short_protective_geometry_is_rejected():
+    executed, _ = ledgers()
+    executed.loc[0, ["side", "stop", "target", "gross_pnl", "net_pnl"]] = [
+        -1, 99.0, 98.0, -2.0, -2.4,
+    ]
+    exported = pd.read_csv(io.StringIO(executed.to_csv(index=False)))
+    with pytest.raises(ValueError, match="invalid stop/target geometry"):
+        verify_persisted_trade_ledger(executed, exported)
+
+
+def test_valid_short_trade_and_adverse_long_gap_stop_remain_supported():
+    short, _ = ledgers()
+    short.loc[0, ["side", "exit_price", "stop", "target"]] = [
+        -1, 98.0, 101.0, 98.0,
+    ]
+    verify_persisted_trade_ledger(
+        short, pd.read_csv(io.StringIO(short.to_csv(index=False)))
+    )
+    gap, _ = ledgers()
+    gap.loc[0, ["exit_price", "gross_pnl", "net_pnl", "exit_reason"]] = [
+        97.0, -3.0, -3.4, "gap_stop",
+    ]
+    verify_persisted_trade_ledger(
+        gap, pd.read_csv(io.StringIO(gap.to_csv(index=False)))
+    )
