@@ -8,6 +8,73 @@ try:
 except ModuleNotFoundError:
     import research_batch_orchestrator as lab
 
+def monthly_downside(months: list[dict], start: str, end: str) -> dict:
+    """Risk from source-reconciled exit-booked months, not M1 floating equity.
+
+    A three-month window is reported ONLY when all three full UTC calendar
+    months are present and the frozen request covers every calendar day.
+    Partial edge months remain visible, never silently treated as full months.
+    """
+    from calendar import monthrange
+    from datetime import date
+    import re
+
+    if type(months) is not list or not months:
+        raise ValueError("Missing observed months for downside metrics")
+    first, last = date.fromisoformat(start), date.fromisoformat(end)
+    if first > last:
+        raise ValueError("Reversed monthly risk window")
+    ordered = []
+    partial = []
+    previous = None
+    longest = run = nonpositive = 0
+    worst = None
+    worst_window = None
+    for item in months:
+        if type(item) is not dict:
+            raise ValueError("Invalid observed monthly risk row")
+        label = item.get("month_utc")
+        if type(label) is not str or not re.fullmatch(r"[0-9]{4}-(?:0[1-9]|1[0-2])", label):
+            raise ValueError("Invalid observed UTC month")
+        year, month = map(int, label.split("-"))
+        beginning = date(year, month, 1)
+        ending = date(year, month, monthrange(year, month)[1])
+        index = year * 12 + month - 1
+        if (previous is not None and index <= previous) or ending < first or beginning > last:
+            raise ValueError("Unordered or out-of-window UTC month")
+        net = lab.finite(item.get("net_usd_per_oz"))
+        trades = lab.count(item.get("trades"))
+        complete = first <= beginning and ending <= last
+        if not complete:
+            partial.append(label)
+        if previous is not None and index != previous + 1:
+            run = 0
+        if net <= 0:
+            run += 1
+            nonpositive += 1
+        else:
+            run = 0
+        longest = max(longest, run)
+        ordered.append((index, label, net, complete, trades))
+        if len(ordered) >= 3:
+            a, c, d = ordered[-3:]
+            if (a[3] and c[3] and d[3]
+                    and c[0] == a[0] + 1 and d[0] == c[0] + 1):
+                total = round(a[2] + c[2] + d[2], 8)
+                if worst is None or total < worst:
+                    worst = total
+                    worst_window = [a[1], d[1]]
+        previous = index
+    return {
+        "nonpositive_months": nonpositive,
+        "months_with_trades": sum(item[4] > 0 for item in ordered),
+        "longest_nonpositive_observed_month_streak": longest,
+        "partial_requested_calendar_months_utc": partial,
+        "worst_three_complete_calendar_months_net_usd_per_oz": worst,
+        "worst_three_complete_calendar_months_window_utc": worst_window,
+    }
+
+
 def scorecard(plan: dict, output: Path) -> dict:
     jobs, digest = lab.expand(plan)
     if len(jobs) > 500:
@@ -69,6 +136,7 @@ def scorecard(plan: dict, output: Path) -> dict:
             "positive_months": sum(m["net_usd_per_oz"] > 0 for m in months),
             "months_observed": len(months),
             "zero_trade_months": sum(m["trades"] == 0 for m in months),
+            **monthly_downside(months, job["spec"]["start"], job["spec"]["end"]),
             "worst_month_utc": worst["month_utc"],
             "worst_month_net_usd_per_oz": worst["net_usd_per_oz"],
             "net_usd_per_oz": verified["net_pnl"],

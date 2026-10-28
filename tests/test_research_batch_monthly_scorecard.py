@@ -125,3 +125,73 @@ def test_no_files_written(tmp_path, monkeypatch):
     before = sorted(p.relative_to(out) for p in out.rglob("*"))
     score.scorecard(plan, out)
     assert sorted(p.relative_to(out) for p in out.rglob("*")) == before
+
+def test_monthly_downside_full_calendar_streak_and_tail():
+    months = [
+        {"month_utc": f"2024-{i:02d}", "net_usd_per_oz": value, "trades": trades}
+        for i, (value, trades) in enumerate(
+            [(-1, 2), (-2, 3), (-3, 4), (10, 1), (-5, 1), (-6, 0)], 1)
+    ]
+    risk = score.monthly_downside(months, "2024-01-01", "2024-06-30")
+    assert risk["nonpositive_months"] == 5
+    assert risk["months_with_trades"] == 5
+    assert risk["longest_nonpositive_observed_month_streak"] == 3
+    assert risk["worst_three_complete_calendar_months_net_usd_per_oz"] == -6
+    assert risk["worst_three_complete_calendar_months_window_utc"] == ["2024-01", "2024-03"]
+    assert risk["partial_requested_calendar_months_utc"] == []
+
+
+def test_monthly_downside_partial_edges_not_claimed_as_three_full_months():
+    months = [
+        {"month_utc": f"2024-{i:02d}", "net_usd_per_oz": -1, "trades": 1}
+        for i in range(1, 5)
+    ]
+    risk = score.monthly_downside(months, "2024-01-15", "2024-04-15")
+    assert risk["partial_requested_calendar_months_utc"] == ["2024-01", "2024-04"]
+    assert risk["worst_three_complete_calendar_months_net_usd_per_oz"] is None
+    assert risk["worst_three_complete_calendar_months_window_utc"] is None
+    assert risk["longest_nonpositive_observed_month_streak"] == 4
+
+
+def test_monthly_downside_leap_day_full_month_and_tie_break():
+    months = [
+        {"month_utc": f"2024-{i:02d}", "net_usd_per_oz": -1, "trades": 1}
+        for i in range(1, 5)
+    ]
+    risk = score.monthly_downside(months, "2024-01-01", "2024-04-30")
+    assert risk["partial_requested_calendar_months_utc"] == []
+    assert risk["worst_three_complete_calendar_months_net_usd_per_oz"] == -3
+    assert risk["worst_three_complete_calendar_months_window_utc"] == ["2024-01", "2024-03"]
+
+
+def test_monthly_downside_calendar_gap_breaks_streak_and_rolling_window():
+    months = [
+        {"month_utc": month, "net_usd_per_oz": -1, "trades": 1}
+        for month in ("2024-01", "2024-03", "2024-04")
+    ]
+    risk = score.monthly_downside(months, "2024-01-01", "2024-04-30")
+    assert risk["longest_nonpositive_observed_month_streak"] == 2
+    assert risk["worst_three_complete_calendar_months_net_usd_per_oz"] is None
+
+
+@pytest.mark.parametrize("months,start,end", [
+    ([{"month_utc": "2024-00", "net_usd_per_oz": 1, "trades": 1}], "2024-01-01", "2024-12-31"),
+    ([{"month_utc": "2024-01", "net_usd_per_oz": float("nan"), "trades": 1}], "2024-01-01", "2024-12-31"),
+    ([{"month_utc": "2024-01", "net_usd_per_oz": 1, "trades": True}], "2024-01-01", "2024-12-31"),
+    ([{"month_utc": "2024-01", "net_usd_per_oz": 1, "trades": 1},
+      {"month_utc": "2024-01", "net_usd_per_oz": 1, "trades": 1}], "2024-01-01", "2024-12-31"),
+    ([{"month_utc": "2024-01", "net_usd_per_oz": 1, "trades": 1}], "2024-02-01", "2024-02-29"),
+    ([], "2024-01-01", "2024-01-31"),
+])
+def test_monthly_downside_rejects_unsafe_evidence(months, start, end):
+    with pytest.raises(ValueError):
+        score.monthly_downside(months, start, end)
+
+
+def test_monthly_scorecard_includes_downside_metrics(tmp_path, monkeypatch):
+    plan, out, _, _ = sample(tmp_path, monkeypatch)
+    result = score.scorecard(plan, out)["jobs"][0]
+    assert result["nonpositive_months"] == 1
+    assert result["longest_nonpositive_observed_month_streak"] == 1
+    assert result["worst_three_complete_calendar_months_net_usd_per_oz"] is None
+    assert result["partial_requested_calendar_months_utc"] == []
