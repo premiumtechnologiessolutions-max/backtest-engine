@@ -57,7 +57,8 @@ def test_executor_rejects_coercible_non_numeric_quotes(kind, column, invalid):
 @pytest.mark.parametrize("kind", ["reference", "fast", "limit"])
 def test_executor_rejects_duplicate_quote_column_names(kind):
     market = _market()
-    market.columns = ["o", "h", "l", "o"]
+    market["o_duplicate"] = market["o"]
+    market.columns = ["o", "h", "l", "c", "o"]
     with pytest.raises(ValueError, match="columns must be unique"):
         _execute(kind, market)
 
