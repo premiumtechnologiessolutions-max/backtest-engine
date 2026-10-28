@@ -154,7 +154,9 @@ def fingerprint_loaded_m1(frame: pd.DataFrame) -> str:
     digest.update(b"NRF-XAUUSD-M1-BIDASK-SLICE-V1\x00")
     digest.update(",".join(required).encode("ascii"))
     digest.update(b"\x00")
-    # Pandas 2.x DatetimeIndex.asi8 reflects the index storage unit (s/ms/us/ns).\n    # Canonicalize to nanoseconds so identical instants have identical hashes.\n    digest.update(frame.index.as_unit("ns").asi8.astype("<i8", copy=False).tobytes(order="C"))
+    # Pandas 2.x DatetimeIndex.asi8 reflects the index storage unit (s/ms/us/ns).
+    # Canonicalize to nanoseconds so identical instants have identical hashes.
+    digest.update(frame.index.as_unit("ns").asi8.astype("<i8", copy=False).tobytes(order="C"))
     digest.update(prices.tobytes(order="C"))
     return digest.hexdigest()
 
