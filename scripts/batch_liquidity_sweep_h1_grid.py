@@ -41,7 +41,9 @@ def sweep_rejections(m15, lookback, minimum_sweep):
     if len(m15)<max(lookback,20)+1:
         return np.empty(0,np.int64),np.empty(0,np.int8),np.empty(0,float)
     h,l,c=(m15[k].to_numpy(float) for k in ('h','l','c'))
-    segment=np.cumsum(np.r_[True,np.diff(m15.index.asi8)!=900_000_000_000])
+    # Pandas DatetimeIndex.asi8 follows the index's own unit (s/ms/us/ns).
+    # Compare elapsed M15 intervals in normalized nanoseconds.
+    segment=np.cumsum(np.r_[True,np.diff(m15.index.as_unit('ns').asi8)!=900_000_000_000])
     prior_n_high=pd.Series(h).shift(1).rolling(lookback,min_periods=lookback).max().to_numpy()
     prior_n_low=pd.Series(l).shift(1).rolling(lookback,min_periods=lookback).min().to_numpy()
     base=pd.Series(h-l).shift(1).rolling(20,min_periods=20).median().to_numpy()
@@ -52,7 +54,7 @@ def sweep_rejections(m15, lookback, minimum_sweep):
     long=valid&(l<prior_n_low-minimum_sweep*base)&(c>prior_n_low)&(c<prior_n_high)
     short=valid&(h>prior_n_high+minimum_sweep*base)&(c<prior_n_high)&(c>prior_n_low)
     selected=np.flatnonzero(long^short)
-    stamps=np.asarray(m15.close_at.array.asi8//1_000_000_000,dtype=np.int64)
+    stamps=np.asarray(m15.close_at.array.as_unit('ns').asi8//1_000_000_000,dtype=np.int64)
     return stamps[selected],np.where(long[selected],1,-1).astype(np.int8),base[selected]
 
 def gate(times,sides,base,h1times,h1trend,h1ratio,mode,regime,session,masks=None):
@@ -92,7 +94,7 @@ def run_batch(m1,year,out,limit=TOTAL):
     start=time.perf_counter()
     m15=aggregate_bars(m1,'M15');h1=aggregate_bars(m1,'H1')
     ht,trend,ratio=h1_context(h1)
-    stamps=np.asarray(m1.index.asi8//1_000_000_000,dtype=np.int64)
+    stamps=np.asarray(m1.index.as_unit('ns').asi8//1_000_000_000,dtype=np.int64)
     op,hi,lo,cl=(m1[k].to_numpy(float) for k in ('o','h','l','c'))
     months=(m1.index.month.to_numpy(np.int16)-1).astype(np.int8)
     rows=[];cache={};hashes=set()
