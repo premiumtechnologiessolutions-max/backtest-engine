@@ -14,6 +14,7 @@ import pandas as pd
 
 from .execution import Result
 from .model import Position, Settings, Signal
+from .executor_quote_contract import require_numeric_execution_ohlc
 
 
 def run_fast(minutes: pd.DataFrame, signals: list[Signal], settings: Settings) -> Result:
@@ -25,6 +26,7 @@ def run_fast(minutes: pd.DataFrame, signals: list[Signal], settings: Settings) -
     for required in ("o", "h", "l", "c"):
         if required not in minutes:
             raise ValueError(f"Missing {required}")
+    require_numeric_execution_ohlc(minutes)
     for s in signals:
         if pd.Timestamp(s.confirmed_at).tzinfo is None:
             raise ValueError("Signal confirmation must include timezone")
