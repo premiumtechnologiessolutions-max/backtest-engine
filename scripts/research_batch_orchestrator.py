@@ -87,10 +87,18 @@ def read_strict_json(path: Path) -> object:
     def reject_constant(value: str) -> object:
         raise ValueError("Nonfinite research JSON constant: " + value)
 
+    def finite_float(value: str) -> float:
+        # JSON 1e999 is syntactically valid: json.load turns it into inf
+        # without invoking parse_constant. Never admit overflowed evidence.
+        number = float(value)
+        if not math.isfinite(number):
+            raise ValueError("Nonfinite research JSON numeric literal: " + value)
+        return number
+
     try:
         with path.open("r", encoding="utf-8") as handle:
             return json.load(handle, object_pairs_hook=unique_keys,
-                             parse_constant=reject_constant)
+                             parse_constant=reject_constant, parse_float=finite_float)
     except (json.JSONDecodeError, UnicodeError) as exc:
         raise ValueError("Malformed research JSON") from exc
 
