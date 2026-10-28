@@ -630,6 +630,7 @@ def test_batch_index_is_private_after_reconciled_execution(tmp_path, monkeypatch
     data = tmp_path / "private-synthetic.zip"
     data.write_bytes(b"synthetic data only")
     p = plan(tmp_path)
+    p["dataset"] = str(data)
     p["source_sha256"] = lab.file_sha(data)
     monkeypatch.setattr(lab, "checkout_commit", lambda: COMMIT)
 
@@ -651,6 +652,7 @@ def test_batch_index_symlink_cannot_overwrite_external_file(tmp_path, monkeypatc
     data = tmp_path / "private-synthetic.zip"
     data.write_bytes(b"synthetic data only")
     p = plan(tmp_path)
+    p["dataset"] = str(data)
     p["source_sha256"] = lab.file_sha(data)
     monkeypatch.setattr(lab, "checkout_commit", lambda: COMMIT)
 
