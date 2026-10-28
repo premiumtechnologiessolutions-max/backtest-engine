@@ -184,9 +184,14 @@ def _bound(root: Path, fingerprint: str, month: str) -> tuple[dict, int, str]:
 
 
 def run_month(root: Path, fingerprint: str, month: str, *,
-              execute: bool = False, max_jobs: int = 10) -> dict:
+              execute: bool = False, max_jobs: int = 10,
+              recover_verified_orphans: bool = False) -> dict:
     if type(execute) is not bool or type(max_jobs) is not int or not 1 <= max_jobs <= 20:
         raise ValueError("Explicit execution flag and max-jobs 1..20 required")
+    if type(recover_verified_orphans) is not bool:
+        raise ValueError("Orphan recovery flag must be boolean")
+    if recover_verified_orphans and not execute:
+        raise ValueError("Orphan recovery requires explicit --execute")
     plan, count, plan_sha = _bound(root, fingerprint, month)
     if not execute:
         return {"status": "VERIFIED_PLAN_ONLY_NOT_EXECUTED",
@@ -200,7 +205,12 @@ def run_month(root: Path, fingerprint: str, month: str, *,
         out = _private_dir(job_out / month)
         previous = os.umask(0o077)
         try:
-            result = lab.run_plan(plan, out, max_jobs=max_jobs)
+            # Recovery is never implicit. The canonical runner re-audits
+            # every orphan against source, commit, spec and all three ledgers.
+            options = {"max_jobs": max_jobs}
+            if recover_verified_orphans:
+                options["recover_verified_orphans"] = True
+            result = lab.run_plan(plan, out, **options)
         finally:
             os.umask(previous)
     return {**result, "request_fingerprint": fingerprint, "month": month,
@@ -215,16 +225,20 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--plan", type=Path, help="Absolute owner-only private canonical JSON plan (bind only)")
     parser.add_argument("--execute", action="store_true", help="Explicitly authorize offline canonical execution")
     parser.add_argument("--max-jobs", type=int, default=10)
+    parser.add_argument(
+        "--recover-verified-orphans", action="store_true",
+        help="Explicit canonical audit of complete orphan outputs; requires run --execute")
     args = parser.parse_args(argv)
     if args.action == "bind":
-        if args.plan is None or args.execute:
-            parser.error("bind requires --plan and forbids --execute")
+        if args.plan is None or args.execute or args.recover_verified_orphans:
+            parser.error("bind requires --plan and forbids execution/recovery")
         result = bind_plan(ROOT, args.fingerprint, args.month, args.plan)
     else:
         if args.plan is not None:
             parser.error("run uses only the immutable bound plan, not --plan")
         result = run_month(ROOT, args.fingerprint, args.month,
-                           execute=args.execute, max_jobs=args.max_jobs)
+                           execute=args.execute, max_jobs=args.max_jobs,
+                           recover_verified_orphans=args.recover_verified_orphans)
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0
 

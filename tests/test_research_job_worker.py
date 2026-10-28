@@ -158,3 +158,55 @@ def test_rejects_symlinked_private_plan(tmp_path, monkeypatch):
 def test_rejects_unbounded_execution_budget(tmp_path, bad):
     with pytest.raises(ValueError, match="max-jobs"):
         worker.run_month(tmp_path, "a" * 64, "2012-01", max_jobs=bad)
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX owner-only worker")
+def test_recovery_opt_in_is_forwarded_under_month_lease(tmp_path, monkeypatch):
+    fingerprint, month, path, plan = fixture(tmp_path, monkeypatch)
+    worker.bind_plan(tmp_path, fingerprint, month, path)
+    events = []
+
+    @contextmanager
+    def fake_lease(root, fp, mo):
+        events.append("lock")
+        yield {}
+
+    def fake_runner(frozen, out, **kwargs):
+        assert events == ["lock"]
+        assert frozen == plan
+        assert kwargs == {"max_jobs": 1, "recover_verified_orphans": True}
+        events.append("canonical-audit")
+        return {"status": "HISTORICAL_RESEARCH_ONLY",
+                "executed_this_invocation": 0,
+                "recovered_verified_orphans": 1, "reconciled_jobs": 1}
+
+    monkeypatch.setattr(worker, "reserve_closed_month", fake_lease)
+    monkeypatch.setattr(worker.lab, "run_plan", fake_runner)
+    result = worker.run_month(tmp_path, fingerprint, month, execute=True,
+                              max_jobs=1, recover_verified_orphans=True)
+    assert events == ["lock", "canonical-audit"]
+    assert result["recovered_verified_orphans"] == 1
+    assert result["executed_this_invocation"] == 0
+    assert result["historical_exposed_not_oos"] is True
+
+
+def test_recovery_requires_explicit_execution_before_reading_bound_plan(tmp_path):
+    with pytest.raises(ValueError, match="requires explicit --execute"):
+        worker.run_month(tmp_path, "a" * 64, "2012-01",
+                         recover_verified_orphans=True)
+
+
+@pytest.mark.parametrize("invalid", [1, 0, "true", None])
+def test_recovery_flag_requires_real_boolean(tmp_path, invalid):
+    with pytest.raises(ValueError, match="flag must be boolean"):
+        worker.run_month(tmp_path, "a" * 64, "2012-01",
+                         execute=True, recover_verified_orphans=invalid)
+
+
+def test_bind_cli_rejects_recovery_flag_before_any_file_access(tmp_path, monkeypatch):
+    monkeypatch.setattr(worker, "ROOT", tmp_path)
+    with pytest.raises(SystemExit) as error:
+        worker.main(["bind", "--fingerprint", "a" * 64, "--month", "2012-01",
+                     "--plan", "/private/not-read.json",
+                     "--recover-verified-orphans"])
+    assert error.value.code == 2

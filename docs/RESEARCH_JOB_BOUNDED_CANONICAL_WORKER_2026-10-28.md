@@ -17,3 +17,32 @@ The worker holds the existing exclusive month lease throughout canonical executi
 The queue's frozen MD/JSON hypothesis and the private executable canonical plan are **separate**: this adapter binds the latter immutably before results, but does not prove that its trading logic was independently preregistered beyond the recorded source, date and commit constraints. A plan created after observing outcomes is not clean OOS. Do not infer independence from parameter-grid size. This worker does not provide cross-plan strategy fingerprint deduplication, global portfolio shared capacity, a race-free adversarial filesystem sandbox, automatic scheduling, memory/resource quotas, a prospective source manifest, or verified monthly M1 floating drawdown. Canonical execution still has its own per-job timeout and local resources are operator-managed. Execution on private original Gold ZIP **has not been performed by this patch**. No registry research totals or monthly returns were changed.
 
 Keep PR #1 Draft/unmerged. Never commit private BID/ASK or the ignored reports tree. Final adoption requires real-source canonical/independent parity, cost and gap audit, portfolio capacity, embargo/multiple-testing controls, prospective OOS and passing exact-head CI.
+
+
+## Explicit verified-orphan recovery (2026-10-28)
+
+A process may complete all canonical report files and crash before its
+manifest record is committed. The worker now exposes the canonical runner's
+**default-off** recovery gate, but only on the explicit execution path:
+
+```bash
+python -m scripts.research_job_worker run --fingerprint <64-hex> --month 2012-01 --execute --max-jobs 10 --recover-verified-orphans
+```
+
+The worker first revalidates the immutable private plan and exact clean
+checkout, then acquires the exclusive closed-month lease and rechecks again.
+The underlying canonical runner re-audits each complete orphan against the
+frozen original-data SHA256, engine commit, strategy parameters, exact monthly
+coverage, fixed $0.40/oz fee, and monthly/weekly/trade ledgers. Only a
+fully reconciled orphan is added to the manifest as **recovered** (not a new
+backtest). Missing, partial or inconsistent evidence fails closed for manual
+investigation. No recovery is performed by ordinary preview, ordinary
+`--execute`, or `bind`. The CLI rejects recovery on `bind` and rejects
+recovery without `--execute`.
+
+This opt-in does **not** recover an already manifest-marked failed job,
+provide cross-plan deduplication, certify prospective OOS, or prove trading
+profitability. Synthetic regression tests verify flag validation, lock
+ordering, opt-in delegation, and the non-execution default; original-source
+replay is a separate gate. No private market data or local reports are
+committed to GitHub.
