@@ -165,3 +165,37 @@ def test_symlinked_queue_record_rejected(tmp_path):
         list_jobs(root)
     with pytest.raises(ValueError, match="unsafe"):
         enqueue(root, job)
+
+
+def test_queue_listing_coexists_with_immutable_monthly_plan_directory(tmp_path):
+    root = root_fixture(tmp_path)
+    job = enqueue(root, request(root))
+    (root / "reports" / "research_jobs" / "monthly_plans").mkdir(mode=0o700)
+    assert list_jobs(root) == [job]
+
+
+def test_queue_listing_rejects_symlinked_monthly_plan_directory(tmp_path):
+    root = root_fixture(tmp_path)
+    enqueue(root, request(root))
+    (root / "reports" / "research_jobs" / "monthly_plans").symlink_to(tmp_path, target_is_directory=True)
+    with pytest.raises(ValueError, match="Unsafe monthly-plan"):
+        list_jobs(root)
+
+
+def test_queue_listing_rejects_unexpected_subdirectory(tmp_path):
+    root = root_fixture(tmp_path)
+    enqueue(root, request(root))
+    (root / "reports" / "research_jobs" / "unknown").mkdir()
+    with pytest.raises(ValueError, match="Unexpected queue entry"):
+        list_jobs(root)
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX permissions")
+def test_queue_listing_rejects_public_monthly_plan_directory(tmp_path):
+    root = root_fixture(tmp_path)
+    enqueue(root, request(root))
+    directory = root / "reports" / "research_jobs" / "monthly_plans"
+    directory.mkdir(mode=0o700)
+    directory.chmod(0o755)
+    with pytest.raises(ValueError, match="owner-only"):
+        list_jobs(root)

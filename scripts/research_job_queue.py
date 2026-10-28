@@ -191,6 +191,16 @@ def list_jobs(root: Path) -> list[dict]:
         return []
     jobs = []
     for file in sorted(directory.iterdir()):
+        # The immutable planner stores snapshots in a dedicated owner-only
+        # subdirectory. Do not treat it as a queued job, and never follow
+        # a symlink or silently ignore any other unexpected queue entry.
+        if file.name == "monthly_plans":
+            if file.is_symlink() or not file.is_dir():
+                raise ValueError("Unsafe monthly-plan queue subdirectory")
+            info = file.stat()
+            if os.name == "posix" and (info.st_uid != os.getuid() or info.st_mode & 0o077):
+                raise ValueError("Monthly-plan queue subdirectory must be owner-only")
+            continue
         if file.suffix != ".json":
             raise ValueError("Unexpected queue entry")
         jobs.append(_verify(json.loads(_read_job_bytes(file)), file.name))

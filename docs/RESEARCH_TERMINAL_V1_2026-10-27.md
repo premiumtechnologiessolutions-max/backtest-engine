@@ -70,3 +70,12 @@ shared publicly.
 net P/L and floating M1 drawdown display N/A. This is not a worker, checkpoint,
 resume mechanism, market data validation, future OOS proof or a live connection.
 The published registry is not modified by planning-only changes.
+
+
+### Queue/planner directory coexistence regression
+
+The queue reader explicitly recognizes only the owner-only `monthly_plans/`
+subdirectory alongside fingerprinted `.json` requests. It rejects a symlink,
+unexpected directory or unsafe directory permissions. This prevents the
+planner's legitimate directory from breaking normal queue listing while
+preserving fail-closed behavior for unknown entries.
