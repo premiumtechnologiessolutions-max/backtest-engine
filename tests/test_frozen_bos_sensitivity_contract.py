@@ -193,6 +193,8 @@ def test_frozen_runner_rejects_shifted_monthly_pnl_even_when_total_matches(tmp_p
     source.write_bytes(b"synthetic fixture only")
     monkeypatch.setattr(frozen, "sha256_file", lambda _: SOURCE_SHA)
     monkeypatch.setattr(frozen, "load_market", lambda *args, **kwargs: _monthly_sample())
+    # This adversarial test isolates report allocation, not Bid/Ask fingerprinting.
+    monkeypatch.setattr(frozen, "fingerprint_loaded_m1", lambda _: "0" * 64)
     monkeypatch.setattr(frozen, "bos_fib_limit_orders", lambda *args, **kwargs: [])
     monkeypatch.setattr(frozen, "filter_orders_h1", lambda *args, **kwargs: [])
     monkeypatch.setattr(
