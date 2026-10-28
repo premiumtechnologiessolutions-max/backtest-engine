@@ -337,6 +337,48 @@ def validate_replay_market_year(m1: pd.DataFrame, year: int) -> None:
         )
 
 
+
+def validate_end_of_data_source_close(m1: pd.DataFrame, trades: pd.DataFrame) -> int:
+    """Cross-check forced final exits against the ACTUAL final observed BID close.
+
+    Exact 13-field agreement between two ledgers cannot certify a fabricated
+    end_of_data price or timestamp if both ledgers share the same mistake.
+    The one-position limit executor can force at most one final exit.
+    This is M1 source-consistency, NOT real broker/tick execution proof.
+    """
+    if "exit_reason" not in trades.columns:
+        raise AssertionError("End-of-data source check requires exit_reason")
+    forced = trades.loc[trades["exit_reason"] == "end_of_data"]
+    if forced.empty:
+        return 0
+    if len(forced) != 1:
+        raise AssertionError("End-of-data source check found multiple forced final exits")
+    if (
+        m1.empty or not isinstance(m1.index, pd.DatetimeIndex)
+        or m1.index.tz is None or "c" not in m1.columns
+    ):
+        raise AssertionError("End-of-data source check requires final UTC M1 BID close")
+    final_at = pd.Timestamp(m1.index[-1]).tz_convert("UTC")
+    row = forced.iloc[0]
+    closed = row["closed_at"]
+    if (
+        not isinstance(closed, datetime) or closed.tzinfo is None
+        or pd.Timestamp(closed).tz_convert("UTC") != final_at
+    ):
+        raise AssertionError("End-of-data exit timestamp differs from last observed M1")
+    try:
+        observed_close = float(m1["c"].iloc[-1])
+        exit_price = float(row["exit_price"])
+    except (TypeError, ValueError) as exc:
+        raise AssertionError("End-of-data exit/source close is not numeric") from exc
+    if not (
+        np.isfinite(observed_close) and np.isfinite(exit_price)
+        and np.isclose(exit_price, observed_close, rtol=0, atol=1e-7)
+    ):
+        raise AssertionError("End-of-data exit price differs from final observed M1 BID close")
+    return 1
+
+
 def validate_replay_years(years: list[int]) -> None:
     """Never report PASSED when no scenarios were requested or years repeat."""
     if not isinstance(years, (list, tuple)) or not years:
@@ -416,6 +458,7 @@ def verify(gold_zip: Path, reference_root: Path, years: list[int]) -> dict:
                 required_columns=set(FIELDS.values()),
             )
             check = exact_ledger_check(result.trades, baseline)
+            final_source_closes = validate_end_of_data_source_close(m1, result.trades)
             summary_row = yearly.loc[
                 (yearly["year"] == year) & (yearly["variant"] == name)
             ]
@@ -436,6 +479,7 @@ def verify(gold_zip: Path, reference_root: Path, years: list[int]) -> dict:
                 "signals": len(orders),
                 "net_usd_1oz": total,
                 "deferred_same_entry_bar_TP": result.uncertain_entry_tp_deferred,
+                "end_of_data_source_closes_verified": final_source_closes,
                 **check,
                 "status": "PASSED",
             })
