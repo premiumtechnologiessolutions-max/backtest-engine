@@ -288,6 +288,18 @@ def checkout_commit() -> str:
         raise ValueError("Cannot verify checkout cleanliness") from exc
     if dirty.strip():
         raise ValueError("Uncommitted changes invalidate frozen engine revision")
+    # An untracked importable module can shadow frozen code without changing HEAD.
+    # Match the research-job preflight: reject untracked src/ and scripts/ files.
+    try:
+        untracked = subprocess.run(
+            ["git", "-C", str(Path(__file__).resolve().parents[1]),
+             "ls-files", "--others", "--exclude-standard", "--", "src", "scripts"],
+            check=True, capture_output=True, text=True, timeout=10,
+        ).stdout
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as exc:
+        raise ValueError("Cannot verify untracked research source cleanliness") from exc
+    if untracked.strip():
+        raise ValueError("Untracked research source invalidates frozen engine revision")
     return result
 
 
