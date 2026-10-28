@@ -443,3 +443,31 @@ def test_summary_json_must_be_regular_file(tmp_path, unsafe):
         summary.unlink()
     with pytest.raises(ValueError, match="unsafe summary JSON"):
         lab.audit_run(folder, spec(), SOURCE, COMMIT)
+
+
+@pytest.mark.parametrize("target", ["manifest", "run_dir"])
+def test_batch_refuses_symlinked_evidence_paths(tmp_path, monkeypatch, target):
+    raw = b"synthetic test bytes, not real market data"
+    dataset = tmp_path / "gold-private.zip"
+    dataset.write_bytes(raw)
+    p = plan(tmp_path)
+    p["source_sha256"] = hashlib.sha256(raw).hexdigest()
+    monkeypatch.setattr(lab, "checkout_commit", lambda: COMMIT)
+    out = tmp_path / "output"
+    out.mkdir()
+    outside = tmp_path / "outside"
+    if target == "manifest":
+        outside.write_text("do not read or overwrite", encoding="utf-8")
+        (out / "batch_manifest.json").symlink_to(outside)
+        expected = "Unsafe batch manifest symlink"
+    else:
+        outside.mkdir()
+        (out / "runs").mkdir()
+        (out / "runs" / "test-ema").symlink_to(outside, target_is_directory=True)
+        expected = "Unsafe experiment directory symlink"
+    with pytest.raises(ValueError, match=expected):
+        lab.run_plan(p, out)
+    if target == "manifest":
+        assert outside.read_text(encoding="utf-8") == "do not read or overwrite"
+    else:
+        assert list(outside.iterdir()) == []
