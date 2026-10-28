@@ -38,6 +38,13 @@ def verified_report(*, pinned: bool = False) -> dict:
             "id": "synthetic-ema",
             "status": "HISTORICAL_EXPOSED_STANDALONE_NOT_APPROVED",
             "trades": 3, "positive_months": 1, "months_observed": 2,
+            "evaluation_start_utc": "2024-01-01", "evaluation_end_utc": "2024-02-29",
+            "zero_trade_months": 0, "nonpositive_months": 1,
+            "months_with_trades": 2,
+            "longest_nonpositive_observed_month_streak": 1,
+            "partial_requested_calendar_months_utc": [],
+            "worst_three_complete_calendar_months_net_usd_per_oz": None,
+            "worst_three_complete_calendar_months_window_utc": None,
             "worst_month_utc": "2024-02", "worst_month_net_usd_per_oz": -7.0,
             "net_usd_per_oz": -1.75, "all_in_fees_usd_per_oz": 1.2,
             "observed_m1_floating_drawdown_usd_per_oz": 8.0 if pinned else None,
@@ -58,6 +65,9 @@ def test_verified_monthly_net_fees_worst_and_na_are_rendered():
     assert "NOT a shared-capacity portfolio" in html
     assert "M1 risk pinned" in html
     assert "2024-02 · -7.00" in html
+    assert "Nonpositive-month streak" in html
+    assert "Worst 3 complete UTC months" in html
+    assert "Partial UTC edge months" in html
 
 
 def test_pinned_m1_drawdown_and_gaps_are_observed_not_inferred():
@@ -95,9 +105,18 @@ def test_private_offline_bilingual_mobile_and_keyboard_controls():
     lambda r: r["jobs"][0].update(worst_month_net_usd_per_oz=999),
     lambda r: r["jobs"][0].update(net_usd_per_oz=999),
     lambda r: r["jobs"][0].update(trades=9),
+    lambda r: r["jobs"][0].update(evaluation_end_utc="2024-01-31"),
+    lambda r: r["jobs"][0].update(zero_trade_months=1),
+    lambda r: r["jobs"][0].update(nonpositive_months=0),
+    lambda r: r["jobs"][0].update(months_with_trades=1),
+    lambda r: r["jobs"][0].update(longest_nonpositive_observed_month_streak=2),
+    lambda r: r["jobs"][0].update(worst_three_complete_calendar_months_net_usd_per_oz=12),
+    lambda r: r["jobs"][0].update(partial_requested_calendar_months_utc=["2024-02"]),
     lambda r: r["jobs"][0].update(all_in_fees_usd_per_oz=0),
     lambda r: r["jobs"][0]["monthly"][0].update(net_usd_per_oz=float("nan")),
     lambda r: r["jobs"][0]["monthly"][0].update(trades=True),
+    lambda r: r["jobs"][0]["monthly"][0].update(all_in_fees_usd_per_oz=0.5),
+    lambda r: r["jobs"][0]["monthly"][0].update(observed_m1_samples=0),
     lambda r: r["jobs"][0]["monthly"][1].update(month_utc="2024-01"),
     lambda r: r["jobs"][0]["monthly"][0].update(
         max_observed_m1_global_peak_drawdown_usd_per_oz=4.0),
@@ -148,3 +167,58 @@ def test_cli_does_not_accept_unverified_precomputed_scorecard_json():
     with pytest.raises(SystemExit) as exc:
         terminal.main(["--scorecard-json", "/tmp/untrusted.json"])
     assert exc.value.code == 2
+
+def test_pinned_global_peak_must_equal_max_monthly_risk():
+    report = verified_report(pinned=True)
+    report["jobs"][0]["observed_m1_floating_drawdown_usd_per_oz"] = 1.25
+    with pytest.raises(ValueError, match="monthly maximum"):
+        terminal.render_verified_monthly_html(report)
+
+
+def test_three_complete_month_downside_is_recomputed_and_visible():
+    report = verified_report()
+    job = report["jobs"][0]
+    job["monthly"].append({
+        "month_utc": "2024-03", "net_usd_per_oz": -2.0, "trades": 0,
+        "all_in_fees_usd_per_oz": 0.0, "observed_m1_samples": 118,
+        "max_observed_m1_global_peak_drawdown_usd_per_oz": None,
+        "observed_m1_gap_events_from_prior_mark": None,
+    })
+    job.update(
+        evaluation_end_utc="2024-03-31", months_observed=3, zero_trade_months=1,
+        nonpositive_months=2, months_with_trades=2,
+        longest_nonpositive_observed_month_streak=2,
+        worst_three_complete_calendar_months_net_usd_per_oz=-3.75,
+        worst_three_complete_calendar_months_window_utc=["2024-01", "2024-03"],
+        net_usd_per_oz=-3.75,
+    )
+    html = terminal.render_verified_monthly_html(report)
+    assert "2024-01 → 2024-03 · -3.75" in html
+    assert "Nonpositive-month streak" in html
+    assert "Months with trades" in html
+    job["worst_three_complete_calendar_months_net_usd_per_oz"] = -3.74
+    with pytest.raises(ValueError, match="downside"):
+        terminal.render_verified_monthly_html(report)
+
+
+def test_partial_months_are_visible_but_not_three_complete_months():
+    report = verified_report()
+    job = report["jobs"][0]
+    job["evaluation_start_utc"] = "2024-01-15"
+    job["evaluation_end_utc"] = "2024-02-15"
+    job["partial_requested_calendar_months_utc"] = ["2024-01", "2024-02"]
+    html = terminal.render_verified_monthly_html(report)
+    assert "2024-01, 2024-02" in html
+    assert "Worst 3 complete UTC months" in html
+    assert "N/A" in html
+
+
+def test_rejects_omitted_utc_month_even_when_totals_are_rebalanced():
+    report = verified_report()
+    job = report["jobs"][0]
+    job["monthly"].pop()
+    job.update(months_observed=1, trades=2, positive_months=1,
+               net_usd_per_oz=5.25, all_in_fees_usd_per_oz=0.8,
+               worst_month_utc="2024-01", worst_month_net_usd_per_oz=5.25)
+    with pytest.raises(ValueError, match="coverage"):
+        terminal.render_verified_monthly_html(report)

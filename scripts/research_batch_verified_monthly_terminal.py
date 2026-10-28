@@ -83,6 +83,12 @@ def _check(report: dict) -> list[dict]:
         if _count(job.get("months_observed"), "observed months") != len(months):
             raise ValueError("Inconsistent verified monthly count")
         _count(job.get("positive_months"), "positive months")
+        start, end = job.get("evaluation_start_utc"), job.get("evaluation_end_utc")
+        if (type(start) is not str or type(end) is not str
+                or not re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", start)
+                or not re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", end)
+                or start > end or [m.get("month_utc") for m in months] != lab.expected_months(start, end)):
+            raise ValueError("Verified UTC month coverage differs from frozen evaluation window")
         total_trades = _count(job.get("trades"), "trades")
         fees = _number(job.get("all_in_fees_usd_per_oz"), "fees", nonnegative=True)
         net = _number(job.get("net_usd_per_oz"), "net")
@@ -93,6 +99,7 @@ def _check(report: dict) -> list[dict]:
         observed = set()
         previous = ""
         count_trades = 0
+        zero_trade_months = 0
         count_positive = 0
         sum_fees = 0.0
         sum_net = 0.0
@@ -108,8 +115,13 @@ def _check(report: dict) -> list[dict]:
             previous = label
             pnl = _number(month.get("net_usd_per_oz"), "monthly net")
             monthly_fees = _number(month.get("all_in_fees_usd_per_oz"), "monthly fees", nonnegative=True)
-            count_trades += _count(month.get("trades"), "monthly trades")
-            _count(month.get("observed_m1_samples"), "M1 samples")
+            monthly_trades = _count(month.get("trades"), "monthly trades")
+            if not math.isclose(monthly_fees, monthly_trades * 0.40, abs_tol=1e-6, rel_tol=0):
+                raise ValueError("Monthly fees violate frozen $0.40/oz roundtrip")
+            count_trades += monthly_trades
+            zero_trade_months += monthly_trades == 0
+            if _count(month.get("observed_m1_samples"), "M1 samples") == 0:
+                raise ValueError("Unobserved M1 month cannot be certified")
             dd = month.get("max_observed_m1_global_peak_drawdown_usd_per_oz")
             gaps = month.get("observed_m1_gap_events_from_prior_mark")
             if (dd is None) != (gaps is None):
@@ -124,18 +136,25 @@ def _check(report: dict) -> list[dict]:
             if minimum is None or pnl < minimum[1]:
                 minimum = (label, pnl)
         if (count_trades != total_trades or count_positive != job["positive_months"]
+                or zero_trade_months != _count(job.get("zero_trade_months"), "zero-trade months")
                 or not math.isclose(sum_net, net, abs_tol=1e-5, rel_tol=0)
                 or not math.isclose(sum_fees, fees, abs_tol=1e-5, rel_tol=0)
                 or minimum[0] != worst
                 or not math.isclose(minimum[1], worst_value, abs_tol=1e-5, rel_tol=0)
                 or pinned_months not in (0, len(months))):
             raise ValueError("Verified monthly ledger totals or worst month mismatch")
+        # Recompute downside risk from the source-reconciled ledger, not from
+        # renderer input. Partial calendar edges cannot masquerade as full months.
+        expected_risk = audit.monthly_downside(months, start, end)
+        if any(job.get(key) != value for key, value in expected_risk.items()):
+            raise ValueError("Monthly downside risk differs from verified UTC ledger")
         dd = job.get("observed_m1_floating_drawdown_usd_per_oz")
         if pinned_months:
             _number(dd, "job floating drawdown", nonnegative=True)
-            if not any(math.isclose(dd, m["max_observed_m1_global_peak_drawdown_usd_per_oz"],
-                                    abs_tol=1e-5, rel_tol=0) for m in months):
-                raise ValueError("Pinned floating drawdown missing from months")
+            if not math.isclose(
+                    dd, max(m["max_observed_m1_global_peak_drawdown_usd_per_oz"] for m in months),
+                    abs_tol=1e-5, rel_tol=0):
+                raise ValueError("Pinned global-peak floating drawdown is not the monthly maximum")
             pinned_actual += 1
         elif dd is not None:
             raise ValueError("Unpinned floating drawdown must be N/A")
@@ -153,6 +172,12 @@ def render_verified_monthly_html(report: dict) -> str:
         ident = escape(job["id"], quote=True)
         worst = escape(job["worst_month_utc"])
         dd = job["observed_m1_floating_drawdown_usd_per_oz"]
+        worst_three = job["worst_three_complete_calendar_months_net_usd_per_oz"]
+        window = job["worst_three_complete_calendar_months_window_utc"]
+        three_label = ("N/A" if worst_three is None else
+                       escape(window[0]) + " → " + escape(window[1]) + " · " + _money(worst_three))
+        partial = job["partial_requested_calendar_months_utc"]
+        partial_label = "None" if not partial else ", ".join(escape(x) for x in partial)
         cards.append(
             '<article class="card"><h2>' + ident + '</h2>'
             '<p>Historical standalone · NOT APPROVED · shared capacity N/A</p>'
@@ -161,7 +186,15 @@ def render_verified_monthly_html(report: dict) -> str:
             '<span>Positive months: <b>' + str(job["positive_months"]) + '/'
             + str(job["months_observed"]) + '</b></span>'
             '<span>Worst: <b>' + worst + ' · ' + _money(job["worst_month_net_usd_per_oz"]) + '</b></span>'
-            '<span>Observed M1 DD: <b>' + _money(dd) + '</b></span></div></article>')
+            '<span>Observed M1 DD: <b>' + _money(dd) + '</b></span>'
+            '<span><span data-en="Nonpositive-month streak" data-ar="أطول سلسلة أشهر غير رابحة">Nonpositive-month streak</span>: <b>'
+            + str(job["longest_nonpositive_observed_month_streak"]) + '</b></span>'
+            '<span><span data-en="Worst 3 complete UTC months" data-ar="أسوأ ثلاثة أشهر UTC مكتملة">Worst 3 complete UTC months</span>: <b>'
+            + three_label + '</b></span>'
+            '<span><span data-en="Months with trades" data-ar="أشهر شهدت صفقات">Months with trades</span>: <b>'
+            + str(job["months_with_trades"]) + '/' + str(job["months_observed"]) + '</b></span>'
+            '<span><span data-en="Partial UTC edge months" data-ar="أشهر UTC الطرفية الجزئية">Partial UTC edge months</span>: <b>'
+            + partial_label + '</b></span></div></article>')
         for month in job["monthly"]:
             label = escape(month["month_utc"], quote=True)
             rows.append(

@@ -194,6 +194,8 @@ def scorecard(plan: dict, output: Path, *, equity_pins: dict | None = None) -> d
         results.append({
             "id": name, "status": "HISTORICAL_EXPOSED_STANDALONE_NOT_APPROVED",
             "trades": verified["trades"],
+            "evaluation_start_utc": job["spec"]["start"],
+            "evaluation_end_utc": job["spec"]["end"],
             "positive_months": sum(m["net_usd_per_oz"] > 0 for m in months),
             "months_observed": len(months),
             "zero_trade_months": sum(m["trades"] == 0 for m in months),
