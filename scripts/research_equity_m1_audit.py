@@ -49,8 +49,14 @@ def _json(path: Path) -> dict:
         return result
     def invalid_constant(value):
         raise ValueError("Nonfinite JSON evidence")
+    def finite_float(token):
+        number = float(token)
+        if not math.isfinite(number):
+            raise ValueError("Nonfinite JSON evidence")
+        return number
     with path.open(encoding="utf-8") as handle:
-        value = json.load(handle, object_pairs_hook=unique, parse_constant=invalid_constant)
+        value = json.load(handle, object_pairs_hook=unique,
+                          parse_constant=invalid_constant, parse_float=finite_float)
     if type(value) is not dict:
         raise ValueError("Invalid JSON evidence object")
     return value
@@ -140,7 +146,8 @@ def audit_equity(run: Path, archive: Path, source_sha: str,
             or type(summary.get("settings")) is not dict
             or type(summary.get("start_utc")) is not str
             or type(summary.get("end_utc")) is not str
-            or not _same(_float(summary["settings"].get("roundtrip_cost_per_ounce")), 0.40)):
+            or type(summary["settings"].get("roundtrip_cost_per_ounce")) not in (int, float)
+            or _float(summary["settings"].get("roundtrip_cost_per_ounce")) != 0.40):
         raise ValueError("Canonical source/code/cost evidence mismatch")
     monthly = list(_csv(run / "monthly.csv", {"period", "observed_m1_samples",
                                             "month_end_equity", "month_end_drawdown"}))
