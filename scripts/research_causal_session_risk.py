@@ -87,9 +87,12 @@ def evaluate_causal_gate(
         if type(trade) is not dict or set(trade) != {"closed_at", "net_usd_per_oz"}:
             raise ValueError("Malformed verified closed-trade record")
         closed = _utc(trade["closed_at"], "trade close")
-        if closed > now or (previous_close is not None and closed < previous_close):
-            raise ValueError("Future or out-of-order trade close")
+        # Validate value before temporal causality, even for a malformed
+        # same-instant/future record. A trade closing at the exact signal
+        # timestamp is not provably known when that signal is decided.
         pnl = _number(trade["net_usd_per_oz"], "net_usd_per_oz")
+        if closed >= now or (previous_close is not None and closed < previous_close):
+            raise ValueError("Trade close must be strictly before signal and chronologically ordered")
         if closed.astimezone(NY).date() == today:
             realized += pnl
         previous_close = closed
