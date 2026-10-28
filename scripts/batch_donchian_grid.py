@@ -166,7 +166,8 @@ def run_batch(m1: pd.DataFrame, *, year: int, out: Path, max_candidates: int = 2
     if frozen_path.exists() and json.loads(frozen_path.read_text()) != SPEC:
         raise ValueError("Frozen research spec differs from existing run")
     frozen_path.write_text(json.dumps(SPEC, indent=2), encoding="utf-8")
-    stamps = m1.index.asi8 // 1_000_000_000
+    # Normalize the source DatetimeIndex unit before deriving Unix seconds.
+    stamps = m1.index.as_unit('ns').asi8 // 1_000_000_000
     op, hi, lo, cl = [m1[k].to_numpy(dtype=np.float64) for k in ("o", "h", "l", "c")]
     months = (m1.index.month.to_numpy(dtype=np.int16) - 1).astype(np.int8)
     rows = []
