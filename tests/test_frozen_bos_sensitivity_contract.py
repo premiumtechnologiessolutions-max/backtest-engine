@@ -239,7 +239,7 @@ def test_frozen_runner_rejects_shifted_monthly_pnl_even_when_total_matches(tmp_p
     monkeypatch.setattr(
         frozen, "run_limits",
         lambda *args, **kwargs: SimpleNamespace(
-            trades=pd.DataFrame({"net_pnl": pd.Series(dtype=float)})
+            trades=pd.DataFrame(columns=TRADE_FIELDS)
         ),
     )
 

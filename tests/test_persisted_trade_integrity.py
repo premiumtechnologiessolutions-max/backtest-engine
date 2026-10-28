@@ -88,3 +88,12 @@ def test_reordered_rows_rejected():
     bb = pd.read_csv(io.StringIO(aa.to_csv(index=False))).iloc[::-1].reset_index(drop=True)
     with pytest.raises(ValueError, match="differs from execution"):
         verify_persisted_trade_ledger(aa, bb)
+
+
+def test_empty_execution_missing_fields_is_rejected():
+    """An incomplete engine ledger must fail before monthly P/L allocation."""
+    executed, exported = ledgers()
+    executed = executed[["net_pnl"]].iloc[:0]
+    exported = exported.iloc[:0]
+    with pytest.raises(ValueError, match="execution trade ledger has missing/duplicate"):
+        verify_persisted_trade_ledger(executed, exported)
