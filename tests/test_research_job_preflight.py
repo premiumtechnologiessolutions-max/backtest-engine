@@ -116,7 +116,9 @@ def test_git_head_accepts_clean_tracked_checkout(tmp_path, monkeypatch):
     def fake_run(argv, **kwargs):
         if argv == ["git", "rev-parse", "--verify", "HEAD"]:
             return SimpleNamespace(stdout="a" * 40 + "\n")
-        assert argv == ["git", "status", "--porcelain", "--untracked-files=no"]
+        if argv == ["git", "status", "--porcelain", "--untracked-files=no"]:
+            return SimpleNamespace(stdout="")
+        assert argv == ["git", "ls-files", "--others", "--exclude-standard", "--", "src", "scripts"]
         return SimpleNamespace(stdout="")
     monkeypatch.setattr(gate.subprocess, "run", fake_run)
     assert gate._git_head(tmp_path) == "a" * 40
@@ -131,3 +133,32 @@ def test_git_head_rejects_failed_cleanliness_probe(tmp_path, monkeypatch):
     with pytest.raises(ValueError, match="Cannot verify tracked checkout cleanliness"):
         gate._git_head(tmp_path)
 
+
+
+def test_git_head_rejects_untracked_importable_source(tmp_path, monkeypatch):
+    calls = []
+    def fake_run(argv, **kwargs):
+        calls.append(argv)
+        assert kwargs["cwd"] == tmp_path and kwargs["check"] is True
+        if argv == ["git", "rev-parse", "--verify", "HEAD"]:
+            return SimpleNamespace(stdout="a" * 40 + "\n")
+        if argv == ["git", "status", "--porcelain", "--untracked-files=no"]:
+            return SimpleNamespace(stdout="")
+        assert argv == ["git", "ls-files", "--others", "--exclude-standard", "--", "src", "scripts"]
+        return SimpleNamespace(stdout="src/norisk_quant/rogue.py\n")
+    monkeypatch.setattr(gate.subprocess, "run", fake_run)
+    with pytest.raises(ValueError, match="Untracked source files"):
+        gate._git_head(tmp_path)
+    assert len(calls) == 3
+
+
+def test_git_head_fails_closed_when_untracked_probe_times_out(tmp_path, monkeypatch):
+    def fake_run(argv, **kwargs):
+        if argv == ["git", "rev-parse", "--verify", "HEAD"]:
+            return SimpleNamespace(stdout="a" * 40 + "\n")
+        if argv == ["git", "status", "--porcelain", "--untracked-files=no"]:
+            return SimpleNamespace(stdout="")
+        raise subprocess.TimeoutExpired(cmd="git ls-files", timeout=5)
+    monkeypatch.setattr(gate.subprocess, "run", fake_run)
+    with pytest.raises(ValueError, match="Cannot verify untracked source cleanliness"):
+        gate._git_head(tmp_path)
