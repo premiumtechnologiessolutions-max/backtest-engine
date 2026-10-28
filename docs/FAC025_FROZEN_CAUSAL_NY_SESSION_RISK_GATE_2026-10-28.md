@@ -1,0 +1,16 @@
+# FAC025 — Frozen causal New York session / M15 volatility / realized-loss gate (2026-10-28)
+
+**Status: preregistered research-only prototype; ZERO original-data backtests, ZERO new monthly observations, ZERO verified floating M1 drawdown, NOT clean OOS.** This family is a *single* logically distinct hypothesis with correlated parameter variations, not 72 independent discoveries. No entry signal, strategy execution, portfolio capacity, position sizing or profitability has been implemented by this patch.
+
+## Frozen hypothesis (before opening outcomes)
+An existing independently frozen entry signal may be allowed only if: (1) its decision timestamp is within a New York-local session, with DST derived from `America/New_York`; (2) the last N actually observed **complete** M15 bars are contiguous, their final bar ended no more than 60 seconds earlier, and their average high-low range divided by the last close falls inside a frozen band; (3) cumulative *already closed* same-New-York-calendar-day **net after canonical costs** USD/oz is strictly greater than minus a frozen halt limit. The gate never uses later bars, still-open trade P/L, monthly final returns, or fabricated M1 minutes. Invalid timestamps and malformed data fail closed; market gaps block signals. All P/L inputs must be independently reconciled before use.
+
+Frozen grid, not yet executed: lookback N={4,8,12}; min range ratio={0.0004,0.0008}; max range ratio={0.003,0.006}; daily realized-loss halt USD/oz={2,4,6}; NY session={08:00–12:00,09:00–13:00}. **72 correlated parameter configurations**, not 72 independent hypotheses. Baseline unit tests exercise defaults outside the frozen candidate grid only as software controls. Entry/exit family, capacity and stop distance remain **undefined**: do not count any grid specification as a backtest, do not select parameters from historical outcomes, and do not register a completed FAC batch.
+
+## Integration gates
+1. Freeze an actual entry/exit strategy and shared-capacity portfolio priority policy separately before any results; use exactly $0.40/oz ALL-IN roundtrip, next eligible open <=1 minute, stop-first and adverse gap-through. Loss halt is not a substitute for risk sizing or drawdown protection; gaps can exceed stop risk.
+2. Reconstruct full M15 bars only from actual consecutive M1 observations, with explicit observed count=15; verify DST, market closures and per-signal timestamp chronology. Never feed an aggregate or monthly end-of-period P/L into a decision.
+3. Use the original private SHA256-pinned Gold ZIP locally only; cross-check sampled ledger and M1 floating equity against canonical independent reference, then compare a *single shared-capacity* portfolio with fees, worst-month net, consecutive losing months, sample size, M1 floating drawdown and multiple-testing adjustment.
+4. Years 2012–2016 are historically exposed. Require independently frozen forward/prospective evaluation with embargo and a new source manifest before any adoption. PR #1 remains Draft/unmerged.
+
+Implementation: `scripts/research_causal_session_risk.py`; synthetic controls: `tests/test_research_causal_session_risk.py`. No real trades, no data upload, no strategy or registry total changes.
