@@ -471,3 +471,122 @@ def test_batch_refuses_symlinked_evidence_paths(tmp_path, monkeypatch, target):
         assert outside.read_text(encoding="utf-8") == "do not read or overwrite"
     else:
         assert list(outside.iterdir()) == []
+
+
+# Batch output locking and durable manifest tests are synthetic-only.
+def test_batch_output_lock_blocks_second_process_and_releases(tmp_path):
+    out = tmp_path / "runs"
+    out.mkdir()
+    with lab.exclusive_batch_lock(out):
+        with pytest.raises(ValueError, match="already running"):
+            with lab.exclusive_batch_lock(out):
+                pass
+    with lab.exclusive_batch_lock(out):
+        assert (out / ".research_batch.lock").stat().st_size == 0
+
+
+def test_batch_output_lock_released_after_exception(tmp_path):
+    out = tmp_path / "runs"
+    out.mkdir()
+    with pytest.raises(RuntimeError, match="synthetic crash"):
+        with lab.exclusive_batch_lock(out):
+            raise RuntimeError("synthetic crash")
+    with lab.exclusive_batch_lock(out):
+        pass
+
+
+@pytest.mark.parametrize("attack", ["symlink", "hardlink", "permissive", "nonempty", "directory"])
+def test_batch_output_lock_rejects_unsafe_existing_inode(tmp_path, attack):
+    out = tmp_path / "runs"
+    out.mkdir()
+    lock = out / ".research_batch.lock"
+    outside = tmp_path / "untouched"
+    outside.write_text("keep", encoding="utf-8")
+    if attack == "symlink":
+        lock.symlink_to(outside)
+    elif attack == "hardlink":
+        import os
+        os.link(outside, lock)
+    elif attack == "permissive":
+        lock.write_bytes(b"")
+        lock.chmod(0o644)
+    elif attack == "nonempty":
+        lock.write_text("not an empty lock", encoding="utf-8")
+    else:
+        lock.mkdir()
+    with pytest.raises((ValueError, OSError)):
+        with lab.exclusive_batch_lock(out):
+            pass
+    assert outside.read_text(encoding="utf-8") == "keep"
+
+
+def test_batch_lock_detects_inode_replacement_during_acquisition(tmp_path, monkeypatch):
+    if lab.fcntl is None:
+        pytest.skip("POSIX only")
+    out = tmp_path / "runs"
+    out.mkdir()
+    real_flock = lab.fcntl.flock
+
+    def replaced(fd, mode):
+        real_flock(fd, mode)
+        if mode & lab.fcntl.LOCK_EX:
+            (out / ".research_batch.lock").unlink()
+            (out / ".research_batch.lock").write_bytes(b"")
+
+    monkeypatch.setattr(lab.fcntl, "flock", replaced)
+    with pytest.raises(ValueError, match="path changed"):
+        with lab.exclusive_batch_lock(out):
+            pass
+
+
+def test_atomic_manifest_rejects_symlink_and_keeps_external_file(tmp_path):
+    target = tmp_path / "batch_manifest.json"
+    outside = tmp_path / "private"
+    outside.write_text("keep", encoding="utf-8")
+    target.symlink_to(outside)
+    with pytest.raises(ValueError, match="Unsafe batch manifest"):
+        lab.atomic_manifest(target, {"test": "synthetic"})
+    assert outside.read_text(encoding="utf-8") == "keep"
+
+
+def test_atomic_manifest_preserves_previous_version_on_replace_failure(tmp_path, monkeypatch):
+    target = tmp_path / "batch_manifest.json"
+    lab.atomic_manifest(target, {"phase": "first"})
+    previous = target.read_bytes()
+    def fail_replace(*args):
+        raise OSError("synthetic disk failure")
+    monkeypatch.setattr(lab.os, "replace", fail_replace)
+    with pytest.raises(OSError, match="synthetic disk failure"):
+        lab.atomic_manifest(target, {"phase": "second"})
+    assert target.read_bytes() == previous
+    assert not list(tmp_path.glob(".batch-manifest-*.tmp"))
+
+
+def test_atomic_manifest_writes_private_file_and_no_staging_residue(tmp_path):
+    target = tmp_path / "batch_manifest.json"
+    lab.atomic_manifest(target, {"monthly_pnl": None, "status": "NOT_EXECUTED"})
+    assert json.loads(target.read_text())["monthly_pnl"] is None
+    assert target.stat().st_mode & 0o077 == 0
+    assert not list(tmp_path.glob(".batch-manifest-*.tmp"))
+
+
+def test_real_batch_run_holds_output_lock_through_canonical_execution(tmp_path, monkeypatch):
+    data = tmp_path / "private-synthetic.zip"
+    data.write_bytes(b"synthetic test archive")
+    p = plan(tmp_path)
+    p["dataset"] = str(data)
+    p["source_sha256"] = lab.file_sha(data)
+    monkeypatch.setattr(lab, "checkout_commit", lambda: COMMIT)
+    calls = []
+    def fake_engine(command, **kwargs):
+        calls.append(command)
+        out = Path(command[command.index("--out") + 1])
+        with pytest.raises(ValueError, match="already running"):
+            with lab.exclusive_batch_lock(tmp_path / "output"):
+                pass
+        make_report(out, source=p["source_sha256"])
+        return SimpleNamespace(returncode=0)
+    monkeypatch.setattr(lab.subprocess, "run", fake_engine)
+    result = lab.run_plan(p, tmp_path / "output", max_jobs=1)
+    assert result["executed_this_invocation"] == 1
+    assert len(calls) == 1

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager
 import csv
 from datetime import date
 import hashlib
@@ -10,10 +11,17 @@ from itertools import product
 import json
 import math
 import os
+import stat
+import tempfile
 from pathlib import Path
 import re
 import subprocess
 import sys
+
+try:
+    import fcntl
+except ImportError:  # no POSIX flock: execution fails closed
+    fcntl = None
 
 from norisk_quant.evidence_reconciliation import verify_exit_periods
 
@@ -323,10 +331,68 @@ def checkout_commit() -> str:
     return result
 
 
+@contextmanager
+def exclusive_batch_lock(output: Path):
+    """Serialize real batch execution for one output directory on POSIX.
+
+    The lock is held through canonical execution, evidence reconciliation,
+    manifest publication and HTML export. Never unlink lock files: flock
+    protects the inode, and removing a held path could permit a second owner.
+    """
+    if fcntl is None or os.name != "posix":
+        raise ValueError("Batch execution requires POSIX flock")
+    if output.is_symlink() or not output.is_dir():
+        raise ValueError("Unsafe batch output directory")
+    lock = output / ".research_batch.lock"
+    flags = os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0)
+    fd = os.open(lock, flags, 0o600)
+    locked = False
+    try:
+        info = os.fstat(fd)
+        if (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1
+                or info.st_size != 0 or info.st_uid != os.getuid()
+                or info.st_mode & 0o077):
+            raise ValueError("Unsafe batch lock file")
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            locked = True
+        except BlockingIOError as exc:
+            raise ValueError("Research batch already running for this output") from exc
+        # Detect a swapped/unlinked path before entering the critical section.
+        current = os.stat(lock, follow_symlinks=False)
+        if (not stat.S_ISREG(current.st_mode)
+                or (current.st_dev, current.st_ino) != (info.st_dev, info.st_ino)):
+            raise ValueError("Research batch lock path changed during acquisition")
+        yield
+    finally:
+        if locked:
+            fcntl.flock(fd, fcntl.LOCK_UN)
+        os.close(fd)
+
+
 def atomic_manifest(path: Path, data: dict) -> None:
-    staging = path.with_name(path.name + ".tmp")
-    staging.write_bytes(canonical(data) + b"\n")
-    os.replace(staging, path)
+    """Durable private manifest replace; never follow a predictable .tmp link."""
+    if path.is_symlink() or (path.exists() and path.stat().st_nlink != 1):
+        raise ValueError("Unsafe batch manifest target")
+    payload = canonical(data) + b"\n"
+    fd, staging = tempfile.mkstemp(prefix=".batch-manifest-", suffix=".tmp",
+                                  dir=path.parent)
+    try:
+        with os.fdopen(fd, "wb") as stream:
+            stream.write(payload)
+            stream.flush()
+            os.fsync(stream.fileno())
+        if path.is_symlink() or (path.exists() and path.stat().st_nlink != 1):
+            raise ValueError("Unsafe batch manifest target")
+        os.replace(staging, path)
+        dir_fd = os.open(path.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+        try:
+            os.fsync(dir_fd)
+        finally:
+            os.close(dir_fd)
+    finally:
+        if os.path.exists(staging):
+            os.unlink(staging)
 
 
 def render_index(manifest: dict) -> str:
@@ -385,77 +451,80 @@ def run_plan(plan: dict, output: Path, *, max_jobs: int = 20, dry_run: bool = Fa
     revision = checkout_commit()
     if revision != plan["engine_commit"]:
         raise ValueError("Current checkout differs from frozen engine revision")
+    if output.is_symlink():
+        raise ValueError("Unsafe batch output symlink")
     output = output.resolve()
     output.mkdir(parents=True, exist_ok=True)
-    manifest_path = output / "batch_manifest.json"
-    if manifest_path.is_symlink():
-        raise ValueError("Unsafe batch manifest symlink")
-    if manifest_path.exists():
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        if (not isinstance(manifest, dict)
-                or set(manifest) != {"schema", "plan_sha256", "source_sha256", "engine_commit", "results"}
-                or manifest["schema"] != SCHEMA
-                or manifest["plan_sha256"] != plan_sha
-                or manifest["source_sha256"] != plan["source_sha256"]
-                or manifest["engine_commit"] != revision
-                or not isinstance(manifest["results"], dict)):
-            raise ValueError("Existing output has incompatible plan/commit")
-    else:
-        manifest = {"schema": SCHEMA, "plan_sha256": plan_sha,
-                    "source_sha256": plan["source_sha256"],
-                    "engine_commit": revision, "results": {}}
-    known_ids = {j["id"] for j in jobs}
-    if not set(manifest["results"]).issubset(known_ids):
-        raise ValueError("Manifest contains unrecognized experiment identifiers")
-    launched = 0
-    for job in jobs:
-        ident, spec = job["id"], job["spec"]
-        folder = output / "runs" / ident
-        if folder.is_symlink():
-            raise ValueError("Unsafe experiment directory symlink")
-        existing = manifest["results"].get(ident)
-        if existing is not None:
-            if existing.get("status") != PASSED:
-                raise ValueError("A failed run requires manual investigation")
-            if audit_run(folder, spec, plan["source_sha256"], revision) != existing:
-                raise ValueError("Previously accepted evidence was modified")
-            continue
-        if launched >= max_jobs:
-            break
-        if folder.exists() and any(folder.iterdir()):
-            raise ValueError("Unknown existing run output requires inspection")
-        folder.mkdir(parents=True, exist_ok=True)
-        cmd = [sys.executable, "-m", "norisk_quant.cli", "backtest",
-               "--data", str(dataset), "--start", spec["start"], "--end", spec["end"],
-               "--out", str(folder), "--strategy", spec["strategy"],
-               "--timeframe", spec["timeframe"], "--execution", spec["execution"],
-               "--ounces", "1", "--all-in-cost-per-ounce", "0.40"]
-        for key, value in sorted(spec["parameters"].items()):
-            cmd += ["--" + key.replace("_", "-"), str(value)]
-        env = dict(os.environ, GITHUB_SHA=revision)
-        try:
-            subprocess.run(cmd, check=True, capture_output=True, text=True,
-                           timeout=7200, env=env)
-            record = audit_run(folder, spec, plan["source_sha256"], revision)
-        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError,
-                ValueError, FileNotFoundError, KeyError) as exc:
-            manifest["results"][ident] = {
-                "status": "FAILED_REQUIRES_INVESTIGATION", "error_type": type(exc).__name__
-            }
+    with exclusive_batch_lock(output):
+        manifest_path = output / "batch_manifest.json"
+        if manifest_path.is_symlink():
+            raise ValueError("Unsafe batch manifest symlink")
+        if manifest_path.exists():
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            if (not isinstance(manifest, dict)
+                    or set(manifest) != {"schema", "plan_sha256", "source_sha256", "engine_commit", "results"}
+                    or manifest["schema"] != SCHEMA
+                    or manifest["plan_sha256"] != plan_sha
+                    or manifest["source_sha256"] != plan["source_sha256"]
+                    or manifest["engine_commit"] != revision
+                    or not isinstance(manifest["results"], dict)):
+                raise ValueError("Existing output has incompatible plan/commit")
+        else:
+            manifest = {"schema": SCHEMA, "plan_sha256": plan_sha,
+                        "source_sha256": plan["source_sha256"],
+                        "engine_commit": revision, "results": {}}
+        known_ids = {j["id"] for j in jobs}
+        if not set(manifest["results"]).issubset(known_ids):
+            raise ValueError("Manifest contains unrecognized experiment identifiers")
+        launched = 0
+        for job in jobs:
+            ident, spec = job["id"], job["spec"]
+            folder = output / "runs" / ident
+            if folder.is_symlink():
+                raise ValueError("Unsafe experiment directory symlink")
+            existing = manifest["results"].get(ident)
+            if existing is not None:
+                if existing.get("status") != PASSED:
+                    raise ValueError("A failed run requires manual investigation")
+                if audit_run(folder, spec, plan["source_sha256"], revision) != existing:
+                    raise ValueError("Previously accepted evidence was modified")
+                continue
+            if launched >= max_jobs:
+                break
+            if folder.exists() and any(folder.iterdir()):
+                raise ValueError("Unknown existing run output requires inspection")
+            folder.mkdir(parents=True, exist_ok=True)
+            cmd = [sys.executable, "-m", "norisk_quant.cli", "backtest",
+                   "--data", str(dataset), "--start", spec["start"], "--end", spec["end"],
+                   "--out", str(folder), "--strategy", spec["strategy"],
+                   "--timeframe", spec["timeframe"], "--execution", spec["execution"],
+                   "--ounces", "1", "--all-in-cost-per-ounce", "0.40"]
+            for key, value in sorted(spec["parameters"].items()):
+                cmd += ["--" + key.replace("_", "-"), str(value)]
+            env = dict(os.environ, GITHUB_SHA=revision)
+            try:
+                subprocess.run(cmd, check=True, capture_output=True, text=True,
+                               timeout=7200, env=env)
+                record = audit_run(folder, spec, plan["source_sha256"], revision)
+            except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError,
+                    ValueError, FileNotFoundError, KeyError) as exc:
+                manifest["results"][ident] = {
+                    "status": "FAILED_REQUIRES_INVESTIGATION", "error_type": type(exc).__name__
+                }
+                atomic_manifest(manifest_path, manifest)
+                raise RuntimeError("A backtest failed verification: " + ident) from exc
+            manifest["results"][ident] = record
             atomic_manifest(manifest_path, manifest)
-            raise RuntimeError("A backtest failed verification: " + ident) from exc
-        manifest["results"][ident] = record
-        atomic_manifest(manifest_path, manifest)
-        launched += 1
-    index = output / "research_batch_index.html"
-    index.write_text(render_index(manifest), encoding="utf-8")
-    return {
-        "status": "HISTORICAL_RESEARCH_ONLY", "defined_jobs": len(jobs),
-        "reconciled_jobs": sum(
-            rec.get("status") == PASSED for rec in manifest["results"].values()),
-        "executed_this_invocation": launched, "plan_sha256": plan_sha,
-        "index": str(index),
-    }
+            launched += 1
+        index = output / "research_batch_index.html"
+        index.write_text(render_index(manifest), encoding="utf-8")
+        return {
+            "status": "HISTORICAL_RESEARCH_ONLY", "defined_jobs": len(jobs),
+            "reconciled_jobs": sum(
+                rec.get("status") == PASSED for rec in manifest["results"].values()),
+            "executed_this_invocation": launched, "plan_sha256": plan_sha,
+            "index": str(index),
+        }
 
 
 def main(argv: list[str] | None = None) -> int:
