@@ -1,0 +1,12 @@
+# Canonical M1 floating-equity monthly evidence audit — 2026-10-28
+
+This new offline, read-only verifier computes **observed M1 global-peak drawdown by UTC month** from a canonical backtest's actual equity_m1.csv. It never fills missing minutes, never uses broker tick claims, and never sums standalone runs into a shared-capacity portfolio. The rolling peak starts at zero and carries across calendar months. A month's maximum is the worst observed minute-close global-peak drawdown *within that month*, not a month-reset P/L or a full intrabar drawdown. Explicit observed gap counts are retained.
+
+**Strict prerequisites:** original private ZIP locally SHA256-verified; exact frozen engine Git checkout; previously and independently pinned SHA256 for summary.json, monthly.csv, equity_m1.csv. Recomputes each M1 realized+floating=equity, running drawdown, monotonic UTC minute timestamps, month-end equity/drawdown, monthly observed sample counts, global maximum, last observed realized and equity, and fixed $0.40/oz roundtrip setting. Duplicate JSON keys, malformed CSV, hardlinks/symlinks, and mismatches fail closed. Streams M1 CSV; does not upload, copy, or output private quotes.
+
+Run locally only (example placeholders, no data attached):
+python -m scripts.research_equity_m1_audit --run /private/run --private-archive /private/Gold-data.zip --source-sha256 <64hex> --engine-commit <40hex> --summary-sha256 <64hex> --monthly-sha256 <64hex> --equity-m1-sha256 <64hex>
+
+**Important limitation:** legacy batch manifests hash summary/monthly/weekly/trades but do NOT pin equity_m1.csv. Therefore this verifier does **not** retroactively populate monthly floating drawdown in Quant Terminal or Monthly Scorecard; it requires an independently pinned equity hash first. Hashing a possibly modified equity file and passing that hash back to this tool is NOT independent attestation. All old scorecard floating metrics remain N/A until valid evidence exists. Synthetic unit tests (14) cover gap preservation, monthly/global drawdown, tampering, wrong fee, wrong counts, time bounds, duplicate headers, duplicate JSON keys, and hardlinks.
+
+No original-data batch executed in this change; 0 prospective months, 0 newly approved strategies, no clean OOS, no MT5 live, no GitHub raw M1 uploads. Next step: capture immutable equity SHA at original canonical run time under an independently auditable provenance chain, then integrate only verified per-month risk into the UI. Existing research totals unchanged. Draft PR stays unmerged.
