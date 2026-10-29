@@ -483,6 +483,12 @@ def verify(gold_zip: Path, reference_root: Path, years: list[int]) -> dict:
                 **check,
                 "status": "PASSED",
             })
+    # Re-check the original ZIP after every requested year/variant was read.
+    # Without this, an archive replaced after the initial SHA verification
+    # could yield a PASSED report falsely attributed to the frozen source.
+    # This detects persistent mutation, not adversarial swap-and-restore races.
+    if file_sha256(gold_zip) != sha:
+        raise ValueError("Dataset archive changed during historical replay")
     return {
         "status": "PASSED",
         "source_sha256": sha,
