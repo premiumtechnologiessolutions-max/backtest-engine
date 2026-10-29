@@ -15,7 +15,7 @@ All audited exits require a unique, strictly increasing UTC minute-aligned M1 in
 
 ## Verification and release gates
 
-**16/16 isolated synthetic tests passed locally** using the same new module and a minimal stub for the pre-existing quote dtype helper. These checks include both valid exits and deliberately identically corrupted exit labels/prices. The new test file is `tests/test_source_bar_exit_integrity.py`.
+**21/21 isolated synthetic tests passed locally** using the same new module and a minimal stub for the pre-existing quote dtype helper. These checks include both valid exits and deliberately identically corrupted exit labels/prices. The new test file is `tests/test_source_bar_exit_integrity.py`.
 
 **Not yet verified on this HEAD:** full GitHub repository pytest/installed package, GitHub Actions, original private SHA-pinned Gold ZIP replay, archived 13-field parity on the new code, tick fills, or fresh untouched OOS. Prior CI successes apply only to their own commits. The original Gold ZIP SHA is `1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121` and must never be uploaded to the public repository. Frozen fee remains **exactly $0.40/oz all-in**. No strategy rules or historical P/L were changed; rejected BOS/H1 findings remain rejected. PR #1 stays Draft and unmerged.
 
