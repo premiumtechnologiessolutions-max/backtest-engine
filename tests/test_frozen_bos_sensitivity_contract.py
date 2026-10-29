@@ -317,3 +317,35 @@ def test_frozen_runner_rejects_source_bar_reason_set_drift():
     counts.pop("target")
     with pytest.raises(AssertionError, match="reason set changed"):
         frozen.verify_exit_audit_coverage(trades, 2, counts)
+
+
+def test_frozen_runner_blocks_unaudited_exit_before_writing_report(tmp_path, monkeypatch):
+    """Integration: an unknown executor label cannot inherit annual certification."""
+    from types import SimpleNamespace
+
+    source = tmp_path / "SYNTHETIC_NOT_REAL_GOLD.zip"
+    source.write_bytes(b"synthetic fixture only")
+    monkeypatch.setattr(frozen, "sha256_file", lambda _: SOURCE_SHA)
+    monkeypatch.setattr(frozen, "load_market", lambda *args, **kwargs: _monthly_sample())
+    monkeypatch.setattr(frozen, "fingerprint_loaded_m1", lambda _: "0" * 64)
+    monkeypatch.setattr(frozen, "bos_fib_limit_orders", lambda *args, **kwargs: [])
+    monkeypatch.setattr(frozen, "filter_orders_h1", lambda *args, **kwargs: [])
+    stamp = pd.Timestamp("2012-01-01T00:00:00Z")
+    unknown = pd.DataFrame([{
+        "entry_at": stamp, "closed_at": stamp, "entry_price": 2000.0,
+        "exit_price": 2000.0, "side": 1, "stop": 1999.0,
+        "target": 2001.0, "exit_reason": "unreviewed_executor_path",
+    }])
+    monkeypatch.setattr(frozen, "run_limits",
+                        lambda *args, **kwargs: SimpleNamespace(trades=unknown))
+    monkeypatch.setattr(
+        frozen, "report",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("Unverified trades must never reach report writing")
+        ),
+    )
+    destination = tmp_path / "out"
+    with pytest.raises(AssertionError, match="unaudited exit reason"):
+        frozen.execute(source, [2012], destination)
+    assert not (destination / "2012").exists()
+    assert not (destination / "frozen_sensitivity_summary.json").exists()
