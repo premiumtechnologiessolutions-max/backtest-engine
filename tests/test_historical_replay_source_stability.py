@@ -44,9 +44,10 @@ def test_frozen_annual_runner_rejects_source_mutation_before_combined_certificat
     destination = tmp_path / "reports"
     with pytest.raises(ValueError, match="changed during frozen replay"):
         frozen.execute(source, [2012], destination)
-    # Annual diagnostics may exist; never publish a combined certification.
-    assert (destination / "2012" / "summary.json").exists()
-    assert not (destination / "frozen_sensitivity_summary.json").exists()
+    # Atomic publication: even the first year's reports stay unpublished
+    # when the final source-archive SHA check detects a mutation.
+    assert not destination.exists()
+    assert list(tmp_path.glob(".reports.staging-*")) == []
 
 
 @pytest.mark.parametrize("source_mutated", [False, True])
