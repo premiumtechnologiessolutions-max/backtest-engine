@@ -46,12 +46,16 @@ STRATEGY_PARAMS = {
                 "bos_min_impulse_usd", "bos_expiry_minutes",
                 "bos_min_gross_reward_fee_multiple"},
     "qs01": set(),
+    "tf-sweep": {"tf_sweep_lookback_bars", "tf_sweep_penetration_usd",
+                 "tf_sweep_stop_buffer_usd", "tf_sweep_reward_risk",
+                 "tf_sweep_min_stop_usd", "tf_sweep_max_stop_usd"},
     "m1-sweep": {"sweep_lookback", "sweep_min_excess_usd",
                  "sweep_reclaim_usd", "sweep_stop_buffer_usd",
                  "sweep_reward_risk", "sweep_max_stop_usd"},
 }
 INT_PARAMS = {"fast", "slow", "donchian_lookback", "bos_pivot_left",
-              "bos_pivot_right", "bos_expiry_minutes", "sweep_lookback"}
+              "bos_pivot_right", "bos_expiry_minutes", "sweep_lookback",
+              "tf_sweep_lookback_bars"}
 BASE = {"strategy", "timeframe", "execution", "start", "end"}
 
 
@@ -117,6 +121,8 @@ def check_spec(spec: object) -> dict:
         raise ValueError("Unsupported execution")
     if spec["strategy"] in ("fvg", "bos-fib") and spec["execution"] != "reference":
         raise ValueError("Limit execution is reference-only")
+    if spec["strategy"] == "tf-sweep" and spec["timeframe"] not in ("M15", "H1"):
+        raise ValueError("TF sweep research requires M15 or H1")
     if spec["strategy"] in ("bos-fib", "qs01", "m1-sweep") and spec["timeframe"] != "M1":
         raise ValueError("Frozen strategy requires M1")
     for field in ("start", "end"):
@@ -137,6 +143,11 @@ def check_spec(spec: object) -> dict:
             raise ValueError("Parameter must be nonnegative or positive")
     if spec["strategy"] == "ema" and params.get("fast", 9) >= params.get("slow", 21):
         raise ValueError("EMA fast must be below slow")
+    if spec["strategy"] == "tf-sweep":
+        if params.get("tf_sweep_lookback_bars", 12) < 3:
+            raise ValueError("TF sweep lookback must be >=3")
+        if params.get("tf_sweep_min_stop_usd", 0.50) > params.get("tf_sweep_max_stop_usd", 50.0):
+            raise ValueError("TF sweep minimum stop exceeds maximum")
     if spec["strategy"] == "m1-sweep":
         if params.get("sweep_lookback", 20) < 3:
             raise ValueError("M1 sweep lookback must be >=3")
