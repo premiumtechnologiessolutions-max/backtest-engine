@@ -489,11 +489,26 @@ class ResearchHub:
         return {"status": "STARTED_LOCAL_RESEARCH", "plan_id": plan_id,
                 "requested_job_budget": budget}
 
+    @staticmethod
+    def _verified_runner_count(report, budget: int) -> int:
+        """Fail closed on malformed runner acknowledgements, never infer success.
+
+        This is a progress-control check, NOT evidence that any result ledger
+        has passed independent source/fee/market-data reconciliation.
+        """
+        if type(report) is not dict:
+            raise ValueError("Research runner returned a non-object result")
+        count = report.get("executed_this_invocation")
+        if type(count) is not int or not 0 <= count <= budget:
+            raise ValueError("Research runner returned invalid executed_this_invocation")
+        return count
+
     def _execute(self, plan_id, plan, output, budget, recover):
         try:
             result = lab.run_plan(plan, output, max_jobs=budget, recover_verified_orphans=recover)
+            completed = self._verified_runner_count(result, budget)
             with self._lock:
-                self._budget_completed = result.get("executed_this_invocation", 0)
+                self._budget_completed = completed
         except Exception as exc:
             with self._lock:
                 self._latest_error[plan_id] = type(exc).__name__ + ": " + str(exc)[:300]
@@ -551,10 +566,15 @@ class ResearchHub:
                     max_jobs=min(batch_size, total_budget - self._budget_completed),
                     recover_verified_orphans=recover,
                 )
-                launched = report["executed_this_invocation"]
+                launched = self._verified_runner_count(
+                    report, min(batch_size, total_budget - self._budget_completed))
+                reconciled, defined = report.get("reconciled_jobs"), report.get("defined_jobs")
+                if (type(reconciled) is not int or type(defined) is not int
+                        or not 0 <= reconciled <= defined <= CAP):
+                    raise ValueError("Research runner returned invalid reconciled/defined job counts")
                 with self._lock:
                     self._budget_completed += launched
-                if report["reconciled_jobs"] >= report["defined_jobs"]:
+                if reconciled >= defined:
                     break
                 if launched == 0 and report.get("recovered_verified_orphans", 0) == 0:
                     raise RuntimeError("Research made no progress; manual investigation required")

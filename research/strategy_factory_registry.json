@@ -1299,6 +1299,17 @@
       "original_source_monthly_floating_drawdown_usd_per_oz": "N/A",
       "approved_strategies": 0,
       "note": "Fixed archived timestamp Series-vs-ndarray conversion; 13-field synthetic replay tests now run. No historical backtest, cost, hypothesis or portfolio outcome changed."
+    },
+    {
+      "id": "NRF-QUANTLAB-RUNNER-PROGRESS-ACK",
+      "status": "CODE_AND_SYNTHETIC_TESTS_SUBMITTED_CI_VERIFICATION_REQUIRED",
+      "report": "docs/QUANTLAB_RUNNER_PROGRESS_FAIL_CLOSED_2026-10-29.md",
+      "synthetic_negative_regressions_added": 12,
+      "original_source_strategy_backtests_added": 0,
+      "original_source_monthly_net_usd_per_oz": "N/A",
+      "original_source_monthly_floating_drawdown_usd_per_oz": "N/A",
+      "approved_strategies": 0,
+      "note": "Reject invalid worker/autopilot progress acknowledgement and no budget credit; repair stale recovery mock. No original Gold replay or market hypothesis change."
     }
   ]
 }

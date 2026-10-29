@@ -107,7 +107,7 @@ def test_budgeted_worker_serializes_real_runner_invocations(hub, monkeypatch):
         calls.append((plan["source_sha256"], output.name, max_jobs, recover_verified_orphans))
         enter.set()
         assert release.wait(5)
-        return {"status": "SYNTHETIC_TEST_DONE"}
+        return {"status": "SYNTHETIC_TEST_DONE", "executed_this_invocation": 0}
     monkeypatch.setattr(app.lab, "run_plan", fake_runner)
     try:
         answer = hub.start(plan_id, 5)
@@ -131,10 +131,30 @@ def test_worker_errors_visible_and_recoverable(hub, monkeypatch):
     hub.start(plan_id, 1)
     hub._thread.join(2)
     assert "RuntimeError" in hub.run_summary(plan_id)["last_error"]
-    monkeypatch.setattr(app.lab, "run_plan", lambda *a, **k: None)
+    monkeypatch.setattr(app.lab, "run_plan", lambda *a, **k: {
+        "executed_this_invocation": 1,
+        "reconciled_jobs": 1, "defined_jobs": 4,
+    })
     hub.start(plan_id, 1, recover=True)
     hub._thread.join(2)
     assert hub.run_summary(plan_id)["last_error"] is None
+    assert hub.status()["operator_budget_completed"] == 1
+
+
+@pytest.mark.parametrize("bad_report", [
+    None, {}, {"executed_this_invocation": True},
+    {"executed_this_invocation": -1},
+    {"executed_this_invocation": 2},
+    {"executed_this_invocation": "1"},
+])
+def test_worker_rejects_unverified_progress_acknowledgement(hub, monkeypatch, bad_report):
+    plan_id = hub.freeze(fake_spec())["plan_id"]
+    monkeypatch.setattr(app.lab, "run_plan", lambda *a, **k: bad_report)
+    hub.start(plan_id, 1)
+    hub._thread.join(3)
+    assert "ValueError" in hub.run_summary(plan_id)["last_error"]
+    assert hub.status()["operator_budget_completed"] == 0
+    assert hub.status()["active_run"] is None
 
 
 def test_run_results_report_recorded_not_reaudited(hub):

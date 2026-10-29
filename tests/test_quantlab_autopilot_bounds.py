@@ -116,3 +116,21 @@ def test_empty_pagination_and_invalid_limit(hub):
         hub.run_results(ident, offset=-1, limit=20)
     with pytest.raises(ValueError):
         hub.run_results(ident, offset=0, limit=201)
+
+
+@pytest.mark.parametrize("bad", [
+    None,
+    {"executed_this_invocation": True, "reconciled_jobs": 0, "defined_jobs": 4},
+    {"executed_this_invocation": 2, "reconciled_jobs": 0, "defined_jobs": 4},
+    {"executed_this_invocation": 0, "reconciled_jobs": True, "defined_jobs": 4},
+    {"executed_this_invocation": 0, "reconciled_jobs": 5, "defined_jobs": 4},
+    {"executed_this_invocation": 0, "reconciled_jobs": 0, "defined_jobs": 5001},
+])
+def test_autopilot_rejects_invalid_runner_progress_without_budget_credit(hub, monkeypatch, bad):
+    ident = frozen(hub)
+    monkeypatch.setattr(app.lab, "run_plan", lambda *a, **k: bad)
+    hub.start_autopilot(ident, 1, 4)
+    hub._thread.join(4)
+    assert "ValueError" in hub.run_summary(ident)["last_error"]
+    assert hub.status()["operator_budget_completed"] == 0
+    assert hub.status()["active_run"] is None
