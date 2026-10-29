@@ -1143,7 +1143,10 @@
       "bid_reference_replay_status": "SYNTHETIC_CANONICAL_FAST_PARITY_BID_ONLY_NO_ORIGINAL_SOURCE_REPLAY",
       "bid_reference_replay_verified_commit": "dcbd9e07754873d089de2516813065a65bbf8b2a",
       "bid_reference_replay_verified_ci_run": 40848698736,
-      "bid_reference_replay_verified_ci_tests_passed": 2195
+      "bid_reference_replay_verified_ci_tests_passed": 2195,
+      "paired_bidask_entry_audit": "scripts/research_fac025_bidask_entry_audit.py",
+      "paired_bidask_entry_audit_report": "docs/FAC025_PAIRED_BIDASK_ENTRY_SIDE_AUDIT_2026-10-29.md",
+      "paired_bidask_entry_audit_status": "SYNTHETIC_SOURCE_QUOTE_DIAGNOSTIC_ONLY_NOT_EXECUTABLE"
     }
   ]
 }
