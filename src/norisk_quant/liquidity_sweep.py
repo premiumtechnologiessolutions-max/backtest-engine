@@ -61,16 +61,18 @@ def liquidity_sweep_signals(
                 or bars.index[i] - bars.index[i - settings.lookback_bars]
                 != period * settings.lookback_bars):
             continue
-        low_sweep = (
-            candle["l"] <= bottom - settings.penetration_usd
-            and bottom < candle["c"] <= top
-        )
-        high_sweep = (
-            candle["h"] >= top + settings.penetration_usd
-            and bottom <= candle["c"] < top
-        )
-        if low_sweep == high_sweep:
-            continue  # no sweep or ambiguous two-sided sweep
+        # Detect BOTH wick excursions before applying any reclaim-close
+        # condition. Otherwise a candle that pierces both extremes but
+        # closes exactly at one old boundary can be mistaken for a
+        # one-sided sweep, despite unknown intrabar event ordering.
+        pierced_low = candle["l"] <= bottom - settings.penetration_usd
+        pierced_high = candle["h"] >= top + settings.penetration_usd
+        if pierced_low == pierced_high:
+            continue  # neither edge or ambiguous two-sided wick sweep
+        low_sweep = pierced_low and bottom < candle["c"] <= top
+        high_sweep = pierced_high and bottom <= candle["c"] < top
+        if not (low_sweep or high_sweep):
+            continue  # sweep occurred but close did not reclaim old range
         side = 1 if low_sweep else -1
         stop = (float(candle["c"] - candle["l"]) if low_sweep
                 else float(candle["h"] - candle["c"])) + settings.stop_buffer_usd
