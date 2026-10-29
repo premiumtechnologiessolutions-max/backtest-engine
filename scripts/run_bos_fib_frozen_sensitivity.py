@@ -12,6 +12,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import shutil
+import tempfile
 from pathlib import Path
 
 import pandas as pd
@@ -120,6 +123,33 @@ def verify_exit_audit_coverage(
 
 
 def execute(gold_zip: Path, years: list[int], destination: Path) -> dict:
+    """Publish an annual replay only after *every* selected year passes.
+
+    A later-year failure or final source-SHA mismatch must not leave earlier
+    annual reports at the requested destination, where they might be mistaken
+    for a completed frozen study. Temporary evidence remains a sibling of
+    the destination and is removed on every failure.
+    """
+    validate_year_selection(years)
+    validate_output_destination(destination)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    validate_output_destination(destination)
+    staging = Path(tempfile.mkdtemp(
+        prefix=f".{destination.name}.staging-", dir=destination.parent
+    ))
+    try:
+        combined = _execute_unpublished(gold_zip, years, staging)
+        # Recheck before publishing: a concurrent writer may have populated
+        # the destination while the multi-year replay was running.
+        validate_output_destination(destination)
+        os.replace(staging, destination)
+        return combined
+    finally:
+        if staging.exists():
+            shutil.rmtree(staging)
+
+
+def _execute_unpublished(gold_zip: Path, years: list[int], destination: Path) -> dict:
     validate_year_selection(years)
     validate_output_destination(destination)
     if not gold_zip.is_file() or gold_zip.suffix.lower() != ".zip":
