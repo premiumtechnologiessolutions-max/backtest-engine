@@ -30,7 +30,7 @@ def exact_joint_signflip(annual_pnl: dict[str, list[float]], *,
     """
     if (type(annual_pnl) is not dict or not annual_pnl
             or type(min_years) is not int or min_years < 2
-            or type(max_years) is not int or max_years < min_years
+            or type(max_years) is not int or max_years < min_years or max_years > 16
             or type(chunk_size) is not int or not 1 <= chunk_size <= 4096):
         raise ValueError("Invalid frozen sign-flip matrix or controls")
     ids = sorted(annual_pnl)
