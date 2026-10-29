@@ -1302,14 +1302,47 @@
     },
     {
       "id": "NRF-QUANTLAB-RUNNER-PROGRESS-ACK",
-      "status": "CODE_AND_SYNTHETIC_TESTS_SUBMITTED_CI_VERIFICATION_REQUIRED",
+      "status": "EXACT_CODE_GITHUB_CI_PASSED_SYNTHETIC_ONLY",
       "report": "docs/QUANTLAB_RUNNER_PROGRESS_FAIL_CLOSED_2026-10-29.md",
       "synthetic_negative_regressions_added": 12,
       "original_source_strategy_backtests_added": 0,
       "original_source_monthly_net_usd_per_oz": "N/A",
       "original_source_monthly_floating_drawdown_usd_per_oz": "N/A",
       "approved_strategies": 0,
-      "note": "Reject invalid worker/autopilot progress acknowledgement and no budget credit; repair stale recovery mock. No original Gold replay or market hypothesis change."
+      "note": "Reject invalid worker/autopilot progress acknowledgement and no budget credit; repair stale recovery mock. No original Gold replay or market hypothesis change.",
+      "verified_ci_commit": "33b997d2cac8558b852e81700725c30154c8561d",
+      "verified_ci_run": 40956093746,
+      "verified_ci_pytest_passed": 2731,
+      "verified_ci_warnings": 1
+    },
+    {
+      "id": "NRF-FAC-025-2017-2025-STRUCTURAL",
+      "status": "LOCAL_SHA_VERIFIED_ORIGINAL_SOURCE_STRUCTURAL_DIAGNOSTIC_NOT_BACKTEST",
+      "report": "docs/FAC025_ORIGINAL_SOURCE_2017_2025_STRUCTURAL_EXTENSION_2026-10-29.md",
+      "source_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
+      "years": [
+        2017,
+        2018,
+        2019,
+        2020,
+        2021,
+        2022,
+        2023,
+        2024,
+        2025
+      ],
+      "original_source_observed_m1": 3187653,
+      "normalized_risk_structural_candidates": 16379,
+      "observed_candidate_next_opens": 16124,
+      "ny_08_12_observed_candidate_next_opens": 2816,
+      "ny_09_13_observed_candidate_next_opens": 2478,
+      "candidate_months": 108,
+      "original_source_strategy_backtests_added": 0,
+      "original_source_monthly_net_usd_per_oz": "N/A",
+      "original_source_monthly_floating_drawdown_usd_per_oz": "N/A",
+      "shared_capacity_executed": false,
+      "approved_strategies": 0,
+      "note": "Independent local source-only M15/H1 structural mirror over nine additional historically exposed years, matched prior 2012–2016 totals 8265/8157. NY windows overlap; no fills, receipts, fee simulation, monthly P/L, shared-capacity replay or OOS."
     }
   ]
 }
