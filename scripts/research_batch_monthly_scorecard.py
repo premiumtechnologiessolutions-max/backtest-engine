@@ -61,6 +61,10 @@ def monthly_downside(months: list[dict], start: str, end: str) -> dict:
     first, last = date.fromisoformat(start), date.fromisoformat(end)
     if first > last:
         raise ValueError("Reversed monthly risk window")
+    first_index = first.year * 12 + first.month - 1
+    last_index = last.year * 12 + last.month - 1
+    if last_index - first_index > 360:
+        raise ValueError("Monthly audit window exceeds 361 calendar months")
     ordered = []
     partial = []
     previous = None
@@ -102,7 +106,15 @@ def monthly_downside(months: list[dict], start: str, end: str) -> dict:
                     worst = total
                     worst_window = [a[1], d[1]]
         previous = index
+    observed_months = {row[1] for row in ordered}
+    missing_months = [
+        f"{index // 12:04d}-{index % 12 + 1:02d}"
+        for index in range(first_index, last_index + 1)
+        if f"{index // 12:04d}-{index % 12 + 1:02d}" not in observed_months
+    ]
     return {
+        "missing_requested_calendar_months_utc": missing_months,
+        "requested_calendar_month_coverage_complete": not missing_months,
         "nonpositive_months": nonpositive,
         "months_with_trades": sum(item[4] > 0 for item in ordered),
         "longest_nonpositive_observed_month_streak": longest,
@@ -167,6 +179,9 @@ def scorecard(plan: dict, output: Path, *, equity_pins: dict | None = None) -> d
         } for r in rows]
         if not months:
             raise ValueError("Missing monthly evidence")
+        downside = monthly_downside(months, job["spec"]["start"], job["spec"]["end"])
+        if not downside["requested_calendar_month_coverage_complete"]:
+            raise ValueError("Canonical monthly ledger missing requested UTC calendar months")
         floating_dd = None
         for month in months:
             month["max_observed_m1_global_peak_drawdown_usd_per_oz"] = None
@@ -199,7 +214,7 @@ def scorecard(plan: dict, output: Path, *, equity_pins: dict | None = None) -> d
             "positive_months": sum(m["net_usd_per_oz"] > 0 for m in months),
             "months_observed": len(months),
             "zero_trade_months": sum(m["trades"] == 0 for m in months),
-            **monthly_downside(months, job["spec"]["start"], job["spec"]["end"]),
+            **downside,
             "worst_month_utc": worst["month_utc"],
             "worst_month_net_usd_per_oz": worst["net_usd_per_oz"],
             "net_usd_per_oz": verified["net_pnl"],
