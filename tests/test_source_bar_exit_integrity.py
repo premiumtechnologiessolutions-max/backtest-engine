@@ -122,3 +122,52 @@ def test_boolean_source_price_is_rejected():
     m["o"] = True
     with pytest.raises(ValueError):
         verify(m, trade("target"))
+
+
+@pytest.mark.parametrize("side,stop,target,opening,high,low,reason", [
+    (1, 99., 102., 98., 101., 97., "stop"),
+    (1, 99., 102., 98., 103., 97., "ambiguous_stop_first"),
+    (-1, 102., 99., 103., 104., 100., "stop"),
+    (-1, 102., 99., 103., 104., 98., "ambiguous_stop_first"),
+])
+def test_intrabar_stop_label_cannot_hide_adverse_open(
+    side, stop, target, opening, high, low, reason
+):
+    m = market()
+    m.loc[m.index[-1], ["o", "h", "l", "c"]] = [
+        opening, high, low, 100.,
+    ]
+    t = trade(reason, side=side, stop=stop, target=target, exit_price=stop)
+    with pytest.raises(AssertionError, match="opening stop priority"):
+        verify(m, t)
+
+
+@pytest.mark.parametrize("side,stop,target,opening,high,low", [
+    (1, 99., 102., 103., 104., 100.),
+    (-1, 102., 99., 98., 100., 97.),
+])
+def test_intrabar_target_label_cannot_hide_favorable_open(
+    side, stop, target, opening, high, low
+):
+    m = market()
+    m.loc[m.index[-1], ["o", "h", "l", "c"]] = [
+        opening, high, low, 100.,
+    ]
+    t = trade("target", side=side, stop=stop, target=target, exit_price=target)
+    with pytest.raises(AssertionError, match="opening target priority"):
+        verify(m, t)
+
+
+@pytest.mark.parametrize("side,stop,target,opening,high,low", [
+    (1, 99., 102., 103., 104., 98.),
+    (-1, 102., 99., 98., 103., 97.),
+])
+def test_open_target_wins_even_if_stop_touched_later(
+    side, stop, target, opening, high, low
+):
+    m = market()
+    m.loc[m.index[-1], ["o", "h", "l", "c"]] = [
+        opening, high, low, 100.,
+    ]
+    t = trade("open_target", side=side, stop=stop, target=target, exit_price=target)
+    assert verify(m, t)["open_target"] == 1

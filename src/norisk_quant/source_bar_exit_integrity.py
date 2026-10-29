@@ -67,6 +67,21 @@ def verify_source_bar_exit_prices(m1: pd.DataFrame, trades: pd.DataFrame) -> dic
                     or not isinstance(value, Real) or not np.isfinite(value) or value <= 0):
                 raise ValueError(f"Source-bar {name} must be finite positive numeric")
         side = int(row.side)
+        # The limit executor processes an existing position's opening BID
+        # before any intrabar high/low touch.  An adverse opening stop must
+        # be labelled open_stop/gap_stop (or entry_open_beyond_stop for a
+        # newly filled limit), and a favorable opening target is open_target.
+        # A fabricated intrabar label must not pass merely because the
+        # remainder of the M1 bar later touches the reported stop/target.
+        if reason in ("stop", "ambiguous_stop_first", "target"):
+            if side * (op[position] - row.stop) <= EPS:
+                raise AssertionError(
+                    "Source-bar intrabar exit conflicts with opening stop priority"
+                )
+            if side * (op[position] - row.target) >= -EPS:
+                raise AssertionError(
+                    "Source-bar intrabar exit conflicts with opening target priority"
+                )
         stop_touched = lo[position] <= row.stop + EPS if side == 1 else hi[position] >= row.stop - EPS
         target_touched = hi[position] >= row.target - EPS if side == 1 else lo[position] <= row.target + EPS
         if reason in ("stop", "ambiguous_stop_first"):
