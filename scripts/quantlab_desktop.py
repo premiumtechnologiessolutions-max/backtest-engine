@@ -11,6 +11,7 @@ import csv
 from datetime import date
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -80,6 +81,38 @@ def strict_dict(value, keys):
     if type(value) is not dict or set(value) != set(keys):
         raise ValueError("Missing or unsupported request fields")
     return value
+
+
+
+def decode_request_json(raw: bytes) -> object:
+    """Parse control-plane JSON without duplicate keys or nonfinite numbers.
+
+    A frozen research request must have one unambiguous interpretation.
+    Python's default json.loads silently keeps the last duplicate key and
+    accepts overflowed 1e999 as infinity, even with parse_constant set.
+    """
+    def unique_pairs(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("Duplicate research request JSON key")
+            result[key] = value
+        return result
+
+    def finite_float(value):
+        number = float(value)
+        if not math.isfinite(number):
+            raise ValueError("Nonfinite research request JSON number")
+        return number
+
+    def reject_constant(value):
+        raise ValueError("Nonfinite research request JSON constant")
+
+    try:
+        return json.loads(raw.decode("utf-8"), object_pairs_hook=unique_pairs,
+                          parse_float=finite_float, parse_constant=reject_constant)
+    except (UnicodeError, json.JSONDecodeError) as exc:
+        raise ValueError("Malformed research request JSON") from exc
 
 
 class ResearchHub:
@@ -433,8 +466,7 @@ class ConsoleHandler(BaseHTTPRequestHandler):
                 raise ValueError("Invalid Content-Length") from exc
             if not 0 < size <= MAX_BODY:
                 raise ValueError("Request exceeds 32 KiB or is empty")
-            payload = json.loads(self.rfile.read(size),
-                                 parse_constant=lambda _: (_ for _ in ()).throw(ValueError("Nonfinite JSON")))
+            payload = decode_request_json(self.rfile.read(size))
             parsed = urlsplit(self.path)
             hub = self.server.hub
             if parsed.path == "/api/configure":
