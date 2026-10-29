@@ -90,3 +90,35 @@ def test_invalid_source_bar_fails_closed():
 
 def test_unknown_exit_reason_not_certified_as_source_checked():
     assert sum(verify(market(), trade("open_stop")).values()) == 0
+
+
+def test_short_stop_and_target_ambiguity():
+    m = market(low=98., high=103.)
+    t = trade("ambiguous_stop_first", side=-1, stop=102., target=99., exit_price=102.)
+    assert verify(m, t)["ambiguous_stop_first"] == 1
+
+
+def test_short_target_only_touch():
+    m = market(low=98., high=101.)
+    t = trade("target", side=-1, stop=102., target=99., exit_price=99.)
+    assert verify(m, t)["target"] == 1
+
+
+def test_short_open_target_must_be_favorable():
+    m = market(low=97., high=101.)
+    m.loc[m.index[-1], ["o", "c"]] = [98., 98.]
+    t = trade("open_target", side=-1, stop=102., target=99., exit_price=99.)
+    assert verify(m, t)["open_target"] == 1
+
+
+def test_short_open_target_rejects_unfavorable_open():
+    t = trade("open_target", side=-1, stop=102., target=99., exit_price=99.)
+    with pytest.raises(AssertionError, match="open_target"):
+        verify(market(), t)
+
+
+def test_boolean_source_price_is_rejected():
+    m = market()
+    m["o"] = True
+    with pytest.raises(ValueError):
+        verify(m, trade("target"))
