@@ -269,3 +269,51 @@ def test_frozen_runner_rejects_shifted_monthly_pnl_even_when_total_matches(tmp_p
     with pytest.raises(ValueError, match="Trade exit allocation disagrees"):
         frozen.execute(source, [2012], tmp_path / "out")
     assert not (tmp_path / "out" / "frozen_sensitivity_summary.json").exists()
+
+
+def _exit_coverage_fixture(reasons=("open_stop", "target", "gap_stop")):
+    from norisk_quant.source_bar_exit_integrity import AUDITED_REASONS
+    trades = pd.DataFrame({"exit_reason": list(reasons)})
+    counts = {reason: list(reasons).count(reason) for reason in AUDITED_REASONS}
+    return trades, counts
+
+
+def test_frozen_runner_source_exit_coverage_matches_each_executed_reason():
+    trades, counts = _exit_coverage_fixture()
+    frozen.verify_exit_audit_coverage(trades, 2, counts)
+    empty, zero = _exit_coverage_fixture(())
+    frozen.verify_exit_audit_coverage(empty, 0, zero)
+
+
+def test_frozen_runner_rejects_unrecognized_exit_even_if_auditors_skip_it():
+    trades, counts = _exit_coverage_fixture(("target", "new_unreviewed_exit"))
+    with pytest.raises(AssertionError, match="unaudited exit reason"):
+        frozen.verify_exit_audit_coverage(trades, 0, counts)
+
+
+def test_frozen_runner_rejects_underreported_source_bar_exit_count():
+    trades, counts = _exit_coverage_fixture()
+    counts["target"] = 0
+    with pytest.raises(AssertionError, match="every executed exit"):
+        frozen.verify_exit_audit_coverage(trades, 2, counts)
+
+
+def test_frozen_runner_rejects_mismatched_source_open_count():
+    trades, counts = _exit_coverage_fixture()
+    with pytest.raises(AssertionError, match="source-open audit count"):
+        frozen.verify_exit_audit_coverage(trades, 1, counts)
+
+
+@pytest.mark.parametrize("bad", [True, -1, 1.0])
+def test_frozen_runner_rejects_fabricated_or_invalid_source_bar_counts(bad):
+    trades, counts = _exit_coverage_fixture()
+    counts["target"] = bad
+    with pytest.raises(AssertionError, match="nonnegative integers"):
+        frozen.verify_exit_audit_coverage(trades, 2, counts)
+
+
+def test_frozen_runner_rejects_source_bar_reason_set_drift():
+    trades, counts = _exit_coverage_fixture()
+    counts.pop("target")
+    with pytest.raises(AssertionError, match="reason set changed"):
+        frozen.verify_exit_audit_coverage(trades, 2, counts)
