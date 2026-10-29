@@ -38,6 +38,8 @@ def report():
             "zero_trade_months": 0, "nonpositive_months": 1, "months_with_trades": 2,
             "longest_nonpositive_observed_month_streak": 1,
             "partial_requested_calendar_months_utc": [],
+            "missing_requested_calendar_months_utc": [],
+            "requested_calendar_month_coverage_complete": True,
             "worst_three_complete_calendar_months_net_usd_per_oz": None,
             "worst_three_complete_calendar_months_window_utc": None,
             "worst_month_utc": "2024-02", "worst_month_net_usd_per_oz": -7.0,
