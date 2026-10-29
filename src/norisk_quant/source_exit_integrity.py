@@ -40,6 +40,8 @@ def verify_source_open_exit_prices(m1: pd.DataFrame, trades: pd.DataFrame) -> in
         raise ValueError("Source-open audit requires finite positive BID opens")
     if not isinstance(trades, pd.DataFrame):
         raise ValueError("Source-open audit requires trade DataFrame")
+    if trades.columns.has_duplicates:
+        raise ValueError("Source-open audit requires unique trade columns")
     fields = {"entry_at", "closed_at", "exit_price", "exit_reason", "side", "stop"}
     if not fields.issubset(trades.columns):
         raise ValueError("Source-open audit missing trade fields")
@@ -55,7 +57,9 @@ def verify_source_open_exit_prices(m1: pd.DataFrame, trades: pd.DataFrame) -> in
                 raise ValueError(f"Source-open audit requires UTC-aware {label}")
         entry = pd.Timestamp(row.entry_at).tz_convert("UTC")
         closed = pd.Timestamp(row.closed_at).tz_convert("UTC")
-        position = index.get_indexer([closed])[0]
+        entry_position, position = index.get_indexer([entry, closed])
+        if entry_position < 0:
+            raise AssertionError("Opening-stop entry timestamp missing from source M1")
         if position < 0:
             raise AssertionError("Opening-stop exit timestamp missing from source M1")
         if isinstance(row.side, bool) or not isinstance(row.side, Integral):
@@ -66,8 +70,8 @@ def verify_source_open_exit_prices(m1: pd.DataFrame, trades: pd.DataFrame) -> in
                 or not math.isfinite(row.exit_price)):
             raise ValueError("Opening-stop exit price must be finite numeric")
         if (isinstance(row.stop, bool) or not isinstance(row.stop, Real)
-                or not math.isfinite(row.stop)):
-            raise ValueError("Opening-stop stop must be finite numeric")
+                or not math.isfinite(row.stop) or row.stop <= 0):
+            raise ValueError("Opening-stop stop must be finite positive numeric")
         if not math.isclose(float(row.exit_price), opens[position], rel_tol=0, abs_tol=1e-7):
             raise AssertionError("Opening-stop exit price differs from source M1 BID open")
         if row.side * (float(row.exit_price) - float(row.stop)) > 1e-7:
