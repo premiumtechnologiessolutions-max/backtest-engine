@@ -1134,7 +1134,10 @@
       "verified_floating_m1_drawdown": "N/A",
       "shared_capacity_executed": false,
       "approved_strategies": 0,
-      "note": "Fixed M15 sweep/reclaim plus strictly older completed H1 trend. Not a fill, portfolio backtest or OOS. Do not count in completed factory totals."
+      "note": "Fixed M15 sweep/reclaim plus strictly older completed H1 trend. Not a fill, portfolio backtest or OOS. Do not count in completed factory totals.",
+      "next_open_preflight": "scripts/research_fac025_next_open_preflight.py",
+      "next_open_preflight_report": "docs/FAC025_NEXT_OBSERVED_OPEN_PREFLIGHT_2026-10-29.md",
+      "next_open_preflight_status": "SYNTHETIC_ONLY_CANDIDATE_NOT_FILL_SOURCE_AND_CAPACITY_UNAUTHENTICATED"
     }
   ]
 }
