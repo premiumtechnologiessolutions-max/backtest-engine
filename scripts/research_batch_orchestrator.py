@@ -24,6 +24,8 @@ except ImportError:  # no POSIX flock: execution fails closed
     fcntl = None
 
 from norisk_quant.evidence_reconciliation import verify_exit_periods
+from norisk_quant.model import Settings, serialize_settings
+from norisk_quant.quote_stress import qs01_settings
 
 try:
     from scripts.research_terminal_export import write_private_html
@@ -309,6 +311,15 @@ def audit_run(folder: Path, spec: dict, source_sha: str, engine_sha: str) -> dic
     settings = summary.get("settings")
     if not isinstance(settings, dict) or finite(settings.get("roundtrip_cost_per_ounce")) != 0.40:
         raise ValueError("Research transaction cost mismatch")
+    # The frozen CLI command declares exactly one ounce, with no unrecorded
+    # holding/entry-delay/forced-close overrides. A correct fee alone cannot
+    # attest that the accepted experiment used the canonical execution policy.
+    # QS01 is the sole intentionally different frozen execution preset.
+    expected_settings = serialize_settings(
+        qs01_settings() if spec["strategy"] == "qs01" else Settings()
+    )
+    if canonical(settings) != canonical(expected_settings):
+        raise ValueError("Frozen execution settings differ from canonical one-ounce preset")
     provenance = summary.get("source_fingerprints")
     if (not isinstance(provenance, dict)
             or provenance.get("source_file_sha256") != source_sha

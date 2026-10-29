@@ -8,6 +8,8 @@ from pathlib import Path
 from types import SimpleNamespace
 import pytest
 from scripts import research_batch_orchestrator as lab
+from norisk_quant.model import Settings, serialize_settings
+from norisk_quant.quote_stress import qs01_settings
 
 
 SOURCE = "a" * 64
@@ -64,7 +66,7 @@ def make_report(folder: Path, source=SOURCE, commit=COMMIT, *, outcome=(3.0, -2.
                                  "closed_at": stamp})
     summary = {
         "execution": "synthetic_same_reference_bid_ohlc_fixed_all_in_fee",
-        "settings": {"roundtrip_cost_per_ounce": 0.4},
+        "settings": serialize_settings(Settings()),
         "source_fingerprints": {
             "source_file_sha256": source, "git_revision_env": commit,
             "loaded_m1_bidask_sha256": M1,
@@ -761,3 +763,49 @@ def test_orphan_recovery_requires_explicit_boolean(tmp_path):
     with pytest.raises(ValueError, match="flag must be boolean"):
         lab.run_plan(plan(tmp_path), tmp_path / "out",
                      recover_verified_orphans="yes", dry_run=True)
+
+
+@pytest.mark.parametrize("field,altered", [
+    ("ounces", 2.0),
+    ("ounces", True),
+    ("max_entry_delay_minutes", 0),
+    ("max_entry_delay_minutes", True),
+    ("close_at_end", False),
+    ("max_holding_minutes", 30),
+    ("max_hold_minutes", 30),
+])
+def test_frozen_batch_rejects_execution_policy_drift(tmp_path, field, altered):
+    folder = tmp_path / "job"
+    make_report(folder)
+    path = folder / "summary.json"
+    saved = json.loads(path.read_text(encoding="utf-8"))
+    saved["settings"][field] = altered
+    path.write_text(json.dumps(saved), encoding="utf-8")
+    with pytest.raises(ValueError, match="Frozen execution settings"):
+        lab.audit_run(folder, spec(), SOURCE, COMMIT)
+
+
+def test_frozen_batch_rejects_missing_or_extra_execution_setting(tmp_path):
+    folder = tmp_path / "job"
+    make_report(folder)
+    path = folder / "summary.json"
+    original = json.loads(path.read_text(encoding="utf-8"))
+    for change in ("missing", "extra"):
+        saved = json.loads(json.dumps(original))
+        if change == "missing":
+            saved["settings"].pop("close_at_end")
+        else:
+            saved["settings"]["undocumented_override"] = False
+        path.write_text(json.dumps(saved), encoding="utf-8")
+        with pytest.raises(ValueError, match="Frozen execution settings"):
+            lab.audit_run(folder, spec(), SOURCE, COMMIT)
+
+
+def test_frozen_qs01_policy_is_distinct_from_generic_one_ounce_policy():
+    baseline = serialize_settings(Settings())
+    special = serialize_settings(qs01_settings())
+    assert baseline["ounces"] == special["ounces"] == 1.0
+    assert baseline["roundtrip_cost_per_ounce"] == special["roundtrip_cost_per_ounce"] == 0.4
+    assert special["max_entry_delay_minutes"] == 0
+    assert special["max_holding_minutes"] == 30
+    assert lab.canonical(special) != lab.canonical(baseline)
