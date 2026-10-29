@@ -1,6 +1,6 @@
 {
   "format_version": 1,
-  "updated_utc": "2026-10-29T17:18:00Z",
+  "updated_utc": "2026-10-29T18:35:00Z",
   "project": "No Risk FX XAUUSD quant research factory",
   "branch": "feat/quant-engine-foundation",
   "original_private_zip_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
@@ -1200,6 +1200,16 @@
         "approved_strategies": 0,
         "report": "docs/FAC025_ORIGINAL_SOURCE_NY_SESSION_SUBSET_2026-10-29.md",
         "script": "scripts/research_fac025_source_feasibility.py"
+      },
+      "original_source_entry_open_spread_stress": {
+        "status": "LOCAL_SHA_VERIFIED_ORIGINAL_SOURCE_STRUCTURAL_ONLY_NOT_EXECUTED",
+        "report": "docs/FAC025_ORIGINAL_SOURCE_ENTRY_OPEN_SPREAD_STRESS_2026-10-29.md",
+        "observed_candidate_next_opens": 8157,
+        "spread_gt_0_40_all_hours": 455,
+        "monthly_pnl": "N/A",
+        "floating_m1_drawdown": "N/A",
+        "original_source_strategy_backtests": 0,
+        "shared_capacity_executed": false
       }
     }
   ],
@@ -1236,6 +1246,33 @@
       "original_source_monthly_net_usd_per_oz": "N/A",
       "original_source_monthly_floating_drawdown_usd_per_oz": "N/A",
       "note": "Reject aggregate-canceling per-fill fee edits, monthly-vs-trade total mismatch, coercible non-real numeric evidence and duplicate ledger columns. $0.40/oz fixed. Historical factory counts unchanged; source BID/ASK replay and OOS not proven."
+    },
+    {
+      "id": "NRF-FAC-025-ORIGINAL-ENTRY-OPEN-SPREAD-STRESS",
+      "status": "LOCAL_SHA_VERIFIED_ORIGINAL_SOURCE_STRUCTURAL_QUOTE_DIAGNOSTIC_NOT_BACKTEST",
+      "report": "docs/FAC025_ORIGINAL_SOURCE_ENTRY_OPEN_SPREAD_STRESS_2026-10-29.md",
+      "script": "scripts/research_fac025_entry_spread_stress.py",
+      "synthetic_regressions_added": 11,
+      "source_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
+      "years": [
+        2012,
+        2013,
+        2014,
+        2015,
+        2016
+      ],
+      "normalized_risk_structural_candidates": 8265,
+      "observed_candidate_next_opens": 8157,
+      "all_hours_spread_over_0_40_count": 455,
+      "ny_08_12_observed_candidate_next_opens": 1345,
+      "ny_08_12_spread_over_0_40_count": 49,
+      "ny_09_13_observed_candidate_next_opens": 1268,
+      "ny_09_13_spread_over_0_40_count": 44,
+      "original_source_strategy_backtests_added": 0,
+      "original_source_monthly_net_usd_per_oz": "N/A",
+      "original_source_monthly_floating_drawdown_usd_per_oz": "N/A",
+      "approved_strategies": 0,
+      "note": "Independent original-source M15/H1 structural candidate reconstruction and next observed open BID/ASK spread stress. 5 exposed years; local count parity vs earlier report, with source-module parity gate in script. No source receipt authentication, fills, actual portfolio or OOS; spread is not an extra fee."
     }
   ]
 }
