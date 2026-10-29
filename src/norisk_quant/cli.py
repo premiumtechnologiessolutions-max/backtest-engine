@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import asdict
 import json
 import os
 from pathlib import Path
@@ -19,6 +20,7 @@ from .model import Settings
 from .report import report
 from .registry import ExperimentIdentity, experiment_manifest
 from .strategy import ema_cross_signals
+from .math_discovery import Formula, arithmetic_signals
 from .strategies_native import donchian_breakout_signals
 from .liquidity_sweep_m1 import sweep_reclaim_m1_signals
 from .liquidity_sweep import SweepSettings, liquidity_sweep_signals
@@ -82,8 +84,9 @@ def main() -> None:
     test.add_argument("--end", required=True, help="UTC inclusive YYYY-MM-DD")
     test.add_argument("--out", required=True)
     test.add_argument("--timeframe", default="M15", choices=("M1", "M5", "M15", "H1", "H4"))
-    test.add_argument("--strategy", default="ema", choices=("ema", "donchian", "fvg", "bos-fib", "qs01", "m1-sweep", "tf-sweep"))
+    test.add_argument("--strategy", default="ema", choices=("ema", "donchian", "fvg", "bos-fib", "qs01", "m1-sweep", "tf-sweep", "arithmetic"))
     test.add_argument("--execution", default="reference", choices=("reference", "fast"))
+    test.add_argument("--formula-json", help="Frozen arithmetic Formula JSON (M1 only)")
     test.add_argument("--donchian-lookback", type=int, default=20)
     test.add_argument("--stop-usd", type=float, default=15.0)
     test.add_argument("--target-usd", type=float, default=30.0)
@@ -125,6 +128,34 @@ def main() -> None:
     test.add_argument("--all-in-cost-per-ounce", type=float, default=0.40)
 
     args = parser.parse_args()
+    arithmetic_formula = None
+    if args.command == "backtest":
+        if args.strategy == "arithmetic":
+            if args.timeframe != "M1" or not args.formula_json:
+                parser.error("arithmetic requires --timeframe M1 and --formula-json")
+            try:
+                source = Path(args.formula_json)
+                if source.stat().st_size > 65536:
+                    raise ValueError("Formula JSON exceeds 64 KiB")
+                def unique_pairs(pairs):
+                    result = {}
+                    for key, value in pairs:
+                        if key in result:
+                            raise ValueError(f"Duplicate Formula JSON key: {key}")
+                        result[key] = value
+                    return result
+                def reject_constant(value):
+                    raise ValueError(f"Non-finite Formula JSON constant: {value}")
+                values = json.loads(source.read_text(encoding="utf-8"),
+                                    object_pairs_hook=unique_pairs,
+                                    parse_constant=reject_constant)
+                if not isinstance(values, dict):
+                    raise ValueError("Formula JSON must be an object")
+                arithmetic_formula = Formula(**values)
+            except (OSError, UnicodeError, ValueError, TypeError) as exc:
+                parser.error(f"Invalid frozen arithmetic formula: {exc}")
+        elif args.formula_json is not None:
+            parser.error("--formula-json requires --strategy arithmetic")
     # Canonical No Risk FX strategy research uses ONE declared full-cycle
     # ALL-IN $0.40/oz fee. Reject accidental $0 or double-fee estimates.
     if args.command == "backtest" and args.all_in_cost_per_ounce != 0.40:
@@ -305,6 +336,9 @@ def main() -> None:
         elif args.strategy == "qs01":
             signals = qs01_signals(data)
             result = (run_fast if args.execution == "fast" else run)(data, signals, settings)
+        elif args.strategy == "arithmetic":
+            signals = arithmetic_signals(data, arithmetic_formula)
+            result = (run_fast if args.execution == "fast" else run)(data, signals, settings)
         elif args.strategy == "fvg":
             limit_orders = fvg_midpoint_limit_orders(
                 data,
@@ -348,6 +382,10 @@ def main() -> None:
             key: value for key, value in vars(args).items()
             if key not in ("data", "out")
         }
+        if arithmetic_formula is not None:
+            # Persist actual normalized parameters, not only a mutable local path.
+            settings_for_run["arithmetic_formula"] = asdict(arithmetic_formula)
+            settings_for_run["arithmetic_formula_sha256"] = arithmetic_formula.identity()
         summary = report(
             result, settings, args.out, source=str(data_path),
             provenance=provenance, run_parameters=settings_for_run,
