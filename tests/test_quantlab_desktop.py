@@ -228,9 +228,7 @@ def test_reader_rejects_oversized_post(hub):
 
 
 def test_multiyear_universe_freeze_is_definition_only(hub, monkeypatch):
-    import sys
-    import types
-    mod = types.ModuleType("scripts.generate_quant_research_grid")
+    from scripts import generate_quant_research_grid as factory
     def make_plan(source, *, years, source_sha256, engine_commit):
         return {"schema": app.lab.SCHEMA, "dataset": str(source),
                 "source_sha256": source_sha256, "engine_commit": engine_commit,
@@ -240,8 +238,7 @@ def test_multiyear_universe_freeze_is_definition_only(hub, monkeypatch):
                            "start": f"{y}-01-01", "end": f"{y}-12-31",
                            "grid": {"fast": [9], "slow": [21]}}
                           for y in years]}
-    mod.make_plan = make_plan
-    monkeypatch.setitem(sys.modules, "scripts.generate_quant_research_grid", mod)
+    monkeypatch.setattr(factory, "make_plan", make_plan)
     frozen = hub.freeze_research_universe([2012, 2013])
     assert frozen["defined_jobs"] == 2
     assert frozen["status"] == "FROZEN_MULTIYEAR_NOT_EXECUTED"
