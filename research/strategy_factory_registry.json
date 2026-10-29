@@ -1,6 +1,6 @@
 {
   "format_version": 1,
-  "updated_utc": "2026-10-29T09:20:26Z",
+  "updated_utc": "2026-10-29T12:17:48Z",
   "project": "No Risk FX XAUUSD quant research factory",
   "branch": "feat/quant-engine-foundation",
   "original_private_zip_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
@@ -1148,7 +1148,32 @@
       "paired_bidask_entry_audit_report": "docs/FAC025_PAIRED_BIDASK_ENTRY_SIDE_AUDIT_2026-10-29.md",
       "paired_bidask_entry_audit_status": "SYNTHETIC_SOURCE_QUOTE_DIAGNOSTIC_ONLY_NOT_EXECUTABLE",
       "original_source_open_spread_audit": "docs/FAC025_ORIGINAL_GOLD_2012_2016_OPEN_SPREAD_DIAGNOSTIC_2026-10-29.md",
-      "original_source_open_spread_audit_status": "LOCAL_SHA_VERIFIED_AGGREGATED_QUOTES_ONLY_NO_TRADES"
+      "original_source_open_spread_audit_status": "LOCAL_SHA_VERIFIED_AGGREGATED_QUOTES_ONLY_NO_TRADES",
+      "original_source_structural_feasibility": {
+        "status": "SHA_VERIFIED_SOURCE_ONLY_NOT_BACKTEST_NO_RECEIPT_AUTH",
+        "source_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
+        "years": [
+          2012,
+          2013,
+          2014,
+          2015,
+          2016
+        ],
+        "observed_m1_bars": 1765104,
+        "complete_m15_bars": 116590,
+        "complete_two_prior_h1_contexts": 102200,
+        "directional_sweep_candidates_before_risk": 9332,
+        "normalized_risk_envelope_candidates": 8265,
+        "candidate_timestamps_with_later_observed_open_not_fill": 8157,
+        "candidate_months_with_at_least_one": 60,
+        "monthly_pnl": "N/A",
+        "floating_m1_drawdown": "N/A",
+        "original_source_strategy_backtests": 0,
+        "authenticated_receipts": false,
+        "shared_capacity_executed": false,
+        "report": "docs/FAC025_ORIGINAL_SOURCE_STRUCTURAL_FEASIBILITY_2026-10-29.md",
+        "script": "scripts/research_fac025_source_feasibility.py"
+      }
     }
   ]
 }
