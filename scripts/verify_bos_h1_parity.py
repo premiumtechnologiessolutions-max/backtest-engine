@@ -32,6 +32,7 @@ from norisk_quant.h1_regime import filter_orders_h1
 from norisk_quant.limit_engine import run_limits
 from norisk_quant.model import Settings
 from norisk_quant.source_exit_integrity import verify_source_open_exit_prices
+from norisk_quant.source_bar_exit_integrity import verify_source_bar_exit_prices
 
 
 EXPECTED_MARKET_SHA256 = "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121"
@@ -455,6 +456,7 @@ def verify(gold_zip: Path, reference_root: Path, years: list[int]) -> dict:
                 ounces=1.0, roundtrip_cost_per_ounce=0.40,
             ))
             source_open_exits_verified = verify_source_open_exit_prices(m1, result.trades)
+            source_bar_exits_verified = verify_source_bar_exit_prices(m1, result.trades)
             baseline = read_reference_csv(
                 reference_root / "results" / str(year) / name / "trades.csv",
                 required_columns=set(FIELDS.values()),
@@ -483,6 +485,7 @@ def verify(gold_zip: Path, reference_root: Path, years: list[int]) -> dict:
                 "deferred_same_entry_bar_TP": result.uncertain_entry_tp_deferred,
                 "end_of_data_source_closes_verified": final_source_closes,
                 "source_open_stop_exits_verified": source_open_exits_verified,
+                "source_bar_exits_verified_by_reason": source_bar_exits_verified,
                 **check,
                 "status": "PASSED",
             })
