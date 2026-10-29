@@ -8,6 +8,8 @@ from __future__ import annotations
 import argparse
 import json
 import math
+from datetime import date
+import zipfile
 from pathlib import Path
 import re
 
@@ -103,6 +105,29 @@ def make_plan(source: Path, *, years: tuple[int, ...], source_sha256: str,
     }
 
 
+def require_annual_source_members(source: Path, years: tuple[int, ...]) -> None:
+    """Fail before freezing if the authorized ZIP lacks a requested annual member.
+
+    Member-name coverage is a necessary preflight, not full quote integrity
+    or evidence of continuous observation across every research month.
+    """
+    if source.suffix.lower() != ".zip" or not zipfile.is_zipfile(source):
+        raise ValueError("Authorized original source must be a valid ZIP")
+    discovered = {}
+    with zipfile.ZipFile(source) as zf:
+        for name in zf.namelist():
+            if not name.lower().endswith(".json"):
+                continue
+            match = re.search(r"(20\d{2})", Path(name).name)
+            if match:
+                year = int(match.group(1))
+                discovered[year] = discovered.get(year, 0) + 1
+    missing = sorted(set(years) - set(discovered))
+    duplicates = sorted(y for y in years if discovered.get(y, 0) > 1)
+    if missing or duplicates:
+        raise ValueError(f"Incomplete or ambiguous original ZIP annual members; missing={missing}, duplicates={duplicates}")
+
+
 def freeze_plan(source: Path, output: Path, *, years: tuple[int, ...]) -> dict:
     try:
         from scripts import research_batch_orchestrator as batch
@@ -110,14 +135,17 @@ def freeze_plan(source: Path, output: Path, *, years: tuple[int, ...]) -> dict:
         if exc.name != "scripts":
             raise
         import research_batch_orchestrator as batch
-    if output.is_symlink() or not output.parent.is_dir():
+    if output.exists() or output.is_symlink() or not output.parent.is_dir():
         raise ValueError("Private plan output parent must already exist and not be a symlink")
-    if output.parent.is_symlink():
+    if any(parent.is_symlink() for parent in (output.parent, *output.parent.parents)):
         raise ValueError("Unsafe output parent")
     if source.is_symlink() or not source.is_file() or not source.is_absolute():
         raise ValueError("Source not an authorized absolute private file")
     if batch.file_sha(source) != SOURCE_SHA:
         raise ValueError("Original Gold ZIP SHA256 mismatch: refusing plan")
+    if max(years) >= date.today().year:
+        raise ValueError("Current or future full-year data cannot yet be complete")
+    require_annual_source_members(source, years)
     revision = batch.checkout_commit()
     plan = make_plan(source, years=years, source_sha256=SOURCE_SHA, engine_commit=revision)
     definitions, checksum = batch.expand(plan)
@@ -131,7 +159,7 @@ def freeze_plan(source: Path, output: Path, *, years: tuple[int, ...]) -> dict:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--years", default=",".join(str(y) for y in range(2012, 2027)))
+    parser.add_argument("--years", default=",".join(str(y) for y in range(2012, 2026)))
     parser.add_argument("--source", type=Path)
     parser.add_argument("--out", type=Path)
     parser.add_argument("--dry-run", action="store_true")
