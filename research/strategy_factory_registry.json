@@ -1273,6 +1273,17 @@
       "original_source_monthly_floating_drawdown_usd_per_oz": "N/A",
       "approved_strategies": 0,
       "note": "Independent original-source M15/H1 structural candidate reconstruction and next observed open BID/ASK spread stress. 5 exposed years; local count parity vs earlier report, with source-module parity gate in script. No source receipt authentication, fills, actual portfolio or OOS; spread is not an extra fee."
+    },
+    {
+      "id": "NRF-TERMINAL-EXPLICIT-IMMUTABLE-EVIDENCE-REF",
+      "status": "SYNTHETIC_UI_REGRESSIONS_PENDING_CI_NOT_ORIGINAL_SOURCE_BACKTEST",
+      "report": "docs/RESEARCH_TERMINAL_EVIDENCE_LINK_SHA_PIN_2026-10-29.md",
+      "synthetic_regressions_added": 12,
+      "original_source_strategy_backtests_added": 0,
+      "original_source_monthly_net_usd_per_oz": "N/A",
+      "original_source_monthly_floating_drawdown_usd_per_oz": "N/A",
+      "approved_strategies": 0,
+      "note": "Explicit --evidence-commit generates immutable SHA-targeted report URLs, without falsely claiming target existence; default moving-branch links are marked mutable. No data, fees or strategy change."
     }
   ]
 }

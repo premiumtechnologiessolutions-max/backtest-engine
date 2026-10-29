@@ -105,3 +105,27 @@ def test_bilingual_accessible_offline_toggle_and_unavailable_risk_labels():
     assert "Floating DD: N/A" in html
     assert "Monthly P/L: N/A" in html
     assert "No external scripts" in html
+
+
+@pytest.mark.parametrize("bad", ["", "abc", "A" * 40, "a" * 39, "g" * 40, True, 0, "../main"])
+def test_evidence_commit_rejects_noncanonical_refs(bad):
+    model = _model()
+    model["evidence_commit"] = bad
+    with pytest.raises(ValueError, match="Invalid immutable evidence commit"):
+        render_premium_html(model)
+
+
+def test_evidence_links_pin_full_commit_when_explicitly_requested():
+    model = _model()
+    sha = "a" * 40
+    model["evidence_commit"] = sha
+    html = render_premium_html(model)
+    assert f'/blob/{sha}/docs/ONE.md' in html
+    assert 'SHA-targeted; target not verified' in html
+    assert '/blob/feat/quant-engine-foundation/docs/ONE.md' not in html
+
+
+def test_default_evidence_link_explicitly_warns_of_mutable_branch():
+    html = render_premium_html(_model())
+    assert 'mutable branch; not SHA-pinned' in html
+    assert '/blob/feat/quant-engine-foundation/docs/ONE.md' in html

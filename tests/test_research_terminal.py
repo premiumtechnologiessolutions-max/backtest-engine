@@ -201,3 +201,28 @@ def test_render_rejects_forged_completed_month_plan():
     }]
     with pytest.raises(ValueError, match="provenance|state"):
         render_html(model)
+
+
+def test_cli_explicit_sha_targeted_report_link(tmp_path):
+    from scripts import research_terminal as terminal
+    registry_file = tmp_path / "registry.json"
+    registry_file.write_text(json.dumps(registry()), encoding="utf-8")
+    out = tmp_path / "terminal.html"
+    sha = "b" * 40
+    assert terminal.main(["--registry", str(registry_file), "--out", str(out),
+                          "--evidence-commit", sha]) == 0
+    html = out.read_text(encoding="utf-8")
+    assert f"/blob/{sha}/docs/ONE.md" in html
+    assert "SHA-targeted; target not verified" in html
+
+
+def test_cli_invalid_sha_target_rejected_before_output(tmp_path):
+    from scripts import research_terminal as terminal
+    registry_file = tmp_path / "registry.json"
+    registry_file.write_text(json.dumps(registry()), encoding="utf-8")
+    out = tmp_path / "terminal.html"
+    with pytest.raises(SystemExit) as exc:
+        terminal.main(["--registry", str(registry_file), "--out", str(out),
+                       "--evidence-commit", "main"])
+    assert exc.value.code == 2
+    assert not out.exists()

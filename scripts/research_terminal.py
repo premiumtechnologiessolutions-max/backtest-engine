@@ -85,6 +85,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--registry", type=Path, default=DEFAULT_REGISTRY)
     parser.add_argument("--out", type=Path,
                         default=ROOT / "reports" / "research_terminal.html")
+    parser.add_argument("--evidence-commit", type=str,
+                        help="Optional exact 40-character commit SHA for immutable report links; target existence is not verified")
     parser.add_argument("--include-local-jobs", action="store_true",
                         help="Opt in to verified local queue metadata in offline HTML")
     parser.add_argument("--include-local-month-plans", action="store_true",
@@ -102,7 +104,11 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("--verified-monthly-equity-pins requires --verified-monthly-plan")
     if args.include_local_month_plans and not args.include_local_jobs:
         parser.error("--include-local-month-plans requires --include-local-jobs")
+    if args.evidence_commit is not None and not re.fullmatch(r"[0-9a-f]{40}", args.evidence_commit):
+        parser.error("--evidence-commit must be an exact lowercase 40-character Git commit SHA")
     model = dashboard_model(json.loads(args.registry.read_text(encoding="utf-8")))
+    if args.evidence_commit is not None:
+        model["evidence_commit"] = args.evidence_commit
     if args.verified_monthly_plan:
         try:
             from scripts import research_batch_monthly_scorecard as scorecard

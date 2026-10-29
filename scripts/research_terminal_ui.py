@@ -11,7 +11,7 @@ import json
 from urllib.parse import quote
 import re
 
-REPO = "https://github.com/premiumtechnologiessolutions-max/backtest-engine/blob/feat/quant-engine-foundation/"
+REPO_BASE = "https://github.com/premiumtechnologiessolutions-max/backtest-engine/blob/"
 
 
 def _e(value: object) -> str:
@@ -91,6 +91,21 @@ def _render_month_plans(plans: object) -> str:
 
 def render_premium_html(model: dict) -> str:
     """Build a self-contained, responsive research terminal. Does not certify returns."""
+    evidence_commit = model.get("evidence_commit")
+    if evidence_commit is not None and (
+        type(evidence_commit) is not str
+        or not re.fullmatch(r"[0-9a-f]{40}", evidence_commit)
+    ):
+        raise ValueError("Invalid immutable evidence commit")
+    evidence_root = REPO_BASE + (
+        evidence_commit if evidence_commit is not None
+        else "feat/quant-engine-foundation"
+    ) + "/"
+    evidence_label = (
+        "Read evidence (SHA-targeted; target not verified)"
+        if evidence_commit is not None
+        else "Read evidence (mutable branch; not SHA-pinned)"
+    )
     rows = model["rows"]
     for row in rows:
         if type(row["best_positive_months"]) is not int or not 0 <= row["best_positive_months"] <= 24:
@@ -113,8 +128,8 @@ def render_premium_html(model: dict) -> str:
             if (type(report) is not str or not re.fullmatch(r"(?:docs|research)/[A-Za-z0-9._/-]+", report)
                     or ".." in PurePosixPath(report).parts):
                 raise ValueError("Unsafe evidence path")
-        link = ('<a href="' + _e(REPO + quote(report, safe="/"))
-                + '" target="_blank" rel="noopener noreferrer">Read evidence</a>') if report else '<span class="quiet">Not linked</span>'
+        link = ('<a href="' + _e(evidence_root + quote(report, safe="/"))
+                + '" target="_blank" rel="noopener noreferrer">' + evidence_label + '</a>') if report else '<span class="quiet">Not linked</span>'
         status = row["status"]
         if any(term in status.upper() for term in ("REJECT", "FAIL")):
             color = "rejected"
