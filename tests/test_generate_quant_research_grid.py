@@ -74,3 +74,64 @@ def test_no_source_freeze_fails_without_publishing(tmp_path):
     with pytest.raises(ValueError):
         factory.make_plan(tmp_path/"absent.zip",years=(2012,),
              source_sha256=factory.SOURCE_SHA,engine_commit="a"*40)
+
+
+def test_annual_zip_preflight_rejects_missing_and_duplicate_years(tmp_path):
+    import zipfile
+    source=tmp_path/"years.zip"
+    with zipfile.ZipFile(source,"w") as z:
+        z.writestr("2012.json","[]")
+        z.writestr("2013.json","[]")
+    factory.require_annual_source_members(source,(2012,2013))
+    with pytest.raises(ValueError,match="missing"):
+        factory.require_annual_source_members(source,(2012,2014))
+    with zipfile.ZipFile(source,"a") as z:
+        z.writestr("extra_2012.json","[]")
+    with pytest.raises(ValueError,match="duplicates"):
+        factory.require_annual_source_members(source,(2012,))
+
+
+def test_non_zip_source_cannot_be_frozen(tmp_path):
+    source=tmp_path/"notzip.zip"
+    source.write_bytes(b"fake")
+    with pytest.raises(ValueError,match="valid ZIP"):
+        factory.require_annual_source_members(source,(2012,))
+
+
+def test_freeze_plan_stops_future_year_and_existing_target(tmp_path, monkeypatch):
+    import hashlib
+    import sys
+    import types
+    import zipfile
+    from datetime import date as Date
+
+    source=tmp_path/"source.zip"
+    with zipfile.ZipFile(source,"w") as z:
+        z.writestr("2012.json","[]")
+        z.writestr("2026.json","[]")
+    original=hashlib.sha256(source.read_bytes()).hexdigest()
+    monkeypatch.setattr(factory,"SOURCE_SHA",original)
+    fake=types.ModuleType("research_batch_orchestrator")
+    fake.file_sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
+    fake.checkout_commit=lambda:"a"*40
+    fake.expand=lambda p:([None]*factory.count_definitions(p["grids"]),"f"*64)
+    fake.atomic_manifest=lambda p,obj:p.write_text(json.dumps(obj))
+    monkeypatch.setitem(sys.modules,"scripts.research_batch_orchestrator",fake)
+    from scripts import generate_quant_research_grid as imported_factory
+    monkeypatch.setattr(imported_factory,"SOURCE_SHA",original)
+
+    class FrozenClock:
+        @staticmethod
+        def today():
+            return Date(2026,10,29)
+    monkeypatch.setattr(factory,"date",FrozenClock)
+    dest=tmp_path/"frozen_plan.json"
+    with pytest.raises(ValueError,match="Current or future"):
+        factory.freeze_plan(source,dest,years=(2026,))
+    assert not dest.exists()
+    out=factory.freeze_plan(source,dest,years=(2012,))
+    assert out["status"]=="FROZEN_DESIGN_ONLY_NO_BACKTEST"
+    assert out["defined_jobs"]==228
+    assert dest.exists()
+    with pytest.raises(ValueError,match="Private plan output"):
+        factory.freeze_plan(source,dest,years=(2012,))
