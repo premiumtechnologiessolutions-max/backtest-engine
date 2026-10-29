@@ -17,7 +17,7 @@ ANNUAL_FILES = frozenset({
     "summary.json", "trades.csv", "monthly.csv", "weekly.csv",
     "equity_m1.csv", "gap_catalogue.csv",
 })
-SHA256_PATTERN = re.compile(r"[0-9a-f]{64}\\Z")
+SHA256_PATTERN = re.compile(r"[0-9a-f]{64}\Z")
 
 
 def _sha256(path: Path) -> str:
