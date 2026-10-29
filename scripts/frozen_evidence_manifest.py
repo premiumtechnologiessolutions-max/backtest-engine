@@ -63,9 +63,22 @@ def _required(years: list[int]) -> set[str]:
 
 
 def _validate_inventory(files: dict[str, dict[str, str | int]], years: list[int]) -> None:
-    missing = _required(years) - files.keys()
+    """Allowlist only official reports; never publish incidental private inputs.
+
+    SHA256 inventories prove byte stability, not that an extra file is safe
+    to distribute. In particular, accidentally staged market ZIPs or
+    unrequested years must fail before the atomic report publication.
+    """
+    required = _required(years)
+    missing = required - files.keys()
     if missing:
         raise ValueError(f"Evidence inventory missing required reports: {sorted(missing)}")
+    unexpected = files.keys() - required
+    if unexpected:
+        raise ValueError(
+            f"Evidence inventory contains unexpected files (possible private data): "
+            f"{sorted(unexpected)}"
+        )
 
 
 def write_evidence_manifest(root: Path, years: list[int], source_sha: str) -> dict:
