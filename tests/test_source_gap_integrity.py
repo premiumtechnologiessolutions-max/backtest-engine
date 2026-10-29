@@ -128,3 +128,42 @@ def test_real_limit_executor_gap_stop_ledger_reconciles():
     assert result.trades.iloc[0]["exit_reason"] == "gap_stop"
     assert result.trades.iloc[0]["gap_minutes"] == 2
     assert verify(m1, result.trades) == 1
+
+
+def test_frozen_runner_blocks_falsified_gap_count_before_report(tmp_path, monkeypatch):
+    """Integration: accounting cannot certify a false M1 missing-minute count."""
+    from types import SimpleNamespace
+    import scripts.run_bos_fib_frozen_sensitivity as frozen
+    from norisk_quant.source_bar_exit_integrity import AUDITED_REASONS
+
+    source = tmp_path / "SYNTHETIC_NOT_REAL_GOLD.zip"
+    source.write_bytes(b"synthetic source only")
+    monkeypatch.setattr(frozen, "sha256_file", lambda _: frozen.SOURCE_SHA)
+    index = pd.date_range("2012-01-01", periods=12, freq="MS", tz="UTC")
+    quotes = pd.DataFrame({"o": [100.] * 12}, index=index)
+    monkeypatch.setattr(frozen, "load_market", lambda *a, **k: quotes)
+    monkeypatch.setattr(frozen, "bos_fib_limit_orders", lambda *a, **k: [])
+    monkeypatch.setattr(frozen, "filter_orders_h1", lambda *a, **k: [])
+    fake_trade = pd.DataFrame([{
+        "entry_at": index[0], "closed_at": index[1],
+        "gap_minutes": 0, "exit_reason": "target",
+    }])
+    monkeypatch.setattr(
+        frozen, "run_limits", lambda *a, **k: SimpleNamespace(trades=fake_trade)
+    )
+    monkeypatch.setattr(frozen, "verify_source_open_exit_prices", lambda *a: 0)
+    monkeypatch.setattr(
+        frozen, "verify_source_bar_exit_prices",
+        lambda *a: {reason: int(reason == "target") for reason in AUDITED_REASONS},
+    )
+    monkeypatch.setattr(
+        frozen, "report",
+        lambda *a, **k: (_ for _ in ()).throw(
+            AssertionError("Unverified gap ledger must not reach report")
+        ),
+    )
+    output = tmp_path / "out"
+    with pytest.raises(AssertionError, match="differs from source M1"):
+        frozen.execute(source, [2012], output)
+    assert not (output / "2012").exists()
+    assert not (output / "frozen_sensitivity_summary.json").exists()
