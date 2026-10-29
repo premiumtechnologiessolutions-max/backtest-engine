@@ -12,7 +12,7 @@ import re
 
 import numpy as np
 
-_HEX64 = re.compile(r"[0-9a-f]{64}\\Z")
+_HEX64 = re.compile(r"[0-9a-f]{64}\Z")
 
 
 def exact_joint_signflip(annual_pnl: dict[str, list[float]], *,
