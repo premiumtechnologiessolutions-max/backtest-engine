@@ -1,0 +1,24 @@
+{
+  "plan": {
+    "schema": "NRFX_PROSPECTIVE_STUDY_V1",
+    "strategy": "sweep_reclaim_m1_frozen",
+    "strategy_blob_sha": "0a070ef748e17076236000847505e3f5ba841657",
+    "training_archive_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
+    "registered_at_utc": "2026-10-29T23:34:00Z",
+    "known_exposed_through": "2026-10-30",
+    "train_end": "2026-10-29",
+    "holdout_start": "2026-11-02",
+    "holdout_end": "2027-01-29",
+    "fee_usd_per_oz": 0.4,
+    "parameters": {
+      "lookback": 20,
+      "min_excess_usd": 0.15,
+      "reclaim_usd": 0.05,
+      "stop_buffer_usd": 0.1,
+      "reward_risk": 1.5,
+      "max_stop_usd": 20
+    },
+    "evidence_status": "FUTURE_UNOBSERVED_NOT_VALIDATED"
+  },
+  "sha256": "8375c0d0866017891b5ae14d071a984362a05f76ab5cc79b725cca66d2f23a6e"
+}
