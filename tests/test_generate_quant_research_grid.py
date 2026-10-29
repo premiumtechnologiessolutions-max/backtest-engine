@@ -6,12 +6,12 @@ import pytest
 from scripts import generate_quant_research_grid as factory
 
 
-def test_default_preview_defines_3420_reproducible_experiments(capsys):
+def test_default_preview_defines_3192_completed_year_specifications(capsys):
     assert factory.main(["--dry-run"]) == 0
     report=json.loads(capsys.readouterr().out)
     assert report["status"] == "DEFINED_ONLY_NO_BACKTEST"
-    assert report["candidate_definitions"] == 3420
-    assert report["grid_families"] == 90
+    assert report["candidate_definitions"] == 3192
+    assert report["grid_families"] == 84
     assert report["not_independent_oos"] is True
 
 
