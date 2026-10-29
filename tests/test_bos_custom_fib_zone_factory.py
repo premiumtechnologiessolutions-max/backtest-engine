@@ -103,3 +103,20 @@ def test_explicit_cli_zone_reaches_canonical_execution_settings(monkeypatch,caps
     cli.main()
     assert len(cfgs)==1
     assert (cfgs[0].zone_lower,cfgs[0].fib_entry,cfgs[0].zone_upper)==(.50,fibo,.87)
+
+
+@pytest.mark.parametrize("strategy,frame", [
+    ("ema","M15"), ("m1-sweep","M1"), ("fvg","M15"),
+])
+def test_bos_zone_switches_cannot_be_silently_ignored_by_other_strategies(
+        monkeypatch,capsys,strategy,frame):
+    monkeypatch.setattr(sys,"argv",[
+        "norisk","backtest","--data","/missing-private.zip",
+        "--start","2012-01-01","--end","2012-12-31",
+        "--out","/unused","--strategy",strategy,"--timeframe",frame,
+        "--bos-zone-lower",".5",
+    ])
+    with pytest.raises(SystemExit) as e:
+        cli.main()
+    assert e.value.code==2
+    assert "require --strategy bos-fib" in capsys.readouterr().err
