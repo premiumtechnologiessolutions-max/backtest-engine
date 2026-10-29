@@ -183,7 +183,7 @@ def screen_cross_year(plan: dict, manifest: dict, runs_root: Path, *,
 
 def render_html(report: dict) -> str:
     heads = ["Rank", "Strategy", "TF", "Train +months", "Train net/oz",
-             "Train DD/oz", "Review net/oz", "Screen"]
+             "Train DD/oz", "Review net/oz", "Train maxT p*", "Screen"]
     rows = []
     for item in report["results"]:
         a, b = item["train"], item["later_review_descriptive_only"]
@@ -192,7 +192,10 @@ def render_html(report: dict) -> str:
                   identity["timeframe"], str(a["positive_months"]),
                   f'{a["net_pnl_usd_per_oz"]:+.2f}',
                   f'{a["max_month_end_drawdown_usd_per_oz"]:.2f}',
-                  f'{b["net_pnl_usd_per_oz"]:+.2f}', item["training_screen"]]
+                  f'{b["net_pnl_usd_per_oz"]:+.2f}',
+                  (f'{item["training_signflip_diagnostic_only"]["maxT_family_adjusted_p"]:.3f}'
+                   if "training_signflip_diagnostic_only" in item else "—"),
+                  item["training_screen"]]
         rows.append("<tr>"+"".join("<td>"+escape(v)+"</td>" for v in values)+"</tr>")
     return ('<!doctype html><html lang="en"><head><meta charset="utf-8">'
             '<meta name="viewport" content="width=device-width,initial-scale=1">'
@@ -204,7 +207,9 @@ def render_html(report: dict) -> str:
             '</head><body><h1>NO RISK FX | Audited cross-year candidate screen</h1>'
             '<p>HISTORICAL EXPOSED ONLY. Not independent OOS or live ready. '
             'Training years alone determine ranking; later review is descriptive. '
-            'No multiple-testing correction; drawdown is month-end closed P/L only.</p>'
+            '* Shared-year maxT is an exploratory test under UNVERIFIED joint sign symmetry; '
+            'not OOS proof, risk calibration or a promotion gate. Prior search exposure remains. '
+            'Drawdown is month-end closed P/L only.</p>'
             f'<p>Defined annual jobs: {report["defined_annual_jobs"]}; '
             f'audited: {report["audited_annual_jobs"]}; '
             f'compared candidates: {report["compared_candidates"]}; '
