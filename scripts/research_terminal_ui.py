@@ -124,7 +124,6 @@ def render_premium_html(model: dict) -> str:
         report = row.get("report")
         if report is not None:
             from pathlib import PurePosixPath
-            import re
             if (type(report) is not str or not re.fullmatch(r"(?:docs|research)/[A-Za-z0-9._/-]+", report)
                     or ".." in PurePosixPath(report).parts):
                 raise ValueError("Unsafe evidence path")
