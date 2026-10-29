@@ -137,9 +137,17 @@ def screen_cross_year(plan: dict, manifest: dict, runs_root: Path, *,
             "review_synthetic_forced_closes": forced_review,
             "annual_job_ids": {str(y): annual[y]["id"] for y in relevant},
         })
-    compared.sort(key=screen.training_rank_key)
-    for rank, item in enumerate(compared, 1):
-        item["training_rank"] = rank
+    # Partially executed candidate universes are NOT comparable: unseen
+    # alternatives could outperform all observed candidates. Fail closed.
+    if incomplete:
+        compared.sort(key=lambda item: item["candidate_id"])
+        for item in compared:
+            item["training_rank"] = None
+            item["training_screen"] = "NOT_ELIGIBLE_BATCH_INCOMPLETE"
+    else:
+        compared.sort(key=screen.training_rank_key)
+        for rank, item in enumerate(compared, 1):
+            item["training_rank"] = rank
     return {
         "schema": SCHEMA,
         "research_status": ("HISTORICAL_EXPOSED_SCREEN_COMPLETE" if not incomplete
@@ -163,7 +171,7 @@ def render_html(report: dict) -> str:
     for item in report["results"]:
         a, b = item["train"], item["later_review_descriptive_only"]
         identity = item["identity"]
-        values = [str(item["training_rank"]), identity["strategy"],
+        values = [str(item["training_rank"]) if item["training_rank"] is not None else "—", identity["strategy"],
                   identity["timeframe"], str(a["positive_months"]),
                   f'{a["net_pnl_usd_per_oz"]:+.2f}',
                   f'{a["max_month_end_drawdown_usd_per_oz"]:.2f}',
