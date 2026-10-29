@@ -7,7 +7,7 @@ from norisk_quant.source_bar_exit_integrity import verify_source_bar_exit_prices
 def market(*, low=98., high=103., final_close=100.):
     ix = pd.date_range("2024-01-02", periods=3, freq="min", tz="UTC")
     return pd.DataFrame({"o": [100., 100., 100.], "h": [101., 101., high],
-                         "l": [99., 99., low], "c": [100., 100., final_close]}, index=ix)
+                         "l": [99.5, 99.5, low], "c": [100., 100., final_close]}, index=ix)
 
 
 def trade(reason, *, side=1, stop=99., target=102., exit_price=None,
@@ -39,7 +39,7 @@ def test_open_target_matches_favorable_open():
 
 
 def test_end_of_data_matches_last_source_close():
-    assert verify(market(), trade("end_of_data", exit_price=100.))["end_of_data"] == 1
+    assert verify(market(low=99.5, high=101.), trade("end_of_data", exit_price=100.))["end_of_data"] == 1
 
 
 @pytest.mark.parametrize("reason,kwargs,match", [
@@ -171,3 +171,46 @@ def test_open_target_wins_even_if_stop_touched_later(
     ]
     t = trade("open_target", side=side, stop=stop, target=target, exit_price=target)
     assert verify(m, t)["open_target"] == 1
+
+
+@pytest.mark.parametrize("side,reason,stop,target,exit_price,final_low,final_high,earlier_field,earlier_value", [
+    (1, "stop", 99., 102., 99., 98., 101., "l", 98.),
+    (1, "target", 99., 102., 102., 99.5, 103., "h", 103.),
+    (-1, "stop", 102., 99., 102., 100., 103., "h", 103.),
+    (-1, "target", 102., 99., 99., 98., 101., "l", 98.),
+])
+def test_later_matching_exit_cannot_hide_earlier_trigger(
+    side, reason, stop, target, exit_price, final_low, final_high,
+    earlier_field, earlier_value
+):
+    m = market(low=final_low, high=final_high)
+    m.loc[m.index[1], earlier_field] = earlier_value
+    t = trade(reason, side=side, stop=stop, target=target, exit_price=exit_price)
+    with pytest.raises(AssertionError, match="earlier eligible exit"):
+        verify(m, t)
+
+
+def test_entry_bar_stop_cannot_be_ignored_until_later_bar():
+    m = market(high=101.)
+    m.loc[m.index[0], "l"] = 98.
+    with pytest.raises(AssertionError, match="entry-minute stop"):
+        verify(m, trade("stop"))
+
+
+@pytest.mark.parametrize("low,high", [(98., 101.), (99.5, 103.)])
+def test_end_of_data_cannot_skip_final_bar_stop_or_target(low, high):
+    m = market(low=low, high=high)
+    with pytest.raises(AssertionError, match="skipped final-minute exit"):
+        verify(m, trade("end_of_data", exit_price=100.))
+
+
+def test_end_of_data_same_entry_minute_target_may_be_deferred():
+    m = market(low=99.5, high=103.)
+    t = trade("end_of_data", entry_bar=2, close_bar=2, exit_price=100.)
+    assert verify(m, t)["end_of_data"] == 1
+
+
+def test_entry_bar_target_deferred_then_later_target_is_valid():
+    m = market(low=99.5, high=103.)
+    m.loc[m.index[0], "h"] = 103.
+    assert verify(m, trade("target"))["target"] == 1
