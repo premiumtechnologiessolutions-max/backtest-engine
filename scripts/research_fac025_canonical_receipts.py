@@ -38,6 +38,17 @@ def _equal(actual: float, expected: float, label: str) -> None:
         raise ValueError(f"Canonical {label} does not reconcile")
 
 
+def _equal_money(actual: float, expected: float, ounces: float, label: str) -> None:
+    """Reconcile in USD/oz units, never with a fixed whole-trade dollar slack.
+
+    A fixed $1e-7 tolerance silently accepts an entirely missing $0.40/oz
+    fee for tiny positions. Scaling by positive ounces preserves a strict
+    $1e-8/oz tolerance for gross, cost and net independently.
+    """
+    if not math.isclose(actual, expected, rel_tol=0.0, abs_tol=1e-8 * ounces):
+        raise ValueError(f"Canonical {label} does not reconcile per ounce")
+
+
 def reconcile_canonical_closed_receipts(trades: list[dict], signal_at: datetime) -> list[dict]:
     """Recompute net USD/oz from every fill and the frozen ALL-IN fee.
 
@@ -90,9 +101,9 @@ def reconcile_canonical_closed_receipts(trades: list[dict], signal_at: datetime)
         gross = side * (exit_price - entry_price) * ounces
         cost = FEE_PER_OUNCE * ounces
         net = gross - cost
-        _equal(_num(row["gross_pnl"], "gross_pnl"), gross, "gross P/L")
-        _equal(_num(row["cost"], "cost"), cost, "$0.40/oz roundtrip fee")
-        _equal(_num(row["net_pnl"], "net_pnl"), net, "net P/L")
+        _equal_money(_num(row["gross_pnl"], "gross_pnl"), gross, ounces, "gross P/L")
+        _equal_money(_num(row["cost"], "cost"), cost, ounces, "$0.40/oz roundtrip fee")
+        _equal_money(_num(row["net_pnl"], "net_pnl"), net, ounces, "net P/L")
         out.append({"closed_at": closed, "confirmed_at": confirmed,
                     "net_usd_per_oz": net / ounces})
     return out
