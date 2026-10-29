@@ -42,6 +42,7 @@ STRATEGY_PARAMS = {
     "donchian": {"donchian_lookback", "stop_usd", "target_usd"},
     "fvg": {"fvg_min_gap_usd", "fvg_stop_buffer_usd", "fvg_rr", "fvg_expiry_hours"},
     "bos-fib": {"bos_pivot_left", "bos_pivot_right", "bos_fib_entry",
+                "bos_zone_lower", "bos_zone_upper",
                 "bos_rr", "bos_stop_buffer_usd", "bos_min_break_usd",
                 "bos_min_impulse_usd", "bos_expiry_minutes",
                 "bos_min_gross_reward_fee_multiple"},
@@ -153,8 +154,12 @@ def check_spec(spec: object) -> dict:
             raise ValueError("M1 sweep lookback must be >=3")
         if params.get("sweep_stop_buffer_usd", 0.10) > params.get("sweep_max_stop_usd", 20.0):
             raise ValueError("Sweep stop buffer cannot exceed max stop")
-    if spec["strategy"] == "bos-fib" and params.get("bos_fib_entry", 0.618) >= 1:
-        raise ValueError("Fibonacci entry fraction must be below 1")
+    if spec["strategy"] == "bos-fib":
+        lower, entry, upper = (params.get("bos_zone_lower", 0.618),
+                               params.get("bos_fib_entry", 0.618),
+                               params.get("bos_zone_upper", 0.786))
+        if not (0 < lower <= entry <= upper < 1):
+            raise ValueError("BOS fib entry must lie within the declared research zone")
     return spec
 
 
