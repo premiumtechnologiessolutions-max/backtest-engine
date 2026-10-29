@@ -1,6 +1,6 @@
 {
   "format_version": 1,
-  "updated_utc": "2026-10-29T07:18:00Z",
+  "updated_utc": "2026-10-29T09:20:26Z",
   "project": "No Risk FX XAUUSD quant research factory",
   "branch": "feat/quant-engine-foundation",
   "original_private_zip_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
@@ -1137,7 +1137,13 @@
       "note": "Fixed M15 sweep/reclaim plus strictly older completed H1 trend. Not a fill, portfolio backtest or OOS. Do not count in completed factory totals.",
       "next_open_preflight": "scripts/research_fac025_next_open_preflight.py",
       "next_open_preflight_report": "docs/FAC025_NEXT_OBSERVED_OPEN_PREFLIGHT_2026-10-29.md",
-      "next_open_preflight_status": "SYNTHETIC_ONLY_CANDIDATE_NOT_FILL_SOURCE_AND_CAPACITY_UNAUTHENTICATED"
+      "next_open_preflight_status": "SYNTHETIC_ONLY_CANDIDATE_NOT_FILL_SOURCE_AND_CAPACITY_UNAUTHENTICATED",
+      "bid_reference_replay_module": "scripts/research_fac025_canonical_replay.py",
+      "bid_reference_replay_report": "docs/FAC025_CANONICAL_ONE_SLOT_BID_REFERENCE_BRIDGE_2026-10-29.md",
+      "bid_reference_replay_status": "SYNTHETIC_CANONICAL_FAST_PARITY_BID_ONLY_NO_ORIGINAL_SOURCE_REPLAY",
+      "bid_reference_replay_verified_commit": "dcbd9e07754873d089de2516813065a65bbf8b2a",
+      "bid_reference_replay_verified_ci_run": 40848698736,
+      "bid_reference_replay_verified_ci_tests_passed": 2195
     }
   ]
 }
