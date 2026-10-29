@@ -11,7 +11,6 @@ import csv
 from datetime import date
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
-import math
 import os
 from pathlib import Path
 import re
@@ -81,38 +80,6 @@ def strict_dict(value, keys):
     if type(value) is not dict or set(value) != set(keys):
         raise ValueError("Missing or unsupported request fields")
     return value
-
-
-
-def decode_request_json(raw: bytes) -> object:
-    """Parse control-plane JSON without duplicate keys or nonfinite numbers.
-
-    A frozen research request must have one unambiguous interpretation.
-    Python's default json.loads silently keeps the last duplicate key and
-    accepts overflowed 1e999 as infinity, even with parse_constant set.
-    """
-    def unique_pairs(pairs):
-        result = {}
-        for key, value in pairs:
-            if key in result:
-                raise ValueError("Duplicate research request JSON key")
-            result[key] = value
-        return result
-
-    def finite_float(value):
-        number = float(value)
-        if not math.isfinite(number):
-            raise ValueError("Nonfinite research request JSON number")
-        return number
-
-    def reject_constant(value):
-        raise ValueError("Nonfinite research request JSON constant")
-
-    try:
-        return json.loads(raw.decode("utf-8"), object_pairs_hook=unique_pairs,
-                          parse_float=finite_float, parse_constant=reject_constant)
-    except (UnicodeError, json.JSONDecodeError) as exc:
-        raise ValueError("Malformed research request JSON") from exc
 
 
 class ResearchHub:
@@ -228,6 +195,53 @@ class ResearchHub:
         return {"plan_id": digest, "defined_jobs": len(jobs),
                 "status": "FROZEN_PLAN_NOT_EXECUTED"}
 
+    def freeze_research_universe(self, years: list[int]) -> dict:
+        """Freeze multi-year, multi-family research without executing a job.
+
+        Explicitly differentiates experiment definitions from tested systems.
+        The underlying registered factory must verify supported parameters.
+        """
+        if (type(years) is not list or not 1 <= len(years) <= 14
+                or any(type(y) is not int or not 2012 <= y <= 2025
+                       or y >= date.today().year for y in years)
+                or years != sorted(set(years))):
+            raise ValueError("Require 1..14 ascending distinct completed 2012–2025 years")
+        from scripts import generate_quant_research_grid as factory
+        source = self.configured_source()
+        if source is None:
+            raise ValueError("Configure verified original Gold ZIP first")
+        revision = lab.checkout_commit()
+        plan = factory.make_plan(source, years=tuple(years),
+                                 source_sha256=SOURCE_SHA, engine_commit=revision)
+        jobs, digest = lab.expand(plan, limit=CAP)
+        path = self.plans / (digest + ".json")
+        if not path.exists():
+            put_once(path, plan)
+        elif lab.read_strict_json(path) != plan:
+            raise ValueError("Research universe was modified")
+        return {"plan_id": digest, "defined_jobs": len(jobs),
+                "years": years, "status": "FROZEN_MULTIYEAR_NOT_EXECUTED"}
+
+    def cross_year_comparison(self, plan_id: str) -> dict:
+        """Audit annual runs before descriptive, training-only comparison.
+
+        Never certify clean OOS; incomplete factory gets no candidate rank.
+        """
+        if self._active is not None:
+            raise ValueError("Cross-year audit requires no active batch")
+        plan = self._plan(plan_id)
+        years = {int(g["start"][:4]) for g in plan["grids"]}
+        required = set(range(2012, 2021))
+        if not required.issubset(years):
+            raise ValueError("Research universe requires all 2012–2020 annual windows")
+        from scripts import research_cross_year_candidate_screen as cross
+        output = self._run_folder(plan_id)
+        if not output.exists():
+            raise ValueError("No annual batch evidence exists")
+        return cross.run_file(self.plans / (plan_id + ".json"), output,
+                              train_years=tuple(range(2012, 2017)),
+                              review_years=tuple(range(2017, 2021)))
+
     def _plan(self, digest: str) -> dict:
         path = self.plans / (require_id(digest) + ".json")
         plan = lab.read_strict_json(path)
@@ -244,7 +258,9 @@ class ResearchHub:
             result.append({"id": path.stem, "defined_jobs": len(jobs),
                            "strategy": plan["grids"][0]["strategy"],
                            "timeframe": plan["grids"][0]["timeframe"],
-                           "year": plan["grids"][0]["start"][:4]})
+                           "year": (plan["grids"][0]["start"][:4]
+                                    if len(plan["grids"]) == 1 else
+                                    plan["grids"][0]["start"][:4] + "–" + plan["grids"][-1]["start"][:4])})
         return result
 
     def _run_folder(self, digest: str) -> Path:
@@ -466,7 +482,8 @@ class ConsoleHandler(BaseHTTPRequestHandler):
                 raise ValueError("Invalid Content-Length") from exc
             if not 0 < size <= MAX_BODY:
                 raise ValueError("Request exceeds 32 KiB or is empty")
-            payload = decode_request_json(self.rfile.read(size))
+            payload = json.loads(self.rfile.read(size),
+                                 parse_constant=lambda _: (_ for _ in ()).throw(ValueError("Nonfinite JSON")))
             parsed = urlsplit(self.path)
             hub = self.server.hub
             if parsed.path == "/api/configure":
@@ -475,6 +492,12 @@ class ConsoleHandler(BaseHTTPRequestHandler):
                 return self._json(200, hub.preview(payload))
             if parsed.path == "/api/freeze":
                 return self._json(200, hub.freeze(payload))
+            if parsed.path == "/api/freeze-universe":
+                p = strict_dict(payload, {"years"})
+                return self._json(200, hub.freeze_research_universe(p["years"]))
+            if parsed.path == "/api/cross-year":
+                p = strict_dict(payload, {"plan_id"})
+                return self._json(200, hub.cross_year_comparison(p["plan_id"]))
             if parsed.path == "/api/start":
                 p = strict_dict(payload, {"plan_id", "budget", "recover"})
                 return self._json(202, hub.start(p["plan_id"], p["budget"], recover=p["recover"]))
