@@ -360,3 +360,57 @@ def test_monthly_downside_rejects_unbounded_month_window():
             [{"month_utc": "2024-01", "net_usd_per_oz": 1, "trades": 1}],
             "1980-01-01", "2024-12-31",
         )
+
+
+def test_complete_month_risk_does_not_certify_partial_edge_losses():
+    rows = [
+        {"month_utc": "2024-01", "net_usd_per_oz": -99, "trades": 1},
+        {"month_utc": "2024-02", "net_usd_per_oz": -2, "trades": 2},
+        {"month_utc": "2024-03", "net_usd_per_oz": -3, "trades": 3},
+        {"month_utc": "2024-04", "net_usd_per_oz": -100, "trades": 4},
+    ]
+    risk = score.monthly_downside(rows, "2024-01-15", "2024-04-15")
+    assert risk["complete_calendar_months_observed"] == 2
+    assert risk["complete_nonpositive_calendar_months"] == 2
+    assert risk["longest_nonpositive_complete_calendar_month_streak"] == 2
+    assert risk["longest_nonpositive_observed_month_streak"] == 4
+    assert risk["worst_complete_calendar_month_utc"] == "2024-03"
+    assert risk["worst_complete_calendar_month_net_usd_per_oz"] == -3
+    assert risk["worst_three_complete_calendar_months_trade_count"] is None
+
+
+def test_complete_month_downside_window_reports_observed_trade_support():
+    rows = [
+        {"month_utc": month, "net_usd_per_oz": net, "trades": trades}
+        for month, net, trades in [
+            ("2024-01", -1, 4), ("2024-02", -2, 0),
+            ("2024-03", -3, 6), ("2024-04", 10, 8),
+        ]
+    ]
+    risk = score.monthly_downside(rows, "2024-01-01", "2024-04-30")
+    assert risk["worst_three_complete_calendar_months_window_utc"] == ["2024-01", "2024-03"]
+    assert risk["worst_three_complete_calendar_months_trade_count"] == 10
+    assert risk["complete_calendar_months_observed"] == 4
+    assert risk["complete_nonpositive_calendar_months"] == 3
+
+
+def test_missing_month_breaks_complete_loss_streak():
+    rows = [
+        {"month_utc": "2024-01", "net_usd_per_oz": -1, "trades": 1},
+        {"month_utc": "2024-03", "net_usd_per_oz": -1, "trades": 1},
+        {"month_utc": "2024-04", "net_usd_per_oz": -1, "trades": 1},
+    ]
+    risk = score.monthly_downside(rows, "2024-01-01", "2024-04-30")
+    assert risk["longest_nonpositive_complete_calendar_month_streak"] == 2
+    assert risk["requested_calendar_month_coverage_complete"] is False
+    assert risk["worst_three_complete_calendar_months_trade_count"] is None
+
+
+def test_complete_worst_month_ties_keep_earliest_utc_month():
+    rows = [
+        {"month_utc": "2024-01", "net_usd_per_oz": -2, "trades": 0},
+        {"month_utc": "2024-02", "net_usd_per_oz": -2, "trades": 1},
+    ]
+    risk = score.monthly_downside(rows, "2024-01-01", "2024-02-29")
+    assert risk["worst_complete_calendar_month_utc"] == "2024-01"
+    assert risk["worst_complete_calendar_month_net_usd_per_oz"] == -2

@@ -69,8 +69,11 @@ def monthly_downside(months: list[dict], start: str, end: str) -> dict:
     partial = []
     previous = None
     longest = run = nonpositive = 0
+    complete_months = complete_nonpositive = complete_run = longest_complete_run = 0
+    worst_complete = worst_complete_label = None
     worst = None
     worst_window = None
+    worst_window_trades = None
     for item in months:
         if type(item) is not dict:
             raise ValueError("Invalid observed monthly risk row")
@@ -88,6 +91,19 @@ def monthly_downside(months: list[dict], start: str, end: str) -> dict:
         complete = first <= beginning and ending <= last
         if not complete:
             partial.append(label)
+            complete_run = 0
+        else:
+            complete_months += 1
+            if worst_complete is None or net < worst_complete:
+                worst_complete, worst_complete_label = net, label
+            if net <= 0:
+                complete_nonpositive += 1
+                complete_run = (complete_run + 1
+                                if previous is not None and index == previous + 1
+                                else 1)
+            else:
+                complete_run = 0
+        longest_complete_run = max(longest_complete_run, complete_run)
         if previous is not None and index != previous + 1:
             run = 0
         if net <= 0:
@@ -105,6 +121,7 @@ def monthly_downside(months: list[dict], start: str, end: str) -> dict:
                 if worst is None or total < worst:
                     worst = total
                     worst_window = [a[1], d[1]]
+                    worst_window_trades = a[4] + c[4] + d[4]
         previous = index
     observed_months = {row[1] for row in ordered}
     missing_months = [
@@ -116,11 +133,17 @@ def monthly_downside(months: list[dict], start: str, end: str) -> dict:
         "missing_requested_calendar_months_utc": missing_months,
         "requested_calendar_month_coverage_complete": not missing_months,
         "nonpositive_months": nonpositive,
+        "complete_calendar_months_observed": complete_months,
+        "complete_nonpositive_calendar_months": complete_nonpositive,
+        "longest_nonpositive_complete_calendar_month_streak": longest_complete_run,
+        "worst_complete_calendar_month_utc": worst_complete_label,
+        "worst_complete_calendar_month_net_usd_per_oz": worst_complete,
         "months_with_trades": sum(item[4] > 0 for item in ordered),
         "longest_nonpositive_observed_month_streak": longest,
         "partial_requested_calendar_months_utc": partial,
         "worst_three_complete_calendar_months_net_usd_per_oz": worst,
         "worst_three_complete_calendar_months_window_utc": worst_window,
+        "worst_three_complete_calendar_months_trade_count": worst_window_trades,
     }
 
 
