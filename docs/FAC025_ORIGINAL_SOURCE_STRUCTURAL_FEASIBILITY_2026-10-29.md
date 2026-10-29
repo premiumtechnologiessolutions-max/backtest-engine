@@ -11,7 +11,7 @@
 | 2014 | 351,794 | 23,243 | 20,129 | 1,841 | 1,667 | 1,645 |
 | 2015 | 353,772 | 23,543 | 21,223 | 1,977 | 1,784 | 1,756 |
 | 2016 | 354,246 | 23,584 | 21,429 | 2,002 | 1,766 | 1,740 |
-| **Total** | **1,765,104** | **116,590** | **102,100** | **9,332** | **8,265** | **8,157** |
+| **Total** | **1,765,104** | **116,590** | **102,200** | **9,332** | **8,265** | **8,157** |
 
 *This checks only the **presence** of the minute-open timestamp exactly 60 seconds after a conservative hypothetical decision at M15 end + 60 seconds. It is **not** an authenticated, eligible, executable quote or a filled trade. 108 candidate timestamps lack this observed later open. Source months: 60/60 have at least one *structural candidate*, minimum **88 in June 2013**, maximum **189 in September 2015**. These are **candidate counts, not profitable months**.
 
