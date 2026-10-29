@@ -123,7 +123,13 @@ def verify_source_bar_exit_prices(m1: pd.DataFrame, trades: pd.DataFrame) -> dic
                 raise AssertionError(
                     "Source-bar intrabar exit conflicts with opening stop priority"
                 )
-            if side * (op[position] - row.target) >= -EPS:
+            # A favorable opening target is actionable ONLY for a position
+            # already open before this minute. A newly filled LIMIT order
+            # cannot take profit from an opening print that preceded its fill:
+            # the same-entry-minute target is deliberately deferred, while
+            # an observed stop still wins (including an ambiguous stop-first).
+            if (entry_position < position
+                    and side * (op[position] - row.target) >= -EPS):
                 raise AssertionError(
                     "Source-bar intrabar exit conflicts with opening target priority"
                 )
