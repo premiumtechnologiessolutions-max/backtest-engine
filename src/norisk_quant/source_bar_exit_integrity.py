@@ -40,7 +40,7 @@ def verify_source_bar_exit_prices(m1: pd.DataFrame, trades: pd.DataFrame) -> dic
         raise ValueError("Source-bar audit requires finite positive valid OHLC")
     if not isinstance(trades, pd.DataFrame) or trades.columns.has_duplicates:
         raise ValueError("Source-bar audit requires trade DataFrame with unique columns")
-    required = {"entry_at", "closed_at", "exit_price", "exit_reason", "side", "stop", "target"}
+    required = {"entry_at", "closed_at", "entry_price", "exit_price", "exit_reason", "side", "stop", "target"}
     if not required.issubset(trades.columns):
         raise ValueError("Source-bar audit missing trade fields")
     counts = {reason: 0 for reason in sorted(AUDITED_REASONS)}
@@ -69,6 +69,24 @@ def verify_source_bar_exit_prices(m1: pd.DataFrame, trades: pd.DataFrame) -> dic
                 raise ValueError(f"Source-bar {name} must be finite positive numeric")
         side = int(row.side)
         entry_position = int(locations[0])
+        # A source-bar exit audit cannot certify a trade whose LIMIT entry
+        # never touched the observed entry candle. Validate the actual
+        # persisted limit price, not merely the reported entry timestamp.
+        entry_price = row.entry_price
+        if (isinstance(entry_price, (bool, np.bool_))
+                or not isinstance(entry_price, Real)
+                or not np.isfinite(entry_price) or entry_price <= 0):
+            raise ValueError("Source-bar entry_price must be finite positive numeric")
+        if side == 1:
+            if not row.stop < entry_price < row.target:
+                raise AssertionError("Source-bar BUY requires stop < entry < target")
+            if lo[entry_position] > entry_price + EPS:
+                raise AssertionError("Source-bar BUY limit entry was not touched")
+        else:
+            if not row.target < entry_price < row.stop:
+                raise AssertionError("Source-bar SELL requires target < entry < stop")
+            if hi[entry_position] < entry_price - EPS:
+                raise AssertionError("Source-bar SELL limit entry was not touched")
         # A correct exit on the reported close bar is insufficient: the
         # position must also have survived every earlier observed M1 bar.
         # The entry minute may defer a target (unknown intrabar ordering),

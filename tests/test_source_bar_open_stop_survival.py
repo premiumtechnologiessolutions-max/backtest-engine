@@ -29,6 +29,7 @@ def row(m1, reason, *, short=False, entry_bar=0, exit_price=None):
         "entry_at": m1.index[entry_bar],
         "closed_at": m1.index[-1],
         "side": -1 if short else 1,
+        "entry_price": 100.,
         "stop": stop,
         "target": target,
         "exit_price": float(m1["o"].iloc[-1]) if exit_price is None else exit_price,

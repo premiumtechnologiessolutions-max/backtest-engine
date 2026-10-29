@@ -16,6 +16,7 @@ def trade(reason, *, side=1, stop=99., target=102., exit_price=None,
     if exit_price is None:
         exit_price = stop if reason in {"stop", "ambiguous_stop_first"} else target
     return pd.DataFrame([{"entry_at": ix[entry_bar], "closed_at": ix[close_bar],
+                          "entry_price": 100.,
                           "side": side, "stop": stop, "target": target,
                           "exit_price": exit_price, "exit_reason": reason}])
 
@@ -214,3 +215,58 @@ def test_entry_bar_target_deferred_then_later_target_is_valid():
     m = market(low=99.5, high=103.)
     m.loc[m.index[0], "h"] = 103.
     assert verify(m, trade("target"))["target"] == 1
+
+
+
+def test_limit_entry_provenance_buy_requires_source_low_touch():
+    m = market(low=99.5, high=101.)
+    t = trade("stop", stop=99., target=102.)
+    t.loc[0, "entry_price"] = 99.0 + 0.25
+    # First minute low is 99.5, so a BUY limit at 99.25 cannot fill.
+    with pytest.raises(AssertionError, match="BUY limit entry was not touched"):
+        verify(m, t)
+
+
+def test_limit_entry_provenance_sell_requires_source_high_touch():
+    m = market(low=98., high=103.)
+    t = trade("stop", side=-1, stop=104., target=99., exit_price=104.)
+    t.loc[0, "entry_price"] = 102.
+    # First minute high is 101, so a SELL limit at 102 cannot fill.
+    with pytest.raises(AssertionError, match="SELL limit entry was not touched"):
+        verify(m, t)
+
+
+@pytest.mark.parametrize("side,stop,target,entry,match", [
+    (1, 100., 102., 100., "BUY requires"),
+    (1, 99., 100., 100., "BUY requires"),
+    (-1, 100., 99., 100., "SELL requires"),
+    (-1, 102., 100., 100., "SELL requires"),
+])
+def test_limit_entry_must_be_strictly_inside_protective_bounds(
+    side, stop, target, entry, match
+):
+    t = trade("stop", side=side, stop=stop, target=target, exit_price=stop)
+    t.loc[0, "entry_price"] = entry
+    with pytest.raises(AssertionError, match=match):
+        verify(market(), t)
+
+
+@pytest.mark.parametrize("bad", [True, "100", float("nan"), 0., -1.])
+def test_limit_entry_rejects_invalid_price_schema(bad):
+    t = trade("stop")
+    t["entry_price"] = pd.Series([bad], dtype=object)
+    with pytest.raises(ValueError, match="entry_price"):
+        verify(market(), t)
+
+
+def test_limit_entry_price_is_required_for_source_certification():
+    t = trade("stop").drop(columns=["entry_price"])
+    with pytest.raises(ValueError, match="missing trade fields"):
+        verify(market(), t)
+
+
+def test_limit_entry_provenance_valid_buy_and_sell():
+    buy = trade("stop", stop=99., target=102.)
+    sell = trade("stop", side=-1, stop=102., target=99., exit_price=102.)
+    assert verify(market(high=101.), buy)["stop"] == 1
+    assert verify(market(low=99.5, high=103.), sell)["stop"] == 1
