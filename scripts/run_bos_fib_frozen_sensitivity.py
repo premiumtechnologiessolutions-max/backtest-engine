@@ -19,7 +19,12 @@ from pathlib import Path
 
 import pandas as pd
 
-from scripts.frozen_evidence_manifest import write_evidence_manifest
+# Works both as `python -m scripts.run_bos_fib_frozen_sensitivity` and
+# as `python scripts/run_bos_fib_frozen_sensitivity.py` from the repo root.
+if __package__:
+    from .frozen_evidence_manifest import write_evidence_manifest
+else:
+    from frozen_evidence_manifest import write_evidence_manifest
 from norisk_quant.bos_fib import BosFibSettings, bos_fib_limit_orders
 from norisk_quant.data import fingerprint_loaded_m1, load_market, sha256_file
 from norisk_quant.evidence_reconciliation import verify_exit_periods
