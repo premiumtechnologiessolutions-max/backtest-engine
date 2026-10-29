@@ -74,8 +74,8 @@ def compare_trade_fields(actual: pd.DataFrame, archived: pd.DataFrame) -> dict:
                     or str(instants.dt.tz) != "UTC" or instants.isna().any()):
                 raise ValueError("Executed trade time must be explicitly UTC")
             live = (instants.astype("int64") // 1_000_000_000).to_numpy()
-            saved = observed.to_numpy()
-            if not np.array_equal(live, pd.to_numeric(saved, errors="raise").to_numpy(dtype=np.int64)):
+            saved = pd.to_numeric(observed, errors="raise").to_numpy(dtype=np.int64)
+            if not np.array_equal(live, saved):
                 raise AssertionError(f"Timestamp drift in {source_name}")
         elif source_name in TEXT:
             if not np.array_equal(executed.astype(str).to_numpy(),
