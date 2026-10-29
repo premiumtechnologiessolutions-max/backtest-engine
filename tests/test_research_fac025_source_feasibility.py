@@ -1,5 +1,6 @@
 """Synthetic-only tests: no original quotes, no fills, no P/L."""
 import pytest
+from datetime import datetime, timezone
 from scripts.research_fac025_source_feasibility import inspect_year
 
 BASE = 1325462400  # 2012-01-02 00:00:00 UTC
@@ -56,3 +57,41 @@ def test_invalid_source_fails_closed(mutate):
 def test_unsorted_duplicate_fails_closed():
     rows=fixture_rows();rows[20]['ts']=rows[19]['ts']
     with pytest.raises(ValueError):inspect_year(rows)
+
+
+@pytest.mark.parametrize("shift_hours,session_08_12,session_09_13", [
+    (8, 1, 0),   # January NY 08:01: first frozen session only.
+    (9, 1, 1),   # January NY 09:01: overlap of both frozen sessions.
+    (12, 0, 1),  # January NY 12:01: second session only.
+])
+def test_frozen_ny_session_boundaries_on_observed_later_open(
+        shift_hours, session_08_12, session_09_13):
+    rows = fixture_rows()
+    for row in rows:
+        row['ts'] += shift_hours * 3600
+    counts = inspect_year(rows)['counts']
+    assert counts.get('ny_08_12_observed_open_candidates', 0) == session_08_12
+    assert counts.get('ny_09_13_observed_open_candidates', 0) == session_09_13
+    assert counts['normalized_risk_passed_intents'] == 1
+
+
+def test_frozen_ny_session_uses_summer_dst_not_fixed_utc_offset():
+    rows = fixture_rows()
+    summer_start = int(datetime(2012, 7, 2, 7, tzinfo=timezone.utc).timestamp())
+    for row in rows:
+        row['ts'] += summer_start - BASE
+    counts = inspect_year(rows)['counts']
+    # July 12:01 UTC is New York 08:01 EDT, not 07:01 EST.
+    assert counts['ny_08_12_observed_open_candidates'] == 1
+    assert counts.get('ny_09_13_observed_open_candidates', 0) == 0
+
+
+def test_missing_later_open_never_counted_in_frozen_ny_session():
+    rows = fixture_rows()
+    for row in rows:
+        row['ts'] += 9 * 3600
+    missing = BASE + 9 * 3600 + (5 * 60 + 2) * 60
+    result = inspect_year([row for row in rows if row['ts'] != missing])
+    assert result['counts']['normalized_risk_passed_intents'] == 1
+    assert result['counts'].get('ny_08_12_observed_open_candidates', 0) == 0
+    assert result['counts'].get('ny_09_13_observed_open_candidates', 0) == 0
