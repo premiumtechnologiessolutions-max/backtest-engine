@@ -103,6 +103,8 @@ def validate_plan(plan: object) -> dict:
             raise ValueError("Unknown shared research component fields")
         if type(item["strategy"]) is not str or item["strategy"] not in KINDS:
             raise ValueError("Unsupported shared research strategy")
+        if type(item["timeframe"]) is not str:
+            raise ValueError("Research timeframe must be explicit text")
         identity = item["strategy"], item["timeframe"]
         if identity in seen:
             raise ValueError("Duplicate strategy/timeframe in a shared portfolio")
@@ -165,6 +167,14 @@ def run_frozen(plan_path: Path, output: Path) -> dict:
             or any(p.is_symlink() for p in (output.parent, *output.parent.parents))):
         raise ValueError("Frozen portfolio output must be new and private")
     data = load_market(str(source), plan["start"], plan["end"])
+    # A source ZIP/year slice can be present but omit entire calendar
+    # months. Reject rather than publish a misleading annual portfolio.
+    if not hasattr(data.index, "tz") or data.index.tz is None:
+        raise ValueError("Research M1 source requires timezone-aware UTC timestamps")
+    observed_months = set(data.index.tz_convert("UTC").strftime("%Y-%m"))
+    missing_months = set(batch.expected_months(plan["start"], plan["end"])) - observed_months
+    if missing_months:
+        raise ValueError("Missing research calendar M1 months: " + ",".join(sorted(missing_months)))
     signals, orders, settings, resolved = compose(data, plan)
     result = run_unified_portfolio(data, signals, orders, settings)
     stage = Path(tempfile.mkdtemp(prefix=".nrfx-portfolio-", dir=output.parent))
