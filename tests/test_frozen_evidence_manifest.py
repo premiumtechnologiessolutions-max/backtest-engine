@@ -42,7 +42,7 @@ def test_unlisted_extra_file_is_detected(tmp_path):
     root = _evidence(tmp_path / "reports")
     write_evidence_manifest(root, [2012], SHA)
     (root / "2012" / "extra.csv").write_text("surprise")
-    with pytest.raises(ValueError, match="inventory differs"):
+    with pytest.raises(ValueError, match="unexpected files"):
         verify_evidence_manifest(root)
 
 
