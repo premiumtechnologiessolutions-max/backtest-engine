@@ -117,3 +117,32 @@ def test_unknown_component_field_and_invalid_parameters_fails_before_execution(t
     cfg["components"][1]["magic"]=42
     with pytest.raises(ValueError):
         mix.validate_plan(cfg)
+
+
+def test_m1_market_and_fvg_limit_share_one_real_slot_in_same_minute(tmp_path):
+    source=tmp_path/"private-fake.zip"
+    source.write_bytes(b"NOT REAL QUOTES")
+    cfg=mix.validate_plan(plan(source))
+    bars = (
+        [[100,101,99,100] for _ in range(15)]
+        + [[103,104,102,103] for _ in range(15)]
+        + [[105,106,104,105] for _ in range(14)]
+        + [[105,106,102.5,104.5]]
+        + [[104.5,106,101.5,105]]
+        + [[105,108,104,107]]
+    )
+    frame=pd.DataFrame(bars,columns=["o","h","l","c"],
+        index=pd.date_range("2024-01-01",periods=len(bars),freq="min",tz="UTC"),
+        dtype=float)
+    signals,orders,settings,resolved=mix.compose(frame,cfg)
+    assert len(signals)>=1
+    assert len(orders)==1
+    assert orders[0].placed_at==pd.Timestamp("2024-01-01T00:45:00Z")
+    assert any(s.confirmed_at==orders[0].placed_at for s in signals)
+    result=mix.run_unified_portfolio(frame,signals,orders,settings)
+    assert result.capacity_rejected>=1
+    assert result.equity["open_positions"].max()<=1
+    assert all(result.trades["cost"]==.40)
+    assert not ((result.trades["entry_at"]==pd.Timestamp("2024-01-01T00:45:00Z"))
+                & (result.trades["order_type"]=="limit")).any()
+    assert set(result.trades["strategy"]).issubset(settings.ounces_by_strategy)
