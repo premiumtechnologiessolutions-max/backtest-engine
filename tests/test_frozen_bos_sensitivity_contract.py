@@ -149,6 +149,12 @@ def test_frozen_runner_synthetic_end_to_end_writes_reconciled_reports(tmp_path, 
     assert (output / "2012" / "equity_m1.csv").is_file()
     assert (output / "2012" / "trades.csv").is_file()
     assert (output / "frozen_sensitivity_summary.json").is_file()
+    # The official synthetic annual stack must produce a verifiable manifest.
+    from scripts.frozen_evidence_manifest import verify_evidence_manifest
+    manifest = verify_evidence_manifest(
+        output, expected_years=[2012], expected_source_sha=SOURCE_SHA)
+    assert len(manifest["files"]) >= 7
+    assert (output / "evidence_manifest.json").is_file()
 
 
 def test_frozen_runner_refuses_to_overwrite_prior_annual_evidence(tmp_path):
