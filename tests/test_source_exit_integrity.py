@@ -89,3 +89,30 @@ def test_boolean_exit_price_fails_closed():
     rows["exit_price"] = True
     with pytest.raises(ValueError, match="finite numeric"):
         verify(source(), rows)
+
+
+def test_entry_timestamp_must_be_present_in_original_source():
+    rows = trade("open_stop")
+    rows["entry_at"] = pd.Timestamp("2024-01-02T00:00:30Z")
+    with pytest.raises(AssertionError, match="entry timestamp missing from source"):
+        verify(source(), rows)
+
+
+def test_entry_open_beyond_stop_requires_observed_entry_bar():
+    rows = trade("entry_open_beyond_stop", entry_minute=2)
+    rows["entry_at"] = rows["closed_at"] = pd.Timestamp("2024-01-02T00:04:00Z")
+    with pytest.raises(AssertionError, match="entry timestamp missing from source"):
+        verify(source(), rows)
+
+
+def test_duplicate_trade_columns_fail_closed():
+    rows = trade("open_stop")
+    rows["shadow"] = rows["stop"]
+    rows.columns = [*rows.columns[:-1], "stop"]
+    with pytest.raises(ValueError, match="unique trade columns"):
+        verify(source(), rows)
+
+
+def test_nonpositive_protective_stop_fails_closed():
+    with pytest.raises(ValueError, match="finite positive numeric"):
+        verify(source(), trade("open_stop", stop=-1.))
