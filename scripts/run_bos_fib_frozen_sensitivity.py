@@ -24,8 +24,8 @@ from norisk_quant.limit_engine import run_limits
 from norisk_quant.model import Settings
 from norisk_quant.persisted_trade_integrity import verify_persisted_trade_ledger
 from norisk_quant.report import report
-from norisk_quant.source_exit_integrity import verify_source_open_exit_prices
-from norisk_quant.source_bar_exit_integrity import verify_source_bar_exit_prices
+from norisk_quant.source_exit_integrity import OPEN_REASONS, verify_source_open_exit_prices
+from norisk_quant.source_bar_exit_integrity import AUDITED_REASONS, verify_source_bar_exit_prices
 
 SOURCE_SHA = "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121"
 YEARLY_SETTINGS = BosFibSettings(
@@ -91,6 +91,33 @@ def validate_output_destination(destination: Path) -> None:
             )
 
 
+
+def verify_exit_audit_coverage(
+    trades: pd.DataFrame, open_verified: int, by_reason: dict[str, int]
+) -> None:
+    """Require every executed exit to be independently source-bar audited.
+
+    The lower-level source checkers intentionally skip unfamiliar labels.
+    The frozen annual runner must NOT silently certify an unverified new
+    execution path, even when monthly and weekly P/L totals reconcile.
+    """
+    if (not isinstance(trades, pd.DataFrame) or trades.columns.has_duplicates
+            or "exit_reason" not in trades.columns):
+        raise ValueError("Frozen exit coverage requires a unique exit_reason column")
+    if type(by_reason) is not dict or set(by_reason) != AUDITED_REASONS:
+        raise AssertionError("Frozen source-bar audit reason set changed")
+    if any(type(count) is not int or count < 0 for count in by_reason.values()):
+        raise AssertionError("Frozen source-bar audit counts must be nonnegative integers")
+    actual = trades["exit_reason"].value_counts(dropna=False).to_dict()
+    if any(type(reason) is not str or reason not in AUDITED_REASONS for reason in actual):
+        raise AssertionError("Frozen replay contains an unaudited exit reason")
+    if any(by_reason[reason] != actual.get(reason, 0) for reason in AUDITED_REASONS):
+        raise AssertionError("Frozen source-bar audit does not cover every executed exit")
+    expected_open = sum(actual.get(reason, 0) for reason in OPEN_REASONS)
+    if type(open_verified) is not int or open_verified != expected_open:
+        raise AssertionError("Frozen source-open audit count disagrees with executed exits")
+
+
 def execute(gold_zip: Path, years: list[int], destination: Path) -> dict:
     validate_year_selection(years)
     validate_output_destination(destination)
@@ -109,6 +136,8 @@ def execute(gold_zip: Path, years: list[int], destination: Path) -> dict:
         result = run_limits(quotes, eligible, EXECUTION_SETTINGS)
         source_open_exits_verified = verify_source_open_exit_prices(quotes, result.trades)
         source_bar_exits_verified = verify_source_bar_exit_prices(quotes, result.trades)
+        verify_exit_audit_coverage(result.trades, source_open_exits_verified,
+                                   source_bar_exits_verified)
         subdirectory = destination / str(year)
         summary = report(
             result, EXECUTION_SETTINGS, subdirectory,
