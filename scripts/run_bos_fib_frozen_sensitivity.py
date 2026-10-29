@@ -24,9 +24,11 @@ import pandas as pd
 if __package__:
     from .frozen_evidence_manifest import write_evidence_manifest
     from .frozen_summary_integrity import verify_frozen_summary_claims
+    from .frozen_parameter_contract import verify_frozen_parameter_contract
 else:
     from frozen_evidence_manifest import write_evidence_manifest
     from frozen_summary_integrity import verify_frozen_summary_claims
+    from frozen_parameter_contract import verify_frozen_parameter_contract
 from norisk_quant.bos_fib import BosFibSettings, bos_fib_limit_orders
 from norisk_quant.data import fingerprint_loaded_m1, load_market, sha256_file
 from norisk_quant.evidence_reconciliation import verify_exit_periods
@@ -245,6 +247,12 @@ def _execute_unpublished(gold_zip: Path, years: list[int], destination: Path) ->
             persisted_summary, monthly, result.trades,
             year=year, source_sha=actual_sha,
             bidask_sha=loaded_fingerprint, m1_rows=len(quotes),
+        )
+        # Independently pin every recorded BOS/H1 setting, not merely the
+        # strategy label. A changed dataclass default must not be certified
+        # as the 2026-10-25 preregistered frozen experiment.
+        verify_frozen_parameter_contract(
+            persisted_summary["run_parameters"], year=year,
         )
         records.append({
             "year": year,
