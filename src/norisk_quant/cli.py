@@ -21,6 +21,7 @@ from .registry import ExperimentIdentity, experiment_manifest
 from .strategy import ema_cross_signals
 from .strategies_native import donchian_breakout_signals
 from .liquidity_sweep_m1 import sweep_reclaim_m1_signals
+from .liquidity_sweep import SweepSettings, liquidity_sweep_signals
 from .ticks import TickSource, audit_tick_csv
 from .walkforward import year_folds, fold_manifest
 
@@ -81,7 +82,7 @@ def main() -> None:
     test.add_argument("--end", required=True, help="UTC inclusive YYYY-MM-DD")
     test.add_argument("--out", required=True)
     test.add_argument("--timeframe", default="M15", choices=("M1", "M5", "M15", "H1", "H4"))
-    test.add_argument("--strategy", default="ema", choices=("ema", "donchian", "fvg", "bos-fib", "qs01", "m1-sweep"))
+    test.add_argument("--strategy", default="ema", choices=("ema", "donchian", "fvg", "bos-fib", "qs01", "m1-sweep", "tf-sweep"))
     test.add_argument("--execution", default="reference", choices=("reference", "fast"))
     test.add_argument("--donchian-lookback", type=int, default=20)
     test.add_argument("--stop-usd", type=float, default=15.0)
@@ -96,6 +97,12 @@ def main() -> None:
     test.add_argument("--sweep-stop-buffer-usd", type=float, default=0.10)
     test.add_argument("--sweep-reward-risk", type=float, default=1.5)
     test.add_argument("--sweep-max-stop-usd", type=float, default=20.0)
+    test.add_argument("--tf-sweep-lookback-bars", type=int, default=12)
+    test.add_argument("--tf-sweep-penetration-usd", type=float, default=0.25)
+    test.add_argument("--tf-sweep-stop-buffer-usd", type=float, default=0.10)
+    test.add_argument("--tf-sweep-reward-risk", type=float, default=1.5)
+    test.add_argument("--tf-sweep-min-stop-usd", type=float, default=0.50)
+    test.add_argument("--tf-sweep-max-stop-usd", type=float, default=50.0)
     test.add_argument("--bos-pivot-left", type=int, default=3)
     test.add_argument("--bos-pivot-right", type=int, default=3)
     test.add_argument("--bos-fib-entry", type=float, default=0.618)
@@ -123,6 +130,11 @@ def main() -> None:
             "Canonical XAUUSD research requires exactly $0.40/oz ALL-IN "
             "round-trip; do not disable or layer on another spread/fee."
         )
+    if args.command == "backtest" and args.strategy == "tf-sweep":
+        if args.timeframe not in ("M15", "H1"):
+            parser.error("TF sweep/reclaim requires --timeframe M15 or H1")
+        if args.tf_sweep_lookback_bars < 3:
+            parser.error("--tf-sweep-lookback-bars must be >=3")
     if args.command == "backtest" and args.strategy == "m1-sweep":
         if args.timeframe != "M1":
             parser.error("M1 sweep/reclaim requires --timeframe M1")
@@ -259,6 +271,16 @@ def main() -> None:
                     )
                 )
             result = run_limits(data, limit_orders, settings)
+        elif args.strategy == "tf-sweep":
+            signals = liquidity_sweep_signals(data, settings=SweepSettings(
+                timeframe=args.timeframe, lookback_bars=args.tf_sweep_lookback_bars,
+                penetration_usd=args.tf_sweep_penetration_usd,
+                stop_buffer_usd=args.tf_sweep_stop_buffer_usd,
+                reward_risk=args.tf_sweep_reward_risk,
+                min_stop_usd=args.tf_sweep_min_stop_usd,
+                max_stop_usd=args.tf_sweep_max_stop_usd,
+            ))
+            result = (run_fast if args.execution == "fast" else run)(data, signals, settings)
         elif args.strategy == "m1-sweep":
             signals = sweep_reclaim_m1_signals(
                 data, lookback=args.sweep_lookback,
