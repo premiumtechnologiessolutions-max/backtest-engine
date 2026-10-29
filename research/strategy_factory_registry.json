@@ -1,6 +1,6 @@
 {
   "format_version": 1,
-  "updated_utc": "2026-10-29T13:20:44Z",
+  "updated_utc": "2026-10-29T15:21:00Z",
   "project": "No Risk FX XAUUSD quant research factory",
   "branch": "feat/quant-engine-foundation",
   "original_private_zip_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
@@ -1201,6 +1201,18 @@
         "report": "docs/FAC025_ORIGINAL_SOURCE_NY_SESSION_SUBSET_2026-10-29.md",
         "script": "scripts/research_fac025_source_feasibility.py"
       }
+    }
+  ],
+  "engineering_integrity_controls": [
+    {
+      "id": "NRF-FAC-025-M1-RISK-STRICT-REAL-DTYPE",
+      "status": "SYNTHETIC_TESTS_ONLY_NOT_ORIGINAL_SOURCE_REPLAY",
+      "report": "docs/FAC025_MONTH_LOCAL_STRICT_NUMERIC_EVIDENCE_GATE_2026-10-29.md",
+      "synthetic_regressions_added": 6,
+      "original_source_strategy_backtests_added": 0,
+      "original_source_monthly_net_usd_per_oz": "N/A",
+      "original_source_monthly_floating_drawdown_usd_per_oz": "N/A",
+      "note": "Reject coerced numeric text, bool, complex and duplicate equity labels before monthly M1 risk. Historical factory totals unchanged."
     }
   ]
 }

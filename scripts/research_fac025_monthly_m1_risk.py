@@ -30,10 +30,17 @@ def monthly_observed_m1_risk(observed_minutes: pd.DataFrame, equity: pd.DataFram
         raise ValueError("Equity marks must match each observed M1 open exactly; no fabricated minutes")
     if np.any(observed_utc.asi8 % 60_000_000_000):
         raise ValueError("Observed M1 must be aligned to UTC minute opens")
-    if not {"equity", "realized_pnl", "floating_pnl"}.issubset(equity.columns):
+    required = ("equity", "realized_pnl", "floating_pnl")
+    if not equity.columns.is_unique:
+        raise ValueError("Duplicate M1 equity column labels")
+    if not set(required).issubset(equity.columns):
         raise ValueError("Missing M1 equity/realized/floating columns")
+    for column in required:
+        dtype = equity[column].dtype
+        if not (pd.api.types.is_integer_dtype(dtype) or pd.api.types.is_float_dtype(dtype)):
+            raise ValueError(f"M1 {column} must have a real numeric dtype, not coerced text/bool/complex")
     try:
-        values = equity[["equity", "realized_pnl", "floating_pnl"]].to_numpy(dtype=float)
+        values = equity[list(required)].to_numpy(dtype=float)
     except (ValueError, TypeError) as exc:
         raise ValueError("Non-numeric M1 equity values") from exc
     if not np.isfinite(values).all() or not np.allclose(
