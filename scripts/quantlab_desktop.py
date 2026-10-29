@@ -411,6 +411,57 @@ class ResearchHub:
                  "synthetic_end_of_data_trades": lab.count(row["synthetic_end_of_data_trades"])}
                 for row in rows]
 
+    def weekly(self, plan_id: str, job_id: str) -> list[dict]:
+        """Read SHA-checked recorded weekly ledger, not broker-certified fills."""
+        plan = self._plan(plan_id)
+        jobs = {j["id"] for j in lab.expand(plan, limit=CAP)[0]}
+        if job_id not in jobs or not lab.JOB_ID.fullmatch(job_id):
+            raise ValueError("Unknown research job")
+        manifest = lab.read_strict_json(self._run_folder(plan_id) / "batch_manifest.json")
+        if (manifest.get("plan_sha256") != plan_id
+                or manifest.get("source_sha256") != SOURCE_SHA
+                or manifest.get("engine_commit") != plan["engine_commit"]):
+            raise ValueError("Weekly evidence provenance mismatch")
+        record = manifest["results"].get(job_id)
+        if type(record) is not dict or record.get("status") != lab.PASSED:
+            raise ValueError("No reconciled weekly ledger")
+        file = self._run_folder(plan_id) / "runs" / job_id / "weekly.csv"
+        if file.is_symlink() or not file.is_file() or lab.file_sha(file) != record["weekly_sha256"]:
+            raise ValueError("Weekly evidence fingerprint mismatch")
+        return [{"period": row["period"], "net_pnl": lab.finite(row["net_pnl"]),
+                 "trades": lab.count(row["trades"]),
+                 "total_cost": lab.finite(row["total_cost"])}
+                for row in lab.read_ledger_csv(file)]
+
+    def evidence_bytes(self, plan_id: str, job_id: str,
+                       filename: str) -> tuple[bytes, str]:
+        """Exactly four SHA-locked exports; private source ZIP stays private."""
+        allowed = {"trades.csv": "trades_sha256", "weekly.csv": "weekly_sha256",
+                   "monthly.csv": "monthly_sha256", "summary.json": "summary_sha256"}
+        if type(filename) is not str or filename not in allowed:
+            raise ValueError("Unsupported private evidence export")
+        plan = self._plan(plan_id)
+        jobs = {j["id"] for j in lab.expand(plan, limit=CAP)[0]}
+        if job_id not in jobs or not lab.JOB_ID.fullmatch(job_id):
+            raise ValueError("Unknown research job")
+        manifest = lab.read_strict_json(self._run_folder(plan_id) / "batch_manifest.json")
+        if (manifest.get("plan_sha256") != plan_id
+                or manifest.get("source_sha256") != SOURCE_SHA
+                or manifest.get("engine_commit") != plan["engine_commit"]):
+            raise ValueError("Evidence source or code changed")
+        record = manifest["results"].get(job_id)
+        if type(record) is not dict or record.get("status") != lab.PASSED:
+            raise ValueError("Research result requires reconciliation")
+        target = self._run_folder(plan_id) / "runs" / job_id / filename
+        if target.is_symlink() or not target.is_file():
+            raise ValueError("Missing or unsafe evidence export")
+        content = target.read_bytes()
+        import hashlib
+        if len(content) > 20_000_000 or hashlib.sha256(content).hexdigest() != record[allowed[filename]]:
+            raise ValueError("Evidence file integrity check failed")
+        return content, ("application/json; charset=utf-8"
+                         if filename.endswith(".json") else "text/csv; charset=utf-8")
+
     def start(self, plan_id: str, budget: int, *, recover: bool = False) -> dict:
         if type(budget) is not int or not 1 <= budget <= 20 or type(recover) is not bool:
             raise ValueError("Interactive per-click budget 1..20; recovery must be deliberate")
@@ -584,6 +635,13 @@ class ConsoleHandler(BaseHTTPRequestHandler):
                 return self._json(200, self.server.hub.run_results(
                     params["plan_id"][0], offset=int(params.get("offset", ["0"])[0]),
                     limit=int(params.get("limit", ["50"])[0])))
+            if parsed.path == "/api/weekly":
+                return self._json(200, self.server.hub.weekly(
+                    params["plan_id"][0], params["job_id"][0]))
+            if parsed.path == "/api/evidence":
+                payload, mime = self.server.hub.evidence_bytes(
+                    params["plan_id"][0], params["job_id"][0], params["file"][0])
+                return self._send(200, payload, mime)
             if parsed.path == "/api/monthly":
                 return self._json(200, self.server.hub.monthly(params["plan_id"][0], params["job_id"][0]))
             return self._json(404, {"error": "not_found"})
