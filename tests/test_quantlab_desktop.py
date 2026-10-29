@@ -225,3 +225,47 @@ def test_reader_rejects_oversized_post(hub):
         srv.shutdown()
         srv.server_close()
         thread.join(4)
+
+
+@pytest.mark.parametrize("raw", [
+    b'{"year":2012,"year":2013}',
+    b'{"year":2012,"grid":{"fast":[8],"fast":[9]}}',
+    b'{"year":2012,"grid":{"fast":[1e999]}}',
+    b'{"year":2012,"grid":{"fast":[-1e999]}}',
+    b'{"year":2012,"grid":{"fast":[NaN]}}',
+    b'{"year":2012,"grid":{"fast":[Infinity]}}',
+    b'\\xff',
+])
+def test_http_rejects_ambiguous_or_nonfinite_request_json(hub, raw):
+    ui_file = Path(app.__file__).with_name("quantlab_desktop_ui.html")
+    srv, thread = server(hub, ui_file)
+    try:
+        conn = HTTPConnection("127.0.0.1", srv.server_port, timeout=6)
+        conn.request("POST", "/api/freeze", body=raw, headers={
+            "Host": f"127.0.0.1:{srv.server_port}",
+            "X-NRFX-Token": "private-test-token",
+            "Content-Type": "application/json",
+        })
+        res = conn.getresponse()
+        body = res.read()
+        assert res.status == 400, body
+        conn.close()
+        assert hub.list_plans() == []
+    finally:
+        srv.shutdown()
+        srv.server_close()
+        thread.join(4)
+
+
+def test_http_strict_parser_accepts_valid_nested_finite_json(hub):
+    ui_file = Path(app.__file__).with_name("quantlab_desktop_ui.html")
+    srv, thread = server(hub, ui_file)
+    try:
+        code, raw = http(srv, "POST", "/api/freeze", token="private-test-token",
+                         body=fake_spec())
+        assert code == 200, raw
+        assert json.loads(raw)["defined_jobs"] == 4
+    finally:
+        srv.shutdown()
+        srv.server_close()
+        thread.join(4)
