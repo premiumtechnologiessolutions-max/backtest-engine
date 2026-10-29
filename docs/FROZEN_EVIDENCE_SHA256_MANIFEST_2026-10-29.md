@@ -35,7 +35,7 @@ The existing frozen runner synthetic integration test now verifies its
 generated manifest. No original Gold ZIP or confidential quote data was used
 for these checks.
 
-Local standalone module tests: **11 passed** on Python 3.11 with pytest 9.0.2.
+Local standalone module tests: **11 passed** on Python 3.13.5 with pytest 9.0.2.
 The repository-wide CI result must be checked separately against the final
 commit before claiming full acceptance.
 
