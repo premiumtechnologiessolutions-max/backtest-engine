@@ -41,6 +41,19 @@ def verify_frozen_summary_claims(
         raise ValueError("Frozen summary requires a valid annual M1 identity")
     if len(monthly) != 12 or "net_pnl" not in monthly or "net_pnl" not in trades or "cost" not in trades:
         raise ValueError("Frozen summary requires complete monthly and trade ledgers")
+    # Do not silently coerce text, booleans, or complex numbers into evidence.
+    # Empty trade ledgers may have object-typed columns from CSV roundtrips.
+    if not monthly.columns.is_unique or not trades.columns.is_unique:
+        raise ValueError("Frozen summary ledgers contain duplicate column labels")
+    for ledger, names in ((monthly, ("net_pnl",)),
+                          (trades, ("net_pnl", "cost"))):
+        for name in names:
+            series = ledger[name]
+            if len(series) and not (
+                pd.api.types.is_integer_dtype(series.dtype)
+                or pd.api.types.is_float_dtype(series.dtype)
+            ):
+                raise ValueError("Frozen summary ledger must use real numeric values")
     monthly_net = pd.to_numeric(monthly["net_pnl"], errors="raise")
     trade_net = pd.to_numeric(trades["net_pnl"], errors="raise")
     trade_cost = pd.to_numeric(trades["cost"], errors="raise")
@@ -49,6 +62,13 @@ def verify_frozen_summary_claims(
         raise ValueError("Frozen summary ledgers contain nonfinite values")
     if (trade_cost < 0).any():
         raise ValueError("Frozen summary trade costs cannot be negative")
+    if not math.isclose(float(monthly_net.sum()), float(trade_net.sum()),
+                        rel_tol=0, abs_tol=1e-7):
+        raise ValueError("Frozen summary monthly net disagrees with trade ledger")
+    # An aggregate $0.40 x N can hide offsetting per-fill fee tampering.
+    if any(not math.isclose(float(cost), .40, rel_tol=0, abs_tol=1e-9)
+           for cost in trade_cost):
+        raise ValueError("Frozen summary per-trade fee differs from $0.40/oz")
     expected_counts = {
         "trades": len(trades),
         "wins": int((trade_net > 0).sum()),

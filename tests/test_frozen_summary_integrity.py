@@ -85,3 +85,51 @@ def test_nonfinite_monthly_and_negative_cost_rejected():
     trades.loc[0, "cost"] = -.4
     with pytest.raises(ValueError, match="negative"):
         _check(summary, monthly, trades)
+
+
+def test_monthly_net_must_reconcile_to_trade_ledger():
+    summary, monthly, trades = _fixture()
+    monthly.loc[0, "net_pnl"] = 2.0  # positive-month count unchanged
+    with pytest.raises(ValueError, match="monthly net"):
+        _check(summary, monthly, trades)
+
+
+def test_offsetting_fee_tampering_is_rejected():
+    summary, monthly, trades = _fixture()
+    trades["cost"] = [.20, .60]  # annual fee total still exactly $0.80
+    with pytest.raises(ValueError, match="per-trade fee"):
+        _check(summary, monthly, trades)
+
+
+@pytest.mark.parametrize("ledger,column,values", [
+    ("monthly", "net_pnl", ["1.0", "-2.0"] + ["0.0"] * 10),
+    ("trades", "net_pnl", ["1.0", "-2.0"]),
+    ("trades", "cost", ["0.4", "0.4"]),
+    ("trades", "cost", [True, False]),
+    ("trades", "net_pnl", [1 + 0j, -2 + 0j]),
+])
+def test_coercible_but_unverified_ledger_types_rejected(ledger, column, values):
+    summary, monthly, trades = _fixture()
+    target = monthly if ledger == "monthly" else trades
+    target[column] = values
+    with pytest.raises(ValueError, match="real numeric"):
+        _check(summary, monthly, trades)
+
+
+@pytest.mark.parametrize("ledger", ["monthly", "trades"])
+def test_duplicate_ledger_column_labels_rejected(ledger):
+    summary, monthly, trades = _fixture()
+    target = monthly if ledger == "monthly" else trades
+    target["duplicate"] = target["net_pnl"]
+    target.rename(columns={"duplicate": "net_pnl"}, inplace=True)
+    with pytest.raises(ValueError, match="duplicate column"):
+        _check(summary, monthly, trades)
+
+
+def test_empty_trade_ledger_remains_valid():
+    summary, monthly, trades = _fixture()
+    monthly["net_pnl"] = [0.0] * 12
+    trades = pd.DataFrame(columns=["net_pnl", "cost"])
+    summary.update(trades=0, wins=0, positive_months=0, nonpositive_months=12,
+                   net_pnl=0.0, total_fees=0.0)
+    _check(summary, monthly, trades)
