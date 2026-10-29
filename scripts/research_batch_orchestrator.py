@@ -442,6 +442,8 @@ def exclusive_batch_lock(output: Path):
     if output.is_symlink() or not output.is_dir():
         raise ValueError("Unsafe batch output directory")
     lock = output / ".research_batch.lock"
+    if lock.is_symlink():
+        raise ValueError("Unsafe batch lock symlink")
     flags = os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0)
     fd = os.open(lock, flags, 0o600)
     locked = False
@@ -467,7 +469,7 @@ def exclusive_batch_lock(output: Path):
             raise ValueError("Research batch already running for this output") from exc
         # Detect a swapped/unlinked path before entering the critical section.
         current = os.stat(lock, follow_symlinks=False)
-        if (not stat.S_ISREG(current.st_mode)
+        if (lock.is_symlink() or not stat.S_ISREG(current.st_mode)
                 or (current.st_dev, current.st_ino) != (info.st_dev, info.st_ino)):
             raise ValueError("Research batch lock path changed during acquisition")
         yield
