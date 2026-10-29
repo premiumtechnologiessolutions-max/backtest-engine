@@ -9,6 +9,7 @@ from datetime import date, timedelta
 import json
 
 from scripts import research_batch_orchestrator as batch
+from norisk_quant.model import Settings, serialize_settings
 from scripts import research_candidate_screen as screen
 
 
@@ -52,7 +53,7 @@ def test_six_month_engine_report_is_audited_before_training_screen(tmp_path):
     write_csv(folder / "trades.csv", list(trades[0]), trades)
     summary = {
         "execution": "synthetic_same_reference_bid_ohlc_fixed_all_in_fee",
-        "settings": {"roundtrip_cost_per_ounce": 0.4},
+        "settings": serialize_settings(Settings()),
         "source_fingerprints": {
             "source_file_sha256": source, "git_revision_env": commit,
             "loaded_m1_bidask_sha256": m1,
