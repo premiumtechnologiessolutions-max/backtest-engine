@@ -46,9 +46,12 @@ STRATEGY_PARAMS = {
                 "bos_min_impulse_usd", "bos_expiry_minutes",
                 "bos_min_gross_reward_fee_multiple"},
     "qs01": set(),
+    "m1-sweep": {"sweep_lookback", "sweep_min_excess_usd",
+                 "sweep_reclaim_usd", "sweep_stop_buffer_usd",
+                 "sweep_reward_risk", "sweep_max_stop_usd"},
 }
 INT_PARAMS = {"fast", "slow", "donchian_lookback", "bos_pivot_left",
-              "bos_pivot_right", "bos_expiry_minutes"}
+              "bos_pivot_right", "bos_expiry_minutes", "sweep_lookback"}
 BASE = {"strategy", "timeframe", "execution", "start", "end"}
 
 
@@ -114,7 +117,7 @@ def check_spec(spec: object) -> dict:
         raise ValueError("Unsupported execution")
     if spec["strategy"] in ("fvg", "bos-fib") and spec["execution"] != "reference":
         raise ValueError("Limit execution is reference-only")
-    if spec["strategy"] in ("bos-fib", "qs01") and spec["timeframe"] != "M1":
+    if spec["strategy"] in ("bos-fib", "qs01", "m1-sweep") and spec["timeframe"] != "M1":
         raise ValueError("Frozen strategy requires M1")
     for field in ("start", "end"):
         if type(spec[field]) is not str or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", spec[field]):
@@ -134,6 +137,11 @@ def check_spec(spec: object) -> dict:
             raise ValueError("Parameter must be nonnegative or positive")
     if spec["strategy"] == "ema" and params.get("fast", 9) >= params.get("slow", 21):
         raise ValueError("EMA fast must be below slow")
+    if spec["strategy"] == "m1-sweep":
+        if params.get("sweep_lookback", 20) < 3:
+            raise ValueError("M1 sweep lookback must be >=3")
+        if params.get("sweep_stop_buffer_usd", 0.10) > params.get("sweep_max_stop_usd", 20.0):
+            raise ValueError("Sweep stop buffer cannot exceed max stop")
     if spec["strategy"] == "bos-fib" and params.get("bos_fib_entry", 0.618) >= 1:
         raise ValueError("Fibonacci entry fraction must be below 1")
     return spec
