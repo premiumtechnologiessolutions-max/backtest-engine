@@ -115,3 +115,38 @@ def test_empty_partial_manifest_reports_unexecuted_not_performance(monkeypatch,t
     assert out['compared_candidates']==0
     assert out['research_status']=='INCOMPLETE_ANNUAL_COVERAGE'
     assert out['independent_oos_proven'] is False
+
+
+def test_exact_joint_training_diagnostic_is_separate_from_selection(monkeypatch,tmp_path):
+    plan, manifest, records, settings, jobs = fixture(monkeypatch,tmp_path)
+    first = cross.screen_cross_year(plan,manifest,tmp_path,**settings)
+    assert first["multiplicity_diagnostic"]["candidate_count"] == 2
+    assert first["multiplicity_diagnostic"]["enumerated_joint_patterns"] == 4
+    assert first["multiplicity_diagnostic"]["selection_or_live_authority"] == "NONE"
+    assert first["multiplicity_diagnostic"]["independent_oos_proven"] is False
+    snapshots = {
+        row["candidate_id"]: row["training_signflip_diagnostic_only"]
+        for row in first["results"]
+    }
+    # Review data changed after training; every diagnostic and rank remains
+    # identical because no review month may enter train-only selection.
+    for job_id, result in records.items():
+        if job_id.endswith(("-2014", "-2015")):
+            result["monthly_net_pnl"] = {m: -10 * val
+                                          for m,val in result["monthly_net_pnl"].items()}
+    after = cross.screen_cross_year(plan,manifest,tmp_path,**settings)
+    assert {
+        row["candidate_id"]: row["training_signflip_diagnostic_only"]
+        for row in after["results"]
+    } == snapshots
+
+
+def test_incomplete_candidate_search_does_not_claim_adjusted_significance(monkeypatch,tmp_path):
+    plan,manifest,records,settings,jobs = fixture(monkeypatch,tmp_path)
+    manifest["results"].pop("alpha-2013")
+    out = cross.screen_cross_year(plan,manifest,tmp_path,**settings)
+    assert out["research_status"] == "INCOMPLETE_ANNUAL_COVERAGE"
+    assert out["multiplicity_diagnostic"]["status"].startswith("NOT_COMPUTED")
+    for row in out["results"]:
+        assert row["training_rank"] is None
+        assert "training_signflip_diagnostic_only" not in row
