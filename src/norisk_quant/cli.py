@@ -20,6 +20,7 @@ from .report import report
 from .registry import ExperimentIdentity, experiment_manifest
 from .strategy import ema_cross_signals
 from .strategies_native import donchian_breakout_signals
+from .liquidity_sweep_m1 import sweep_reclaim_m1_signals
 from .ticks import TickSource, audit_tick_csv
 from .walkforward import year_folds, fold_manifest
 
@@ -80,7 +81,7 @@ def main() -> None:
     test.add_argument("--end", required=True, help="UTC inclusive YYYY-MM-DD")
     test.add_argument("--out", required=True)
     test.add_argument("--timeframe", default="M15", choices=("M1", "M5", "M15", "H1", "H4"))
-    test.add_argument("--strategy", default="ema", choices=("ema", "donchian", "fvg", "bos-fib", "qs01"))
+    test.add_argument("--strategy", default="ema", choices=("ema", "donchian", "fvg", "bos-fib", "qs01", "m1-sweep"))
     test.add_argument("--execution", default="reference", choices=("reference", "fast"))
     test.add_argument("--donchian-lookback", type=int, default=20)
     test.add_argument("--stop-usd", type=float, default=15.0)
@@ -89,6 +90,12 @@ def main() -> None:
     test.add_argument("--fvg-stop-buffer-usd", type=float, default=0.1)
     test.add_argument("--fvg-rr", type=float, default=2.0)
     test.add_argument("--fvg-expiry-hours", type=float, default=20.0)
+    test.add_argument("--sweep-lookback", type=int, default=20)
+    test.add_argument("--sweep-min-excess-usd", type=float, default=0.15)
+    test.add_argument("--sweep-reclaim-usd", type=float, default=0.05)
+    test.add_argument("--sweep-stop-buffer-usd", type=float, default=0.10)
+    test.add_argument("--sweep-reward-risk", type=float, default=1.5)
+    test.add_argument("--sweep-max-stop-usd", type=float, default=20.0)
     test.add_argument("--bos-pivot-left", type=int, default=3)
     test.add_argument("--bos-pivot-right", type=int, default=3)
     test.add_argument("--bos-fib-entry", type=float, default=0.618)
@@ -116,6 +123,11 @@ def main() -> None:
             "Canonical XAUUSD research requires exactly $0.40/oz ALL-IN "
             "round-trip; do not disable or layer on another spread/fee."
         )
+    if args.command == "backtest" and args.strategy == "m1-sweep":
+        if args.timeframe != "M1":
+            parser.error("M1 sweep/reclaim requires --timeframe M1")
+        if args.sweep_lookback < 3:
+            parser.error("--sweep-lookback must be >=3")
     if args.command == "backtest" and args.strategy == "qs01" and (
         args.timeframe != "M1" or args.ounces != 1.0
     ):
@@ -247,6 +259,16 @@ def main() -> None:
                     )
                 )
             result = run_limits(data, limit_orders, settings)
+        elif args.strategy == "m1-sweep":
+            signals = sweep_reclaim_m1_signals(
+                data, lookback=args.sweep_lookback,
+                min_excess_usd=args.sweep_min_excess_usd,
+                reclaim_usd=args.sweep_reclaim_usd,
+                stop_buffer_usd=args.sweep_stop_buffer_usd,
+                reward_risk=args.sweep_reward_risk,
+                max_stop_usd=args.sweep_max_stop_usd,
+            )
+            result = (run_fast if args.execution == "fast" else run)(data, signals, settings)
         elif args.strategy == "qs01":
             signals = qs01_signals(data)
             result = (run_fast if args.execution == "fast" else run)(data, signals, settings)
