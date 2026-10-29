@@ -1146,7 +1146,9 @@
       "bid_reference_replay_verified_ci_tests_passed": 2195,
       "paired_bidask_entry_audit": "scripts/research_fac025_bidask_entry_audit.py",
       "paired_bidask_entry_audit_report": "docs/FAC025_PAIRED_BIDASK_ENTRY_SIDE_AUDIT_2026-10-29.md",
-      "paired_bidask_entry_audit_status": "SYNTHETIC_SOURCE_QUOTE_DIAGNOSTIC_ONLY_NOT_EXECUTABLE"
+      "paired_bidask_entry_audit_status": "SYNTHETIC_SOURCE_QUOTE_DIAGNOSTIC_ONLY_NOT_EXECUTABLE",
+      "original_source_open_spread_audit": "docs/FAC025_ORIGINAL_GOLD_2012_2016_OPEN_SPREAD_DIAGNOSTIC_2026-10-29.md",
+      "original_source_open_spread_audit_status": "LOCAL_SHA_VERIFIED_AGGREGATED_QUOTES_ONLY_NO_TRADES"
     }
   ]
 }
