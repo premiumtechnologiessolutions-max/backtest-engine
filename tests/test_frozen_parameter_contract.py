@@ -13,7 +13,7 @@ def _parameters():
         "bos_fib": {
             "pivot_left": 3, "pivot_right": 3, "fib_entry": 0.618,
             "zone_lower": 0.618, "zone_upper": 0.786,
-            "reward_risk": 1.0, "sl_buffer_usd": 0.10,
+            "reward_risk": 1, "sl_buffer_usd": 0.10,
             "min_break_usd": 0.10, "min_impulse_usd": 1.0,
             "expiry_minutes": 120, "max_bos_waves_per_regime": 2,
             "min_gross_reward_fee_multiple": 0.0,
@@ -53,7 +53,7 @@ def test_frozen_parameter_snapshot_accepted():
     ("h1", "max_regime_age_minutes", None),
     ("h1", "max_regime_age_minutes", 180),
     ("bos_fib", "pivot_left", True),  # True == 1 must not bypass checks
-    ("bos_fib", "reward_risk", 1),  # 1 == 1.0 must not bypass checks
+    ("bos_fib", "reward_risk", 1.0),  # 1 == 1.0 must not bypass checks
     ("h1", "max_regime_age_minutes", 120.0),
     ("bos_fib", "fib_entry", float("nan")),
 ])
