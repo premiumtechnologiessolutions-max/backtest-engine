@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from scripts import research_batch_verified_monthly_terminal as terminal
+from scripts.research_batch_monthly_scorecard import monthly_downside
 
 
 def verified_report(*, pinned: bool = False) -> dict:
@@ -21,7 +22,7 @@ def verified_report(*, pinned: bool = False) -> dict:
          "max_observed_m1_global_peak_drawdown_usd_per_oz": 8.0 if pinned else None,
          "observed_m1_gap_events_from_prior_mark": 0 if pinned else None},
     ]
-    return {
+    data = {
         "status": "RE_AUDITED_HISTORICAL_STANDALONE_NOT_OOS_NOT_APPROVED",
         "source_sha256_verified_locally": True,
         "plan_sha256": "a" * 64,
@@ -54,6 +55,10 @@ def verified_report(*, pinned: bool = False) -> dict:
             "monthly": months,
         }],
     }
+    data["jobs"][0].update(monthly_downside(
+        months, data["jobs"][0]["evaluation_start_utc"],
+        data["jobs"][0]["evaluation_end_utc"]))
+    return data
 
 
 def test_verified_monthly_net_fees_worst_and_na_are_rendered():
@@ -194,6 +199,8 @@ def test_three_complete_month_downside_is_recomputed_and_visible():
         worst_three_complete_calendar_months_window_utc=["2024-01", "2024-03"],
         net_usd_per_oz=-3.75,
     )
+    job.update(monthly_downside(job["monthly"], job["evaluation_start_utc"],
+                                job["evaluation_end_utc"]))
     html = terminal.render_verified_monthly_html(report)
     assert "2024-01 → 2024-03 · -3.75" in html
     assert "Nonpositive-month streak" in html
@@ -208,7 +215,8 @@ def test_partial_months_are_visible_but_not_three_complete_months():
     job = report["jobs"][0]
     job["evaluation_start_utc"] = "2024-01-15"
     job["evaluation_end_utc"] = "2024-02-15"
-    job["partial_requested_calendar_months_utc"] = ["2024-01", "2024-02"]
+    job.update(monthly_downside(job["monthly"], job["evaluation_start_utc"],
+                                job["evaluation_end_utc"]))
     html = terminal.render_verified_monthly_html(report)
     assert "2024-01, 2024-02" in html
     assert "Worst 3 complete UTC months" in html

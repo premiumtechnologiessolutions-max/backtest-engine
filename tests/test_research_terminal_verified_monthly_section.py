@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from scripts import research_terminal as main_terminal
+from scripts.research_batch_monthly_scorecard import monthly_downside
 from scripts.research_terminal_verified_monthly_section import render_verified_monthly_section
 from scripts.research_terminal_ui import render_premium_html
 
@@ -23,7 +24,7 @@ def report():
          "max_observed_m1_global_peak_drawdown_usd_per_oz": None,
          "observed_m1_gap_events_from_prior_mark": None},
     ]
-    return {
+    data = {
         "status": "RE_AUDITED_HISTORICAL_STANDALONE_NOT_OOS_NOT_APPROVED",
         "source_sha256_verified_locally": True, "plan_sha256": "a" * 64,
         "defined_parameter_jobs": 2, "reconciled_executed_jobs": 1,
@@ -49,6 +50,10 @@ def report():
             "monthly": months,
         }],
     }
+    data["jobs"][0].update(monthly_downside(
+        months, data["jobs"][0]["evaluation_start_utc"],
+        data["jobs"][0]["evaluation_end_utc"]))
+    return data
 
 
 def model():
