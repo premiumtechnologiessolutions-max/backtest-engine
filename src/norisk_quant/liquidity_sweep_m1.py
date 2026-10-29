@@ -59,37 +59,36 @@ def sweep_reclaim_m1_signals(
             or (values[:, 2] > np.minimum(values[:, 0], values[:, 3])).any()
             or (values[:, 1] < values[:, 2]).any()):
         raise ValueError("Sweep requires finite, coherent, positive M1 OHLC")
-    prior_hi = bars["h"].rolling(lookback, min_periods=lookback).max().shift(1)
-    prior_lo = bars["l"].rolling(lookback, min_periods=lookback).min().shift(1)
-    times = bars.index
+    # Vectorized M1 detection. Scanning millions of minutes with .iloc in a
+    # Python loop makes grid research prohibitively slow; roll/lookback are
+    # calculated in bulk and only confirmed signals become Python objects.
+    prior_hi = bars["h"].rolling(lookback, min_periods=lookback).max().shift(1).to_numpy(dtype=float)
+    prior_lo = bars["l"].rolling(lookback, min_periods=lookback).min().shift(1).to_numpy(dtype=float)
+    highs, lows, closes = values[:, 1], values[:, 2], values[:, 3]
+    continuous = np.zeros(len(bars), dtype=bool)
+    continuous[lookback:] = (
+        bars.index[lookback:] - bars.index[:-lookback]
+        == pd.Timedelta(minutes=lookback)
+    )
+    crosses_high = highs > prior_hi + min_excess_usd
+    crosses_low = lows < prior_lo - min_excess_usd
+    single_side = crosses_high != crosses_low  # reject ambiguous dual sweeps
+    buys = (crosses_low & ~crosses_high
+            & (closes > prior_lo + reclaim_usd) & (closes < prior_hi))
+    sells = (crosses_high & ~crosses_low
+             & (closes < prior_hi - reclaim_usd) & (closes > prior_lo))
+    stops = np.where(buys, closes - lows + stop_buffer_usd,
+                     highs - closes + stop_buffer_usd)
+    eligible = (continuous & single_side & (buys | sells)
+                & np.isfinite(stops) & (stops > 0) & (stops <= max_stop_usd))
+    moments = bars["close_at"].array
     signals = []
-    for i in range(lookback, len(bars)):
-        # Sorted minute-aligned unique index is enforced by aggregate_bars.
-        # With N+1 observed minutes in exactly N elapsed minutes, every
-        # minute of the detection window must be contiguous (UTC).
-        if times[i] - times[i - lookback] != pd.Timedelta(minutes=lookback):
-            continue
-        previous_high = float(prior_hi.iloc[i])
-        previous_low = float(prior_lo.iloc[i])
-        high, low, close = map(float, (bars["h"].iloc[i], bars["l"].iloc[i], bars["c"].iloc[i]))
-        crosses_high = high > previous_high + min_excess_usd
-        crosses_low = low < previous_low - min_excess_usd
-        if crosses_high and crosses_low:
-            continue  # unknown high-before-low ordering within M1
-        side = 0
-        if crosses_low and previous_low + reclaim_usd < close < previous_high:
-            side = 1
-            stop = close - low + stop_buffer_usd
-        elif crosses_high and previous_low < close < previous_high - reclaim_usd:
-            side = -1
-            stop = high - close + stop_buffer_usd
-        if not side or stop > max_stop_usd:
-            continue
+    for i in np.flatnonzero(eligible):
+        side = 1 if buys[i] else -1
+        stop = float(stops[i])
         signals.append(Signal(
-            confirmed_at=bars["close_at"].iloc[i],
-            side=side,
-            stop_distance=stop,
-            target_distance=stop * reward_risk,
+            confirmed_at=moments[i], side=side,
+            stop_distance=stop, target_distance=stop * reward_risk,
             strategy=f"sweep_reclaim_M1_{lookback}",
         ))
     return signals
