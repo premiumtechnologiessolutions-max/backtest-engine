@@ -313,3 +313,50 @@ def test_equity_audit_failure_is_not_silently_downgraded_to_na(tmp_path, monkeyp
     monkeypatch.setattr(score.equity_audit, "audit_equity", reject)
     with pytest.raises(ValueError, match="SHA mismatch"):
         score.scorecard(plan, out, equity_pins=frozen_pins(plan, record))
+
+
+def test_monthly_downside_reports_missing_requested_utc_months():
+    months = [
+        {"month_utc": "2023-12", "net_usd_per_oz": -1, "trades": 1},
+        {"month_utc": "2024-02", "net_usd_per_oz": 2, "trades": 1},
+    ]
+    result = score.monthly_downside(months, "2023-12-01", "2024-02-29")
+    assert result["missing_requested_calendar_months_utc"] == ["2024-01"]
+    assert result["requested_calendar_month_coverage_complete"] is False
+    assert result["worst_three_complete_calendar_months_net_usd_per_oz"] is None
+
+
+def test_monthly_downside_full_coverage_includes_partial_edge_months():
+    months = [
+        {"month_utc": "2024-01", "net_usd_per_oz": 1, "trades": 1},
+        {"month_utc": "2024-02", "net_usd_per_oz": -2, "trades": 1},
+    ]
+    result = score.monthly_downside(months, "2024-01-15", "2024-02-15")
+    assert result["requested_calendar_month_coverage_complete"] is True
+    assert result["missing_requested_calendar_months_utc"] == []
+    assert result["partial_requested_calendar_months_utc"] == ["2024-01", "2024-02"]
+
+
+def test_canonical_scorecard_rejects_missing_requested_month(tmp_path, monkeypatch):
+    plan, out, manifest, _ = sample(tmp_path, monkeypatch)
+    plan["jobs"][0]["end"] = "2024-03-31"
+    _, digest = lab.expand(plan)
+    manifest["plan_sha256"] = digest
+    (out / "batch_manifest.json").write_text(json.dumps(manifest))
+    with pytest.raises(ValueError, match="missing requested UTC calendar months"):
+        score.scorecard(plan, out)
+
+
+def test_canonical_scorecard_marks_complete_utc_month_coverage(tmp_path, monkeypatch):
+    plan, out, _, _ = sample(tmp_path, monkeypatch)
+    result = score.scorecard(plan, out)["jobs"][0]
+    assert result["requested_calendar_month_coverage_complete"] is True
+    assert result["missing_requested_calendar_months_utc"] == []
+
+
+def test_monthly_downside_rejects_unbounded_month_window():
+    with pytest.raises(ValueError, match="361 calendar months"):
+        score.monthly_downside(
+            [{"month_utc": "2024-01", "net_usd_per_oz": 1, "trades": 1}],
+            "1980-01-01", "2024-12-31",
+        )
