@@ -14,12 +14,13 @@ from .executor_quote_contract import require_numeric_execution_ohlc
 
 AUDITED_REASONS = frozenset({
     "stop", "ambiguous_stop_first", "target", "open_target", "end_of_data",
+    "open_stop", "gap_stop", "entry_open_beyond_stop",
 })
 EPS = 1e-7
 
 
 def verify_source_bar_exit_prices(m1: pd.DataFrame, trades: pd.DataFrame) -> dict[str, int]:
-    """Verify reported stop/target/end-of-data exits against observed BID M1.
+    """Verify all Limit stop/target/end-of-data exits against observed BID M1.
 
     This complements verify_source_open_exit_prices for adverse opening stops.
     It deliberately does not infer intraminute sequencing from OHLC.
@@ -110,7 +111,26 @@ def verify_source_bar_exit_prices(m1: pd.DataFrame, trades: pd.DataFrame) -> dic
                 )
         stop_touched = lo[position] <= row.stop + EPS if side == 1 else hi[position] >= row.stop - EPS
         target_touched = hi[position] >= row.target - EPS if side == 1 else lo[position] <= row.target + EPS
-        if reason in ("stop", "ambiguous_stop_first"):
+        if reason in ("open_stop", "gap_stop", "entry_open_beyond_stop"):
+            # The narrow source-open audit checks the recorded opening fill.
+            # This full-OHLC audit ALSO checks survival of all earlier bars:
+            # a matching later open cannot excuse an already-hit stop/target.
+            if abs(row.exit_price - op[position]) > EPS:
+                raise AssertionError("Source-bar opening stop differs from observed BID open")
+            if side * (op[position] - row.stop) > EPS:
+                raise AssertionError("Source-bar opening stop is favorable to protective stop")
+            if reason == "entry_open_beyond_stop":
+                if entry_position != position:
+                    raise AssertionError("Source-bar entry-open stop must close on entry minute")
+            else:
+                if entry_position >= position or position == 0:
+                    raise AssertionError("Source-bar old-position opening stop requires earlier entry")
+                gap = index[position] - index[position - 1]
+                if reason == "gap_stop" and gap <= pd.Timedelta(minutes=1):
+                    raise AssertionError("Source-bar gap_stop requires missing source minutes")
+                if reason == "open_stop" and gap != pd.Timedelta(minutes=1):
+                    raise AssertionError("Source-bar open_stop requires contiguous source minutes")
+        elif reason in ("stop", "ambiguous_stop_first"):
             if abs(row.exit_price - row.stop) > EPS or not stop_touched:
                 raise AssertionError("Source-bar stop fill lacks matching stop and M1 touch")
             if (reason == "ambiguous_stop_first") != bool(target_touched):
