@@ -46,7 +46,8 @@ def _monthly_sample(year=2012):
     # One observation per month deliberately proves only month presence,
     # not a complete broker calendar or contiguous minute history.
     return pd.DataFrame(
-        {"o": [2000.0] * 12},
+        {"o": [2000.0] * 12, "h": [2000.0] * 12,
+         "l": [2000.0] * 12, "c": [2000.0] * 12},
         index=pd.date_range(f"{year}-01-01T00:00:00Z", periods=12, freq="MS"),
     )
 
