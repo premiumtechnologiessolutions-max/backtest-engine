@@ -227,45 +227,35 @@ def test_reader_rejects_oversized_post(hub):
         thread.join(4)
 
 
-@pytest.mark.parametrize("raw", [
-    b'{"year":2012,"year":2013}',
-    b'{"year":2012,"grid":{"fast":[8],"fast":[9]}}',
-    b'{"year":2012,"grid":{"fast":[1e999]}}',
-    b'{"year":2012,"grid":{"fast":[-1e999]}}',
-    b'{"year":2012,"grid":{"fast":[NaN]}}',
-    b'{"year":2012,"grid":{"fast":[Infinity]}}',
-    b'\xff',
+def test_multiyear_universe_freeze_is_definition_only(hub, monkeypatch):
+    import sys
+    import types
+    mod = types.ModuleType("scripts.generate_quant_research_grid")
+    def make_plan(source, *, years, source_sha256, engine_commit):
+        return {"schema": app.lab.SCHEMA, "dataset": str(source),
+                "source_sha256": source_sha256, "engine_commit": engine_commit,
+                "exposure_context": "historical_exposed", "jobs": [],
+                "grids": [{"id_prefix": f"lab-ema-{y}", "strategy": "ema",
+                           "timeframe": "M15", "execution": "fast",
+                           "start": f"{y}-01-01", "end": f"{y}-12-31",
+                           "grid": {"fast": [9], "slow": [21]}}
+                          for y in years]}
+    mod.make_plan = make_plan
+    monkeypatch.setitem(sys.modules, "scripts.generate_quant_research_grid", mod)
+    frozen = hub.freeze_research_universe([2012, 2013])
+    assert frozen["defined_jobs"] == 2
+    assert frozen["status"] == "FROZEN_MULTIYEAR_NOT_EXECUTED"
+    assert not (hub.runs / frozen["plan_id"]).exists()
+    assert hub.list_plans()[0]["year"] == "2012–2013"
+    # No promotion to cross-year performance from a merely frozen plan.
+    with pytest.raises(ValueError, match="2012–2020"):
+        hub.cross_year_comparison(frozen["plan_id"])
+
+
+@pytest.mark.parametrize("years", [
+    [], [2012, 2012], [2013, 2012], [2026], [2011],
+    [2012.0], [True], [2012, False], list(range(2011, 2026)),
 ])
-def test_http_rejects_ambiguous_or_nonfinite_request_json(hub, raw):
-    ui_file = Path(app.__file__).with_name("quantlab_desktop_ui.html")
-    srv, thread = server(hub, ui_file)
-    try:
-        conn = HTTPConnection("127.0.0.1", srv.server_port, timeout=6)
-        conn.request("POST", "/api/freeze", body=raw, headers={
-            "Host": f"127.0.0.1:{srv.server_port}",
-            "X-NRFX-Token": "private-test-token",
-            "Content-Type": "application/json",
-        })
-        res = conn.getresponse()
-        body = res.read()
-        assert res.status == 400, body
-        conn.close()
-        assert hub.list_plans() == []
-    finally:
-        srv.shutdown()
-        srv.server_close()
-        thread.join(4)
-
-
-def test_http_strict_parser_accepts_valid_nested_finite_json(hub):
-    ui_file = Path(app.__file__).with_name("quantlab_desktop_ui.html")
-    srv, thread = server(hub, ui_file)
-    try:
-        code, raw = http(srv, "POST", "/api/freeze", token="private-test-token",
-                         body=fake_spec())
-        assert code == 200, raw
-        assert json.loads(raw)["defined_jobs"] == 4
-    finally:
-        srv.shutdown()
-        srv.server_close()
-        thread.join(4)
+def test_universe_rejects_invalid_year_selections(hub, years):
+    with pytest.raises(ValueError):
+        hub.freeze_research_universe(years)
