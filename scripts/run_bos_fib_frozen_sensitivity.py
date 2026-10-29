@@ -24,6 +24,7 @@ from norisk_quant.limit_engine import run_limits
 from norisk_quant.model import Settings
 from norisk_quant.persisted_trade_integrity import verify_persisted_trade_ledger
 from norisk_quant.report import report
+from norisk_quant.source_exit_integrity import verify_source_open_exit_prices
 
 SOURCE_SHA = "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121"
 YEARLY_SETTINGS = BosFibSettings(
@@ -105,6 +106,7 @@ def execute(gold_zip: Path, years: list[int], destination: Path) -> dict:
         setups = bos_fib_limit_orders(quotes, settings=YEARLY_SETTINGS)
         eligible = filter_orders_h1(quotes, setups, cfg=H1_SETTINGS)
         result = run_limits(quotes, eligible, EXECUTION_SETTINGS)
+        source_open_exits_verified = verify_source_open_exit_prices(quotes, result.trades)
         subdirectory = destination / str(year)
         summary = report(
             result, EXECUTION_SETTINGS, subdirectory,
@@ -162,6 +164,7 @@ def execute(gold_zip: Path, years: list[int], destination: Path) -> dict:
             "bos_signals": len(setups),
             "h1_signals_after_freshness_and_ambiguity": len(eligible),
             "trades": trades,
+            "source_open_stop_exits_verified": source_open_exits_verified,
             "positive_months": int(summary["positive_months"]),
             "net_usd_1oz": total,
             "all_in_fees_usd": summary["total_fees"],
