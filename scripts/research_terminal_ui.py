@@ -289,7 +289,7 @@ function setLanguage(ar){
 languageToggle.addEventListener('click',()=>setLanguage(document.documentElement.lang!=='ar'));
 })();
 </script></body></html>'''
-    return (html.replace("__CARDS__", cards)
+    rendered = (html.replace("__CARDS__", cards)
             .replace("__RANKS__", "".join(ranks) if ranks else '<p class="sub">No active families in audited registry.</p>')
             .replace("__ROWS__", "\n".join(row_html))
             .replace("__JOBS__", jobs_html)
@@ -298,3 +298,10 @@ languageToggle.addEventListener('click',()=>setLanguage(document.documentElement
             .replace("__UPDATED__", _e(model["updated_utc"]))
             .replace("__STATUS__", _e(model["research_status"]))
             .replace("__FEE__", _e(format(float(model["fee"]), ".2f"))))
+    try:
+        from scripts.research_terminal_csp import lock_offline_script
+    except ModuleNotFoundError as exc:
+        if exc.name != "scripts":
+            raise
+        from research_terminal_csp import lock_offline_script
+    return lock_offline_script(rendered)

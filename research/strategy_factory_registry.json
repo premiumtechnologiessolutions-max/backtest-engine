@@ -1,6 +1,6 @@
 {
   "format_version": 1,
-  "updated_utc": "2026-10-29T15:21:00Z",
+  "updated_utc": "2026-10-29T16:16:00Z",
   "project": "No Risk FX XAUUSD quant research factory",
   "branch": "feat/quant-engine-foundation",
   "original_private_zip_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
@@ -1213,6 +1213,16 @@
       "original_source_monthly_net_usd_per_oz": "N/A",
       "original_source_monthly_floating_drawdown_usd_per_oz": "N/A",
       "note": "Reject coerced numeric text, bool, complex and duplicate equity labels before monthly M1 risk. Historical factory totals unchanged."
+    },
+    {
+      "id": "NRF-TERMINAL-OFFLINE-SCRIPT-SHA256-CSP",
+      "status": "SYNTHETIC_SECURITY_REGRESSIONS_ONLY_NOT_SOURCE_BACKTEST",
+      "report": "docs/RESEARCH_TERMINAL_OFFLINE_CSP_SHA256_2026-10-29.md",
+      "synthetic_regressions_added": 10,
+      "original_source_strategy_backtests_added": 0,
+      "original_source_monthly_net_usd_per_oz": "N/A",
+      "original_source_monthly_floating_drawdown_usd_per_oz": "N/A",
+      "note": "Offline Quant Terminal hashes its single bundled JavaScript controller into CSP; blocks external scripts and network connections while preserving local interactivity. Inline CSS retained for bounded progress widths. No new market replay or OOS."
     }
   ]
 }
