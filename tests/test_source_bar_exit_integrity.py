@@ -89,7 +89,7 @@ def test_invalid_source_bar_fails_closed():
 
 
 def test_unknown_exit_reason_not_certified_as_source_checked():
-    assert sum(verify(market(), trade("open_stop")).values()) == 0
+    assert sum(verify(market(), trade("broker_override")).values()) == 0
 
 
 def test_short_stop_and_target_ambiguity():
