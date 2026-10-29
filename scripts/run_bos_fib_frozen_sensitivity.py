@@ -170,6 +170,12 @@ def execute(gold_zip: Path, years: list[int], destination: Path) -> dict:
             "same_entry_bar_target_deferred": summary["same_entry_bar_target_deferred"],
             "report_path": f"{year}/summary.json",
         })
+    # A source archive can be replaced after the initial SHA check while the
+    # annual loader is still reading it. Do not certify a replay under the
+    # original source identity if the on-disk ZIP changed during the run.
+    # This detects persistent mutation, not adversarial swap-and-restore races.
+    if sha256_file(gold_zip) != actual_sha:
+        raise ValueError("Original market archive changed during frozen replay")
     combined = {
         "status": "ACCOUNTING_RECONCILED_NOT_BROKER_CERTIFIED",
         "source_sha256": actual_sha,
