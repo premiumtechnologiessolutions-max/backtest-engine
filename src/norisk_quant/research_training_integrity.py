@@ -79,11 +79,15 @@ def training_summary(records: list[dict], years: tuple[int, ...], *,
         total_fees += actual_fees
         gap += gaps
         forced += closes
+    if not math.isfinite(net) or not math.isfinite(total_fees):
+        raise ValueError("Annual totals overflowed across training years")
     net, total_fees = round(net, 8), round(total_fees, 8)
     positive_months = sum(value > 0 for value in monthly)
     high = equity = drawdown = 0.0
     for value in monthly:
         equity += value
+        if not math.isfinite(equity):
+            raise ValueError("Training equity accumulation overflowed")
         high = max(high, equity)
         drawdown = max(drawdown, high - equity)
     # Ranking is deliberately a TRAINING heuristic, not a statistical result.
