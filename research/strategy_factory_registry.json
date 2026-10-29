@@ -1,6 +1,6 @@
 {
   "format_version": 1,
-  "updated_utc": "2026-10-27T18:14:13Z",
+  "updated_utc": "2026-10-29T07:18:00Z",
   "project": "No Risk FX XAUUSD quant research factory",
   "branch": "feat/quant-engine-foundation",
   "original_private_zip_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
@@ -1118,5 +1118,23 @@
       "official_code_artifact_id": 12729647867
     }
   ],
-  "pending_local_replays": []
+  "pending_local_replays": [],
+  "preregistered_unexecuted_policies": [
+    {
+      "id": "FAC025-ENTRY-A",
+      "parent": "NRF-FAC-025",
+      "status": "PREREGISTERED_ENTRY_INTENT_ONLY_NOT_EXECUTED",
+      "policy_sha256": "f4378cdee27d247864fad77895137c709b7fb674b27c3f2aef77c16419015eee",
+      "frozen_spec": "docs/FAC025_ENTRY_A_FROZEN_SWEEP_H1_POLICY_2026-10-29.md",
+      "implementation": "scripts/research_fac025_frozen_entry_policy.py",
+      "correlated_filter_settings": 72,
+      "independent_hypotheses": 1,
+      "original_source_backtests": 0,
+      "observed_monthly_pnl": 0,
+      "verified_floating_m1_drawdown": "N/A",
+      "shared_capacity_executed": false,
+      "approved_strategies": 0,
+      "note": "Fixed M15 sweep/reclaim plus strictly older completed H1 trend. Not a fill, portfolio backtest or OOS. Do not count in completed factory totals."
+    }
+  ]
 }
