@@ -146,3 +146,30 @@ def test_m1_market_and_fvg_limit_share_one_real_slot_in_same_minute(tmp_path):
     assert not ((result.trades["entry_at"]==pd.Timestamp("2024-01-01T00:45:00Z"))
                 & (result.trades["order_type"]=="limit")).any()
     assert set(result.trades["strategy"]).issubset(settings.ounces_by_strategy)
+
+
+def test_missing_whole_calendar_month_fails_closed_before_publish(monkeypatch,tmp_path):
+    source=tmp_path/"private-test.zip"
+    source.write_bytes(b"SYNTHETIC_SOURCE_NOT_REAL")
+    cfg=plan(source)
+    cfg["end"]="2024-02-29"
+    filename=tmp_path/"frozen_plan.json"
+    filename.write_text(json.dumps(cfg),encoding="utf-8")
+    original_hash=mix.batch.file_sha
+    monkeypatch.setattr(mix.batch,"file_sha",
+        lambda p: mix.SOURCE_SHA if Path(p)==source else original_hash(p))
+    monkeypatch.setattr(mix.batch,"checkout_commit",lambda:"a"*40)
+    monkeypatch.setattr(mix,"load_market",lambda *args:fixture_m1())
+    output=tmp_path/"never-published"
+    with pytest.raises(ValueError,match="Missing research calendar M1 months"):
+        mix.run_frozen(filename,output)
+    assert not output.exists()
+
+
+def test_unhashable_timeframe_spec_fails_closed_with_validation_error(tmp_path):
+    source=tmp_path/"not-actual-gold.zip"
+    source.write_bytes(b"SYNTH")
+    cfg=plan(source)
+    cfg["components"][0]["timeframe"]=["M1"]
+    with pytest.raises(ValueError,match="timeframe"):
+        mix.validate_plan(cfg)
