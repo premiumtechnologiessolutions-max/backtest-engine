@@ -12,6 +12,7 @@ from norisk_quant.fast_engine import run_fast
 from norisk_quant.model import Settings, Signal
 from scripts.research_fac025_frozen_entry_policy import POLICY_SHA256, frozen_policy_fingerprint
 from scripts.research_fac025_frozen_grid import frozen_specs
+from scripts.research_fac025_monthly_m1_risk import monthly_observed_m1_risk
 
 FEE = 0.40
 STRATEGY = "FAC025_ENTRY_A_ONE_CORRELATED_HYPOTHESIS"
@@ -141,6 +142,13 @@ def replay_frozen_intents_bid_reference(minutes, intents):
     monthly = [{"month_utc": str(m), "net_usd_per_oz": booked.get(str(m), 0.0),
                 "observed_m1_bars": int(n)}
                for m, n in observed_months.items()]
+    monthly_risk = monthly_observed_m1_risk(minutes, reference.equity)
+    if len(monthly_risk) != len(monthly):
+        raise AssertionError("FAC025 monthly M1 risk count mismatch")
+    for month, risk in zip(monthly, monthly_risk):
+        if month["month_utc"] != risk["month_utc"] or month["observed_m1_bars"] != risk["observed_m1_equity_marks"]:
+            raise AssertionError("FAC025 monthly M1 risk month/mark mismatch")
+        month.update({key: value for key, value in risk.items() if key != "month_utc"})
     equity = np.r_[0., reference.equity.equity.to_numpy(dtype=float)]
     dd = float(np.max(np.maximum.accumulate(equity) - equity))
     return reference, {
@@ -154,6 +162,7 @@ def replay_frozen_intents_bid_reference(minutes, intents):
         "fee_usd_per_oz_all_in": FEE, "fees_usd_per_oz": float(trades.cost.sum()),
         "monthly_utc_exit_net_usd_per_oz": monthly,
         "month_coverage": "EACH_MONTH_OBSERVED_NOT_FULL_SESSION_CERTIFIED",
+        "monthly_m1_risk_scope": "BID_REFERENCE_OBSERVED_CLOSE_MARKS_NOT_INTRABAR_OR_AUTHENTICATED_BIDASK",
         "positive_months": sum(x["net_usd_per_oz"] > 0 for x in monthly),
         "worst_month_usd_per_oz": min(x["net_usd_per_oz"] for x in monthly),
         "max_observed_m1_close_equity_drawdown_usd_per_oz": dd,
