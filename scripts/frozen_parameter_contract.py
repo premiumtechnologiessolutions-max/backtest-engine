@@ -15,7 +15,7 @@ _FROZEN_BOS = {
     "fib_entry": 0.618,
     "zone_lower": 0.618,
     "zone_upper": 0.786,
-    "reward_risk": 1.0,
+    "reward_risk": 1,
     "sl_buffer_usd": 0.10,
     "min_break_usd": 0.10,
     "min_impulse_usd": 1.0,
