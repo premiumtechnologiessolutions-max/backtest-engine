@@ -11,6 +11,8 @@ from html import escape
 import json
 from pathlib import Path
 
+from norisk_quant.search_multiplicity import exact_joint_signflip
+
 try:
     from scripts import research_batch_orchestrator as batch
     from scripts import research_candidate_screen as screen
@@ -100,6 +102,7 @@ def screen_cross_year(plan: dict, manifest: dict, runs_root: Path, *,
             incomplete.append({"candidate_id": key, "missing_years": unavailable})
             continue
         all_pnl, all_trades = {}, {}
+        annual_training_net = []
         gap_training = forced_training = gap_review = forced_review = 0
         for y in relevant:
             job = annual[y]
@@ -110,6 +113,7 @@ def screen_cross_year(plan: dict, manifest: dict, runs_root: Path, *,
             all_pnl.update(record["monthly_net_pnl"])
             all_trades.update(counts)
             if y in train_years:
+                annual_training_net.append(round(sum(record["monthly_net_pnl"].values()), 8))
                 gap_training += record["uncertain_gap_trade_month_assignments"]
                 forced_training += record["synthetic_end_of_data_closures"]
             else:
@@ -131,12 +135,24 @@ def screen_cross_year(plan: dict, manifest: dict, runs_root: Path, *,
                 k: v for k, v in sample.items() if k not in ("start", "end")},
             "training_screen": "PASSED_EXPLORATORY" if passed else "REJECTED_EXPLORATORY",
             "train": train, "later_review_descriptive_only": later,
+            "training_annual_net_usd_per_oz": annual_training_net,
             "training_uncertain_gap_trades": gap_training,
             "training_synthetic_forced_closes": forced_training,
             "review_uncertain_gap_trades": gap_review,
             "review_synthetic_forced_closes": forced_review,
             "annual_job_ids": {str(y): annual[y]["id"] for y in relevant},
         })
+    # Compute only over the COMPLETE defined candidate family. A partially
+    # completed factory can hide unexecuted competing strategies.
+    multiplicity = {"status": "NOT_COMPUTED_UNIVERSE_INCOMPLETE_OR_EMPTY"}
+    if not incomplete and compared:
+        diagnostic = exact_joint_signflip({
+            entry["candidate_id"]: entry["training_annual_net_usd_per_oz"]
+            for entry in compared
+        })
+        multiplicity = {k: v for k, v in diagnostic.items() if k != "results"}
+        for entry in compared:
+            entry["training_signflip_diagnostic_only"] = diagnostic["results"][entry["candidate_id"]]
     # Partially executed candidate universes are NOT comparable: unseen
     # alternatives could outperform all observed candidates. Fail closed.
     if incomplete:
@@ -153,7 +169,8 @@ def screen_cross_year(plan: dict, manifest: dict, runs_root: Path, *,
         "research_status": ("HISTORICAL_EXPOSED_SCREEN_COMPLETE" if not incomplete
                             else "INCOMPLETE_ANNUAL_COVERAGE"),
         "independent_oos_proven": False,
-        "selection_policy": "TRAIN_ONLY_NO_MULTIPLE_TESTING_CORRECTION",
+        "selection_policy": "TRAIN_ONLY_HEURISTIC_MAXT_DIAGNOSTIC_NOT_VALIDATION",
+        "multiplicity_diagnostic": multiplicity,
         "plan_sha256": plan_sha,
         "source_sha256": plan["source_sha256"],
         "engine_commit": plan["engine_commit"],
