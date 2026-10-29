@@ -7,6 +7,7 @@ from __future__ import annotations
 import argparse
 from collections import Counter
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 from hashlib import sha256
 import json
 from pathlib import Path
@@ -14,6 +15,7 @@ import zipfile
 
 SOURCE_SHA = '1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121'
 MINUTE, QUARTER, HOUR = 60, 900, 3600
+NY = ZoneInfo('America/New_York')
 
 
 def inspect_year(rows):
@@ -98,6 +100,18 @@ def inspect_year(rows):
         m = months.setdefault(month, {'candidates':0, 'next_open_observed':0})
         m['candidates'] += 1
         m['next_open_observed'] += int(next_open_observed)
+        # Structural NY-session subset of *observed-open* candidates only.
+        # Hypothetical decision at M15 end + 60s is NOT an authenticated
+        # receipt or a trade. Session boundaries use real NY DST rules.
+        if next_open_observed:
+            ny_hour = datetime.fromtimestamp(end + MINUTE, timezone.utc).astimezone(NY).hour
+            for label, start_hour, end_hour in (('08_12', 8, 12), ('09_13', 9, 13)):
+                if start_hour <= ny_hour < end_hour:
+                    counts['ny_' + label + '_observed_open_candidates'] += 1
+                    counts['ny_' + label + ('_buy' if bull else '_sell')] += 1
+                    m['ny_' + label + '_observed_open_candidates'] = (
+                        m.get('ny_' + label + '_observed_open_candidates', 0) + 1
+                    )
     return {'counts': dict(counts), 'months': months}
 
 
