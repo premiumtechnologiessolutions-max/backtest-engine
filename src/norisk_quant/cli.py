@@ -140,6 +140,10 @@ def main() -> None:
     if args.command == "backtest" and args.strategy == "bos-fib":
         if not (0 < args.bos_zone_lower <= args.bos_fib_entry <= args.bos_zone_upper < 1):
             parser.error("BOS Fibonacci requires 0 < zone-lower <= fib-entry <= zone-upper < 1")
+    if args.command == "backtest" and args.strategy != "bos-fib" and (
+        args.bos_zone_lower != 0.618 or args.bos_zone_upper != 0.786
+    ):
+        parser.error("BOS Fibonacci zone controls require --strategy bos-fib")
     if args.command == "backtest" and args.strategy == "m1-sweep":
         if args.timeframe != "M1":
             parser.error("M1 sweep/reclaim requires --timeframe M1")
