@@ -9,3 +9,7 @@ For the worst three consecutive **complete** UTC calendar months, the scorecard 
 ## Verification and limits
 
 Four new synthetic tests cover partial-edge exclusions, trade support, missing-month streak breaks, and earliest-month ties. Exact-code GitHub CI must pass before treating this as verified. No original BID/ASK backtest, no monthly profits, no floating M1 drawdown, no new strategy, and no prospective OOS were produced by this change. The all-in roundtrip fee remains exactly **$0.40/oz**; source data stay private. PR #1 remains Draft/unmerged.
+
+## Exact-code verification
+
+The full **Engine quality gates** workflow passed on commit `83546ae1d122c01bc8b099a755334d0abf6c2717`: [GitHub Actions 40972280575](https://github.com/premiumtechnologiessolutions-max/backtest-engine/actions/runs/40972280575), **2,797 tests passed, 1 non-blocking warning**. The initial integration commit `180806fc` failed nine existing terminal-fixture tests because those fixtures did not include the newly audited fields. Commit `83546ae1` repaired the fixtures by recomputing risk from synthetic monthly rows; it did **not** bypass the terminal's fail-closed source verification. This documentation/registry update requires its own final-head CI check.

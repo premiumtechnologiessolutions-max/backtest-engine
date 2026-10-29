@@ -1362,7 +1362,7 @@
     },
     {
       "id": "NRF-MONTHLY-COMPLETE-MONTH-DOWNSIDE-SUPPORT",
-      "status": "CODE_AND_SYNTHETIC_TESTS_COMMITTED_CI_PENDING_NOT_SOURCE_REPLAY",
+      "status": "EXACT_CODE_GITHUB_CI_PASSED_SYNTHETIC_ONLY_NOT_SOURCE_REPLAY",
       "report": "docs/MONTHLY_COMPLETE_MONTH_DOWNSIDE_SUPPORT_2026-10-30.md",
       "code": "scripts/research_batch_monthly_scorecard.py",
       "synthetic_regressions_added": 4,
@@ -1370,7 +1370,11 @@
       "original_source_monthly_net_usd_per_oz": "N/A",
       "original_source_monthly_floating_drawdown_usd_per_oz": "N/A",
       "approved_strategies": 0,
-      "note": "Separate full UTC month downside from partial-edge observed months; show worst complete month and worst 3-month window's trade support; historical research counts unchanged."
+      "note": "Separate full UTC month downside from partial-edge observed months; show worst complete month and worst 3-month window's trade support; historical research counts unchanged.",
+      "verified_ci_commit": "83546ae1d122c01bc8b099a755334d0abf6c2717",
+      "verified_ci_run": 40972280575,
+      "verified_ci_pytest_passed": 2797,
+      "verified_ci_warnings": 1
     }
   ]
 }
