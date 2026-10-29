@@ -65,6 +65,8 @@ def test_missing_annual_run_does_not_certify_completed_comparison(monkeypatch,tm
     assert out['compared_candidates']==1
     assert len(out['incomplete_candidates'])==1
     assert out['incomplete_candidates'][0]['missing_years']==[2013]
+    assert out['results'][0]['training_rank'] is None
+    assert out['results'][0]['training_screen']=='NOT_ELIGIBLE_BATCH_INCOMPLETE'
 
 
 def test_forced_or_gap_exposure_cannot_pass_training_selection(monkeypatch,tmp_path):
