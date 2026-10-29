@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pandas as pd
+import numpy as np
 
 from .model import Signal
 
@@ -39,6 +40,19 @@ def aggregate_bars(minutes: pd.DataFrame, timeframe: str) -> pd.DataFrame:
     # candle. Normalize the *observed instants* before aggregation; never
     # localize naive timestamps or round source minute opens.
     utc_minutes = minutes.tz_convert("UTC")
+    # Do not let malformed direct API inputs manufacture complete candles.
+    # ZIP/Parquet ingestion has separate guards; public strategy entry points
+    # must fail closed as well.
+    columns = minutes[["o", "h", "l", "c"]]
+    if any(not pd.api.types.is_numeric_dtype(columns[name]) or
+           pd.api.types.is_bool_dtype(columns[name]) for name in columns):
+        raise ValueError("M1 OHLC must contain numeric nonboolean prices")
+    values = columns.to_numpy(dtype="float64")
+    if not np.isfinite(values).all() or (values <= 0).any():
+        raise ValueError("M1 OHLC prices must be finite and positive")
+    o, h, l, c = (values[:, i] for i in range(4))
+    if (h < np.maximum(o, c)).any() or (l > np.minimum(o, c)).any():
+        raise ValueError("M1 OHLC price geometry is inconsistent")
     width = TIMEFRAMES[timeframe]
     if width == 1:
         out = utc_minutes[["o", "h", "l", "c"]].copy()
