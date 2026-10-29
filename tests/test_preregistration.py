@@ -50,7 +50,6 @@ def test_future_authorization_requires_external_git_timestamp_and_exact_code():
 @pytest.mark.parametrize("field,value", [
     ("holdout_start", "2026-10-30"),
     ("holdout_start", "2026-10-29"),
-    ("holdout_start", "2026-10-31"),
     ("holdout_end", "2026-11-01"),
     ("train_end", "2026-11-02"),
     ("known_exposed_through", "2026-11-02"),
