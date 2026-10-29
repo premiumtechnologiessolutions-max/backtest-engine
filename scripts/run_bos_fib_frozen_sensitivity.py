@@ -19,6 +19,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from scripts.frozen_evidence_manifest import write_evidence_manifest
 from norisk_quant.bos_fib import BosFibSettings, bos_fib_limit_orders
 from norisk_quant.data import fingerprint_loaded_m1, load_market, sha256_file
 from norisk_quant.evidence_reconciliation import verify_exit_periods
@@ -258,10 +259,14 @@ def _execute_unpublished(gold_zip: Path, years: list[int], destination: Path) ->
         "not_clean_out_of_sample": True,
         "broker_tick_execution_verification": False,
         "annual_results": records,
+        "evidence_manifest": "evidence_manifest.json",
     }
     (destination / "frozen_sensitivity_summary.json").write_text(
         json.dumps(combined, indent=2, ensure_ascii=False), encoding="utf-8",
     )
+    # The report tree is still unpublished. Pin every exported byte to a
+    # deterministic SHA256 inventory before the atomic destination rename.
+    write_evidence_manifest(destination, years, actual_sha)
     return combined
 
 
