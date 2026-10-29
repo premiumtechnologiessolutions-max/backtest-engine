@@ -134,6 +134,7 @@ def test_repository_preregistration_manifest_is_frozen_and_future_only():
     path = root / "research" / "preregistrations" / "sweep_reclaim_m1_2026-11-02.json"
     envelope = json.loads(path.read_text(encoding="utf-8"))
     registered = verify_freeze(envelope)
+    assert envelope["sha256"] == "1fe82085ce8413927d1fc64946f13b1111b0375804d244b635a66aa010a3959d"
     assert registered["holdout_start"] == "2026-11-02"
     assert registered["known_exposed_through"] == "2026-10-30"
     assert registered["training_archive_sha256"] == (
