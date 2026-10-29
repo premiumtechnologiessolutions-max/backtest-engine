@@ -85,9 +85,35 @@ def frozen_signals(intents):
     return [item[3] for item in sorted(entries, key=lambda item: item[:3])]
 
 
+def _observed_utc_months(minutes):
+    """Fail closed rather than booking fabricated zero-P/L unobserved months.
+
+    Nonempty observed months are necessary, NOT proof of complete market
+    sessions or clean OOS coverage. Never interpolate missing M1 bars.
+    """
+    if not isinstance(minutes, pd.DataFrame) or minutes.empty:
+        raise ValueError("FAC025 requires nonempty observed M1")
+    index = minutes.index
+    if (not isinstance(index, pd.DatetimeIndex) or index.tz is None
+            or index.hasnans or not index.is_monotonic_increasing
+            or not index.is_unique):
+        raise ValueError("FAC025 requires sorted unique timezone-aware M1 index")
+    utc = index.tz_convert("UTC")
+    if np.any(utc.as_unit("ns").asi8 % 60_000_000_000):
+        raise ValueError("FAC025 M1 timestamps must be minute-aligned")
+    counts = utc.tz_localize(None).to_period("M").value_counts().sort_index()
+    expected = pd.period_range(counts.index[0], counts.index[-1], freq="M")
+    missing = expected.difference(counts.index)
+    if len(missing):
+        raise ValueError("FAC025 missing observed UTC calendar month(s): "
+                         + ", ".join(map(str, missing)))
+    return counts
+
+
 def replay_frozen_intents_bid_reference(minutes, intents):
     """Execute one canonical BID-proxy position and audit all M1 parity marks."""
     signals = frozen_signals(intents)
+    observed_months = _observed_utc_months(minutes)
     settings = Settings(ounces=1.0, roundtrip_cost_per_ounce=FEE,
                         max_entry_delay_minutes=1, close_at_end=True)
     reference = run(minutes, signals, settings)
@@ -108,14 +134,13 @@ def replay_frozen_intents_bid_reference(minutes, intents):
     trades = reference.trades
     if not np.isclose(float(trades.cost.sum()), FEE * len(trades), atol=1e-8, rtol=0):
         raise AssertionError("Fixed ALL-IN fee mismatch")
-    first = minutes.index[0].tz_convert("UTC").tz_localize(None).to_period("M")
-    last = minutes.index[-1].tz_convert("UTC").tz_localize(None).to_period("M")
     booked = {}
     for trade in trades.itertuples(index=False):
         month = pd.Timestamp(trade.closed_at).tz_convert("UTC").strftime("%Y-%m")
         booked[month] = booked.get(month, 0.0) + float(trade.net_pnl)
-    monthly = [{"month_utc": str(m), "net_usd_per_oz": booked.get(str(m), 0.0)}
-               for m in pd.period_range(first, last, freq="M")]
+    monthly = [{"month_utc": str(m), "net_usd_per_oz": booked.get(str(m), 0.0),
+                "observed_m1_bars": int(n)}
+               for m, n in observed_months.items()]
     equity = np.r_[0., reference.equity.equity.to_numpy(dtype=float)]
     dd = float(np.max(np.maximum.accumulate(equity) - equity))
     return reference, {
@@ -128,6 +153,7 @@ def replay_frozen_intents_bid_reference(minutes, intents):
         "pending_signals": reference.pending_at_end,
         "fee_usd_per_oz_all_in": FEE, "fees_usd_per_oz": float(trades.cost.sum()),
         "monthly_utc_exit_net_usd_per_oz": monthly,
+        "month_coverage": "EACH_MONTH_OBSERVED_NOT_FULL_SESSION_CERTIFIED",
         "positive_months": sum(x["net_usd_per_oz"] > 0 for x in monthly),
         "worst_month_usd_per_oz": min(x["net_usd_per_oz"] for x in monthly),
         "max_observed_m1_close_equity_drawdown_usd_per_oz": dd,

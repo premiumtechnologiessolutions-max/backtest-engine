@@ -106,3 +106,45 @@ def test_duplicate_frozen_intent_rejected():
     m1 = bars([("2026-01-05T14:16:00Z", 100, 100, 100, 100)])
     with pytest.raises(ValueError, match="Duplicate"):
         replay_frozen_intents_bid_reference(m1, [intent(), intent()])
+
+
+def test_fails_closed_on_whole_unobserved_interior_calendar_month():
+    m1 = bars([
+        ("2026-01-05T14:15:00Z", 100, 100, 100, 100),
+        ("2026-03-05T14:15:00Z", 100, 100, 100, 100),
+    ])
+    with pytest.raises(ValueError, match="missing observed UTC calendar month.*2026-02"):
+        replay_frozen_intents_bid_reference(m1, [])
+
+
+def test_observed_month_counts_are_not_fabricated_complete_sessions():
+    m1 = bars([
+        ("2026-01-05T14:15:00Z", 100, 100, 100, 100),
+        ("2026-01-05T14:20:00Z", 100, 100, 100, 100),
+        ("2026-02-05T14:15:00Z", 100, 100, 100, 100),
+    ])
+    _, report = replay_frozen_intents_bid_reference(m1, [])
+    months = report["monthly_utc_exit_net_usd_per_oz"]
+    assert [(x["month_utc"], x["observed_m1_bars"]) for x in months] == [
+        ("2026-01", 2), ("2026-02", 1)]
+    assert all(x["net_usd_per_oz"] == 0 for x in months)
+    assert report["month_coverage"] == "EACH_MONTH_OBSERVED_NOT_FULL_SESSION_CERTIFIED"
+    assert report["approved_strategies"] == 0
+
+
+@pytest.mark.parametrize("timestamps", [
+    ["2026-01-05T14:15:00Z", "2026-01-05T14:15:00Z"],
+    ["2026-01-05T14:16:00Z", "2026-01-05T14:15:00Z"],
+    ["2026-01-05T14:15:01Z"],
+])
+def test_month_coverage_rejects_duplicate_unsorted_or_subminute(timestamps):
+    m1 = bars([(t, 100, 100, 100, 100) for t in timestamps])
+    with pytest.raises(ValueError, match="FAC025"):
+        replay_frozen_intents_bid_reference(m1, [])
+
+
+def test_month_coverage_rejects_timezone_naive_index():
+    m1 = bars([("2026-01-05T14:15:00Z", 100, 100, 100, 100)])
+    m1.index = m1.index.tz_localize(None)
+    with pytest.raises(ValueError, match="timezone-aware"):
+        replay_frozen_intents_bid_reference(m1, [])
