@@ -119,6 +119,10 @@ class ResearchHub:
         self._active: str | None = None
         self._latest_error: dict[str, str] = {}
         self._thread: threading.Thread | None = None
+        self._stop = threading.Event()
+        self._run_mode = "IDLE"
+        self._budget_total = 0
+        self._budget_completed = 0
 
     @property
     def config_path(self) -> Path:
@@ -170,6 +174,10 @@ class ResearchHub:
             "engine_revision": revision,
             "engine_verified_clean_checkout": engine_ok,
             "active_run": self._active,
+            "run_mode": self._run_mode,
+            "stop_requested": self._stop.is_set() if self._active else False,
+            "operator_budget": self._budget_total,
+            "operator_budget_completed": self._budget_completed,
             "historical_exposed_not_oos": True,
             "broker_orders_enabled": False,
             "all_in_cost_per_ounce": .40,
@@ -313,7 +321,11 @@ class ResearchHub:
                                    or stored.get("source_sha256") != SOURCE_SHA
                                    or stored.get("engine_commit") != plan["engine_commit"]):
             raise ValueError("Run manifest does not match frozen plan")
+        accepted = sum(type(x) is dict and x.get("status") == lab.PASSED
+                       for x in rows.values())
         return {"plan_id": plan_id, "defined_jobs": len(jobs),
+                "remaining_jobs": len(jobs) - accepted,
+                "completion_pct": round(100.0 * accepted / len(jobs), 2),
                 "recorded_jobs_unverified": len(rows),
                 "recorded_reconciled_unverified": sum(
                     type(x) is dict and x.get("status") == lab.PASSED for x in rows.values()),
@@ -321,7 +333,10 @@ class ResearchHub:
                 "last_error": self._latest_error.get(plan_id),
                 "evidence_status": "RECORDED_NOT_REAUDITED_FROM_BROWSER"}
 
-    def run_results(self, plan_id: str) -> dict:
+    def run_results(self, plan_id: str, *, offset: int = 0, limit: int = 50) -> dict:
+        if (type(offset) is not int or offset < 0 or type(limit) is not int
+                or not 1 <= limit <= 200):
+            raise ValueError("Invalid pagination")
         summary = self.run_summary(plan_id)
         manifest_file = self._run_folder(plan_id) / "batch_manifest.json"
         if not manifest_file.exists():
@@ -332,7 +347,8 @@ class ResearchHub:
         if not set(manifest["results"]).issubset(known):
             raise ValueError("Unexpected job ID in run evidence")
         results = []
-        for ident, record in sorted(manifest["results"].items()):
+        all_records = sorted(manifest["results"].items())
+        for ident, record in all_records[offset:offset + limit]:
             if type(record) is not dict:
                 raise ValueError("Unsafe run record")
             results.append({"id": ident, "status": record.get("status"),
@@ -340,7 +356,9 @@ class ResearchHub:
                             "net_pnl": record.get("net_pnl"),
                             "positive_months": record.get("positive_months"),
                             "months_observed": record.get("months_observed")})
-        return {**summary, "jobs": results}
+        return {**summary, "jobs": results, "page_offset": offset,
+                "page_limit": limit, "recorded_total": len(all_records),
+                "has_more": offset + limit < len(all_records)}
 
     def verify_run(self, plan_id: str) -> dict:
         if self._active is not None:
@@ -408,6 +426,10 @@ class ResearchHub:
                 raise ValueError("Another research run is active")
             output = private_dir(self._run_folder(plan_id))
             self._active = plan_id
+            self._stop.clear()
+            self._run_mode = "SINGLE_BATCH"
+            self._budget_total = budget
+            self._budget_completed = 0
             self._latest_error.pop(plan_id, None)
             thread = threading.Thread(target=self._execute, args=(plan_id, plan, output, budget, recover),
                                       name="quantlab-research-worker", daemon=True)
@@ -418,13 +440,80 @@ class ResearchHub:
 
     def _execute(self, plan_id, plan, output, budget, recover):
         try:
-            lab.run_plan(plan, output, max_jobs=budget, recover_verified_orphans=recover)
+            result = lab.run_plan(plan, output, max_jobs=budget, recover_verified_orphans=recover)
+            with self._lock:
+                self._budget_completed = result.get("executed_this_invocation", 0)
         except Exception as exc:
             with self._lock:
                 self._latest_error[plan_id] = type(exc).__name__ + ": " + str(exc)[:300]
         finally:
             with self._lock:
                 self._active = None
+                self._run_mode = "IDLE"
+
+    def start_autopilot(self, plan_id: str, batch_size: int,
+                        total_budget: int, *, recover: bool = False) -> dict:
+        """Bounded unattended local batches while app remains running."""
+        if (type(batch_size) is not int or not 1 <= batch_size <= 100
+                or type(total_budget) is not int or not 1 <= total_budget <= CAP
+                or type(recover) is not bool):
+            raise ValueError("Batch 1..100 and total budget 1..5000 required")
+        plan = self._plan(plan_id)
+        if lab.checkout_commit() != plan["engine_commit"]:
+            raise ValueError("Pinned Git checkout changed")
+        source = Path(plan["dataset"])
+        if source.is_symlink() or not source.is_file() or lab.file_sha(source) != SOURCE_SHA:
+            raise ValueError("Original Gold source fingerprint mismatch")
+        with self._lock:
+            if self._active is not None:
+                raise ValueError("Another research run is active")
+            output = private_dir(self._run_folder(plan_id))
+            self._active = plan_id
+            self._stop.clear()
+            self._run_mode = "AUTOPILOT_BOUNDED"
+            self._budget_total = total_budget
+            self._budget_completed = 0
+            self._latest_error.pop(plan_id, None)
+            self._thread = threading.Thread(
+                target=self._autopilot_worker,
+                args=(plan_id, plan, output, batch_size, total_budget, recover),
+                name="nrfx-autopilot-worker", daemon=True,
+            )
+            self._thread.start()
+        return {"status": "AUTOPILOT_STARTED_LOCAL", "plan_id": plan_id,
+                "batch_size": batch_size, "total_budget": total_budget,
+                "stop_behavior": "AFTER_CURRENT_VERIFIED_BATCH"}
+
+    def stop_autopilot(self, plan_id: str) -> dict:
+        require_id(plan_id)
+        with self._lock:
+            if self._active != plan_id or self._run_mode != "AUTOPILOT_BOUNDED":
+                raise ValueError("No matching autopilot is running")
+            self._stop.set()
+        return {"status": "STOP_REQUESTED_AFTER_CURRENT_BATCH", "plan_id": plan_id}
+
+    def _autopilot_worker(self, plan_id, plan, output, batch_size, total_budget, recover):
+        try:
+            while not self._stop.is_set() and self._budget_completed < total_budget:
+                report = lab.run_plan(
+                    plan, output,
+                    max_jobs=min(batch_size, total_budget - self._budget_completed),
+                    recover_verified_orphans=recover,
+                )
+                launched = report["executed_this_invocation"]
+                with self._lock:
+                    self._budget_completed += launched
+                if report["reconciled_jobs"] >= report["defined_jobs"]:
+                    break
+                if launched == 0 and report.get("recovered_verified_orphans", 0) == 0:
+                    raise RuntimeError("Research made no progress; manual investigation required")
+        except Exception as exc:
+            with self._lock:
+                self._latest_error[plan_id] = type(exc).__name__ + ": " + str(exc)[:300]
+        finally:
+            with self._lock:
+                self._active = None
+                self._run_mode = "IDLE"
 
 
 class ConsoleServer(ThreadingHTTPServer):
@@ -492,7 +581,9 @@ class ConsoleHandler(BaseHTTPRequestHandler):
                 return self._json(200, self.server.hub.list_runs())
             params = parse_qs(parsed.query)
             if parsed.path == "/api/results":
-                return self._json(200, self.server.hub.run_results(params["plan_id"][0]))
+                return self._json(200, self.server.hub.run_results(
+                    params["plan_id"][0], offset=int(params.get("offset", ["0"])[0]),
+                    limit=int(params.get("limit", ["50"])[0])))
             if parsed.path == "/api/monthly":
                 return self._json(200, self.server.hub.monthly(params["plan_id"][0], params["job_id"][0]))
             return self._json(404, {"error": "not_found"})
@@ -528,6 +619,13 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             if parsed.path == "/api/start":
                 p = strict_dict(payload, {"plan_id", "budget", "recover"})
                 return self._json(202, hub.start(p["plan_id"], p["budget"], recover=p["recover"]))
+            if parsed.path == "/api/autopilot":
+                p = strict_dict(payload, {"plan_id", "batch_size", "total_budget", "recover"})
+                return self._json(202, hub.start_autopilot(p["plan_id"],
+                    p["batch_size"], p["total_budget"], recover=p["recover"]))
+            if parsed.path == "/api/stop":
+                p = strict_dict(payload, {"plan_id"})
+                return self._json(202, hub.stop_autopilot(p["plan_id"]))
             if parsed.path == "/api/verify":
                 p = strict_dict(payload, {"plan_id"})
                 return self._json(200, hub.verify_run(p["plan_id"]))
