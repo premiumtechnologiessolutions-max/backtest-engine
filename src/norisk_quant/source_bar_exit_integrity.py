@@ -67,6 +67,32 @@ def verify_source_bar_exit_prices(m1: pd.DataFrame, trades: pd.DataFrame) -> dic
                     or not isinstance(value, Real) or not np.isfinite(value) or value <= 0):
                 raise ValueError(f"Source-bar {name} must be finite positive numeric")
         side = int(row.side)
+        entry_position = int(locations[0])
+        # A correct exit on the reported close bar is insufficient: the
+        # position must also have survived every earlier observed M1 bar.
+        # The entry minute may defer a target (unknown intrabar ordering),
+        # but a touched stop ALWAYS closes the new position on that minute.
+        if position > entry_position:
+            entry_stop = (
+                lo[entry_position] <= row.stop + EPS if side == 1
+                else hi[entry_position] >= row.stop - EPS
+            )
+            if entry_stop:
+                raise AssertionError("Source-bar position survived entry-minute stop")
+            # On every subsequent minute BEFORE the recorded exit, the
+            # executor processes both open and intrabar stop/target touches.
+            # A touch of either bound must have closed the position already.
+            earlier = slice(entry_position + 1, position)
+            if side == 1:
+                premature = (lo[earlier] <= row.stop + EPS) | (
+                    hi[earlier] >= row.target - EPS
+                )
+            else:
+                premature = (hi[earlier] >= row.stop - EPS) | (
+                    lo[earlier] <= row.target + EPS
+                )
+            if premature.any():
+                raise AssertionError("Source-bar position survived an earlier eligible exit")
         # The limit executor processes an existing position's opening BID
         # before any intrabar high/low touch.  An adverse opening stop must
         # be labelled open_stop/gap_stop (or entry_open_beyond_stop for a
@@ -101,5 +127,10 @@ def verify_source_bar_exit_prices(m1: pd.DataFrame, trades: pd.DataFrame) -> dic
             if (position != len(index) - 1 or abs(row.exit_price - cl[-1]) > EPS
                     or counts[reason]):
                 raise AssertionError("Source-bar end_of_data differs from final M1 close")
+            # End-of-data is reached only if the executor did not exit on
+            # the final bar. A same-minute limit entry may defer its TP, but
+            # never a stop. An older position cannot defer either bound.
+            if stop_touched or (entry_position < position and target_touched):
+                raise AssertionError("Source-bar end_of_data skipped final-minute exit")
         counts[reason] += 1
     return counts
