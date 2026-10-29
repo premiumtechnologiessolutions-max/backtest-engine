@@ -1343,6 +1343,22 @@
       "shared_capacity_executed": false,
       "approved_strategies": 0,
       "note": "Independent local source-only M15/H1 structural mirror over nine additional historically exposed years, matched prior 2012–2016 totals 8265/8157. NY windows overlap; no fills, receipts, fee simulation, monthly P/L, shared-capacity replay or OOS."
+    },
+    {
+      "id": "NRF-MONTHLY-REQUESTED-UTC-COVERAGE-GATE",
+      "status": "EXACT_HEAD_LIMITED_CAUSAL_QA_CI_SUCCESS_FULL_PYTEST_NOT_YET_VERIFIED",
+      "report": "docs/MONTHLY_CANONICAL_COVERAGE_FAIL_CLOSED_2026-10-30.md",
+      "code": "scripts/research_batch_monthly_scorecard.py",
+      "synthetic_regressions_added": 5,
+      "code_commit": "5b84760af47114a9fcadb9e0e34a0db1e1bc4ea7",
+      "test_commit": "96ec695d828b30cc05e81fd4977db79fb0b29a87",
+      "limited_ci_head": "6012d356fce1bf62372f69a99b2549968e304465",
+      "limited_ci_run": 40964177062,
+      "original_source_strategy_backtests_added": 0,
+      "original_source_monthly_net_usd_per_oz": "N/A",
+      "original_source_monthly_floating_drawdown_usd_per_oz": "N/A",
+      "approved_strategies": 0,
+      "note": "Canonical scorecard now rejects missing requested UTC calendar months; partial edge months remain labeled, 3-month downside windows require complete contiguous months. Existing full-repo pytest count and original-source replay are NOT verified by the causal-formula-qa workflow. No new strategy, private-source data or OOS claim."
     }
   ]
 }
