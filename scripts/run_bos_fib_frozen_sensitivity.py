@@ -26,6 +26,7 @@ from norisk_quant.persisted_trade_integrity import verify_persisted_trade_ledger
 from norisk_quant.report import report
 from norisk_quant.source_exit_integrity import OPEN_REASONS, verify_source_open_exit_prices
 from norisk_quant.source_bar_exit_integrity import AUDITED_REASONS, verify_source_bar_exit_prices
+from norisk_quant.source_gap_integrity import verify_source_gap_minutes
 
 SOURCE_SHA = "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121"
 YEARLY_SETTINGS = BosFibSettings(
@@ -138,6 +139,9 @@ def execute(gold_zip: Path, years: list[int], destination: Path) -> dict:
         source_bar_exits_verified = verify_source_bar_exit_prices(quotes, result.trades)
         verify_exit_audit_coverage(result.trades, source_open_exits_verified,
                                    source_bar_exits_verified)
+        source_gap_minutes_verified = verify_source_gap_minutes(quotes, result.trades)
+        if source_gap_minutes_verified != len(result.trades):
+            raise AssertionError("Frozen source gap audit did not cover all executed trades")
         subdirectory = destination / str(year)
         summary = report(
             result, EXECUTION_SETTINGS, subdirectory,
@@ -197,6 +201,7 @@ def execute(gold_zip: Path, years: list[int], destination: Path) -> dict:
             "trades": trades,
             "source_open_stop_exits_verified": source_open_exits_verified,
             "source_bar_exits_verified_by_reason": source_bar_exits_verified,
+            "source_gap_minutes_verified": source_gap_minutes_verified,
             "positive_months": int(summary["positive_months"]),
             "net_usd_1oz": total,
             "all_in_fees_usd": summary["total_fees"],
