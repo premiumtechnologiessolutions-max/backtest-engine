@@ -111,14 +111,13 @@ def test_freeze_plan_stops_future_year_and_existing_target(tmp_path, monkeypatch
         z.writestr("2026.json","[]")
     original=hashlib.sha256(source.read_bytes()).hexdigest()
     monkeypatch.setattr(factory,"SOURCE_SHA",original)
-    fake=types.ModuleType("research_batch_orchestrator")
-    fake.file_sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
-    fake.checkout_commit=lambda:"a"*40
-    fake.expand=lambda p:([None]*factory.count_definitions(p["grids"]),"f"*64)
-    fake.atomic_manifest=lambda p,obj:p.write_text(json.dumps(obj))
-    monkeypatch.setitem(sys.modules,"scripts.research_batch_orchestrator",fake)
-    from scripts import generate_quant_research_grid as imported_factory
-    monkeypatch.setattr(imported_factory,"SOURCE_SHA",original)
+    # Patch the already-imported real module, not sys.modules: other tests
+    # may have imported the batch controller before this test executes.
+    from scripts import research_batch_orchestrator as batch
+    monkeypatch.setattr(batch,"file_sha",lambda p:hashlib.sha256(p.read_bytes()).hexdigest())
+    monkeypatch.setattr(batch,"checkout_commit",lambda:"a"*40)
+    monkeypatch.setattr(batch,"expand",lambda p:([None]*factory.count_definitions(p["grids"]),"f"*64))
+    monkeypatch.setattr(batch,"atomic_manifest",lambda p,obj:p.write_text(json.dumps(obj)))
 
     class FrozenClock:
         @staticmethod
