@@ -106,6 +106,8 @@ def main() -> None:
     test.add_argument("--bos-pivot-left", type=int, default=3)
     test.add_argument("--bos-pivot-right", type=int, default=3)
     test.add_argument("--bos-fib-entry", type=float, default=0.618)
+    test.add_argument("--bos-zone-lower", type=float, default=0.618)
+    test.add_argument("--bos-zone-upper", type=float, default=0.786)
     test.add_argument("--bos-rr", type=float, default=1.0)
     test.add_argument("--bos-stop-buffer-usd", type=float, default=0.10)
     test.add_argument("--bos-min-break-usd", type=float, default=0.10)
@@ -135,6 +137,9 @@ def main() -> None:
             parser.error("TF sweep/reclaim requires --timeframe M15 or H1")
         if args.tf_sweep_lookback_bars < 3:
             parser.error("--tf-sweep-lookback-bars must be >=3")
+    if args.command == "backtest" and args.strategy == "bos-fib":
+        if not (0 < args.bos_zone_lower <= args.bos_fib_entry <= args.bos_zone_upper < 1):
+            parser.error("BOS Fibonacci requires 0 < zone-lower <= fib-entry <= zone-upper < 1")
     if args.command == "backtest" and args.strategy == "m1-sweep":
         if args.timeframe != "M1":
             parser.error("M1 sweep/reclaim requires --timeframe M1")
@@ -253,6 +258,8 @@ def main() -> None:
                 pivot_left=args.bos_pivot_left,
                 pivot_right=args.bos_pivot_right,
                 fib_entry=args.bos_fib_entry,
+                zone_lower=args.bos_zone_lower,
+                zone_upper=args.bos_zone_upper,
                 reward_risk=args.bos_rr,
                 sl_buffer_usd=args.bos_stop_buffer_usd,
                 min_break_usd=args.bos_min_break_usd,
