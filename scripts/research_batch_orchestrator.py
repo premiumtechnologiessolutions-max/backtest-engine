@@ -20,8 +20,13 @@ import sys
 
 try:
     import fcntl
-except ImportError:  # no POSIX flock: execution fails closed
+except ImportError:
     fcntl = None
+
+try:
+    import msvcrt  # Windows nonblocking byte-range locks
+except ImportError:
+    msvcrt = None
 
 from norisk_quant.evidence_reconciliation import verify_exit_periods
 from norisk_quant.model import Settings, serialize_settings
@@ -432,8 +437,8 @@ def exclusive_batch_lock(output: Path):
     manifest publication and HTML export. Never unlink lock files: flock
     protects the inode, and removing a held path could permit a second owner.
     """
-    if fcntl is None or os.name != "posix":
-        raise ValueError("Batch execution requires POSIX flock")
+    if fcntl is None and msvcrt is None:
+        raise ValueError("Batch execution requires supported file locks")
     if output.is_symlink() or not output.is_dir():
         raise ValueError("Unsafe batch output directory")
     lock = output / ".research_batch.lock"
@@ -443,13 +448,22 @@ def exclusive_batch_lock(output: Path):
     try:
         info = os.fstat(fd)
         if (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1
-                or info.st_size != 0 or info.st_uid != os.getuid()
-                or info.st_mode & 0o077):
+                or info.st_size != 0
+                or (os.name == "posix" and (info.st_uid != os.getuid()
+                     or info.st_mode & 0o077))):
             raise ValueError("Unsafe batch lock file")
         try:
-            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            if os.name == "nt":
+                if msvcrt is None:
+                    raise ValueError("Windows batch lock unavailable")
+                os.lseek(fd, 0, os.SEEK_SET)
+                msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+            else:
+                if fcntl is None:
+                    raise ValueError("POSIX batch lock unavailable")
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
             locked = True
-        except BlockingIOError as exc:
+        except (BlockingIOError, OSError) as exc:
             raise ValueError("Research batch already running for this output") from exc
         # Detect a swapped/unlinked path before entering the critical section.
         current = os.stat(lock, follow_symlinks=False)
@@ -458,9 +472,15 @@ def exclusive_batch_lock(output: Path):
             raise ValueError("Research batch lock path changed during acquisition")
         yield
     finally:
-        if locked:
-            fcntl.flock(fd, fcntl.LOCK_UN)
-        os.close(fd)
+        try:
+            if locked:
+                if os.name == "nt":
+                    os.lseek(fd, 0, os.SEEK_SET)
+                    msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+                else:
+                    fcntl.flock(fd, fcntl.LOCK_UN)
+        finally:
+            os.close(fd)
 
 
 def atomic_manifest(path: Path, data: dict) -> None:
@@ -478,11 +498,14 @@ def atomic_manifest(path: Path, data: dict) -> None:
         if path.is_symlink() or (path.exists() and path.stat().st_nlink != 1):
             raise ValueError("Unsafe batch manifest target")
         os.replace(staging, path)
-        dir_fd = os.open(path.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
-        try:
-            os.fsync(dir_fd)
-        finally:
-            os.close(dir_fd)
+        # Windows cannot os.open() an ordinary directory descriptor.
+        # The atomic replace is retained; POSIX additionally fsyncs directory.
+        if os.name == "posix":
+            dir_fd = os.open(path.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+            try:
+                os.fsync(dir_fd)
+            finally:
+                os.close(dir_fd)
     finally:
         if os.path.exists(staging):
             os.unlink(staging)
