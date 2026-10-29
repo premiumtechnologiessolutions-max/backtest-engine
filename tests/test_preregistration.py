@@ -124,3 +124,20 @@ def test_extra_schema_fields_fail_closed():
     p["claim_monthly_profit"] = True
     with pytest.raises(ValueError):
         freeze_plan(p)
+
+
+def test_repository_preregistration_manifest_is_frozen_and_future_only():
+    import json
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    path = root / "research" / "preregistrations" / "sweep_reclaim_m1_2026-11-02.json"
+    envelope = json.loads(path.read_text(encoding="utf-8"))
+    registered = verify_freeze(envelope)
+    assert registered["holdout_start"] == "2026-11-02"
+    assert registered["known_exposed_through"] == "2026-10-30"
+    assert registered["training_archive_sha256"] == (
+        "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121"
+    )
+    assert registered["evidence_status"] == "FUTURE_UNOBSERVED_NOT_VALIDATED"
+    assert registered["fee_usd_per_oz"] == 0.40
