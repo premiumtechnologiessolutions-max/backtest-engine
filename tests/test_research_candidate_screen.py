@@ -163,3 +163,36 @@ def test_html_escapes_untrusted_job_name_and_warns_no_oos():
     assert "<script>" not in html
     assert "&lt;script&gt;" in html
     assert "NOT independent OOS" in html
+
+
+def test_partial_manifest_cannot_issue_exploratory_eligibility_or_rank(monkeypatch, tmp_path):
+    plan, manifest, _, opts = setup(monkeypatch)
+    manifest["results"].pop("beta")
+    result = screen.select(plan, manifest, tmp_path, **opts)
+    assert result["research_status"] == "INCOMPLETE_SEARCH_UNIVERSE"
+    assert result["unexecuted_job_ids"] == ["beta"]
+    assert result["compared_jobs"] == 1
+    assert result["results"][0]["training_rank"] is None
+    assert result["results"][0]["training_screen"] == "NOT_ELIGIBLE_BATCH_INCOMPLETE"
+    assert "no eligibility or ranks" in screen.render(result)
+
+
+def test_noncomparable_completed_job_blocks_training_promotion(monkeypatch, tmp_path):
+    plan, manifest, records, opts = setup(monkeypatch)
+    records["beta"]["monthly_net_pnl"].pop("2024-06")
+    result = screen.select(plan, manifest, tmp_path, **opts)
+    assert result["research_status"] == "INCOMPLETE_SEARCH_UNIVERSE"
+    assert result["unexecuted_job_ids"] == []
+    assert result["noncomparable_job_ids"] == ["beta"]
+    assert result["results"][0]["training_rank"] is None
+    assert result["results"][0]["training_screen"] == "NOT_ELIGIBLE_BATCH_INCOMPLETE"
+
+
+def test_complete_search_universe_preserves_training_only_eligibility(monkeypatch, tmp_path):
+    plan, manifest, _, opts = setup(monkeypatch)
+    result = screen.select(plan, manifest, tmp_path, **opts)
+    assert result["research_status"] == "HISTORICAL_EXPOSED_SCREEN_COMPLETE"
+    assert result["unexecuted_job_ids"] == []
+    assert result["noncomparable_job_ids"] == []
+    assert result["results"][0]["training_rank"] == 1
+    assert result["results"][0]["training_screen"] == "PASSED_EXPLORATORY"

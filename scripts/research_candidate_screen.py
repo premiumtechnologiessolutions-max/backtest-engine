@@ -112,6 +112,10 @@ def select(plan: dict, manifest: dict, runs_root: Path, *, train_start: str,
     if not set(manifest["results"]).issubset(defined):
         raise ValueError("Unknown batch job")
     rows, noncomparable = [], []
+    # An unfinished or non-comparable search universe can conceal stronger
+    # alternatives. Descriptive results are allowed, promotion labels/ranks
+    # are not. Cross-year screening applies the same fail-closed principle.
+    unexecuted = sorted(set(defined) - set(manifest["results"]))
     for ident, record in sorted(manifest["results"].items()):
         if type(record) is not dict or record.get("status") != batch.PASSED:
             raise ValueError("Unverified or failed batch run")
@@ -144,11 +148,20 @@ def select(plan: dict, manifest: dict, runs_root: Path, *, train_start: str,
         })
     if not rows:
         raise ValueError("No comparable fully audited jobs in both windows")
-    rows.sort(key=training_rank_key)
-    for rank, row in enumerate(rows, 1):
-        row["training_rank"] = rank
+    incomplete_universe = bool(unexecuted or noncomparable)
+    if incomplete_universe:
+        rows.sort(key=lambda row: row["job_id"])
+        for row in rows:
+            row["training_rank"] = None
+            row["training_screen"] = "NOT_ELIGIBLE_BATCH_INCOMPLETE"
+    else:
+        rows.sort(key=training_rank_key)
+        for rank, row in enumerate(rows, 1):
+            row["training_rank"] = rank
     return {
         "schema": SCHEMA,
+        "research_status": ("INCOMPLETE_SEARCH_UNIVERSE" if incomplete_universe
+                            else "HISTORICAL_EXPOSED_SCREEN_COMPLETE"),
         "evidence_context": "HISTORICAL_EXPOSED_NOT_OOS_NOT_LIVE_APPROVED",
         "method": "TRAIN_ONLY_RANK_REVIEW_DESCRIPTIVE_NO_MULTIPLE_TESTING_ADJUSTMENT",
         "plan_sha256": plan_sha,
@@ -163,6 +176,7 @@ def select(plan: dict, manifest: dict, runs_root: Path, *, train_start: str,
         "audited_jobs": len(manifest["results"]),
         "compared_jobs": len(rows),
         "noncomparable_job_ids": noncomparable,
+        "unexecuted_job_ids": unexecuted,
         "results": rows,
     }
 
@@ -174,7 +188,8 @@ def render(report: dict) -> str:
     rows = []
     for item in report["results"]:
         t, r = item["train"], item["later_review_descriptive_only"]
-        values = [str(item["training_rank"]), item["job_id"], item["strategy"],
+        values = [("—" if item["training_rank"] is None
+                   else str(item["training_rank"])), item["job_id"], item["strategy"],
                   item["training_screen"], str(t["trades"]),
                   f'{t["positive_month_fraction"]:.0%}',
                   f'{t["net_pnl_usd_per_oz"]:+.2f}',
@@ -196,6 +211,7 @@ def render(report: dict) -> str:
             '<p>Historical exposed only: NOT independent OOS, investment advice, or live ready. '
             'Training months exclusively determine ranking and eligibility. '
             'Later review is descriptive, with no multiple-testing correction. '
+            'Incomplete search universes show descriptive values only: no eligibility or ranks. '
             'Net P/L includes fixed 0.40 USD/oz fee; monthly drawdown '
             'does not reflect intramonth exposure.</p>'
             '<p>Training: ' + escape(report["train_months"][0]) + '–'
@@ -232,6 +248,8 @@ def build(plan_path: Path, batch_output: Path, *, train_start: str, train_end: s
         write_private_html(batch_output / "candidate_screen.html", render(report))
         return {"compared_jobs": report["compared_jobs"],
                 "audited_jobs": report["audited_jobs"],
+                "research_status": report["research_status"],
+                "unexecuted_jobs": len(report["unexecuted_job_ids"]),
                 "training_passed": sum(r["training_screen"] == "PASSED_EXPLORATORY"
                                        for r in report["results"]),
                 "json": str(batch_output / "candidate_screen.json"),

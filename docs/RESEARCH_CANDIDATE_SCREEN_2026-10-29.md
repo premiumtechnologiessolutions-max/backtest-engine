@@ -16,7 +16,10 @@ Regression tests: `tests/test_research_candidate_screen.py`.
 4. Require complete, common **training** and **later review** month windows.
    Experiments with missing comparison months are explicitly marked
    non-comparable; a batch failure, mismatched manifest, tampered evidence or
-   no comparable candidates aborts publication.
+   no comparable candidates aborts publication. **Any unexecuted or
+   non-comparable job makes the entire search universe incomplete: all
+   exploratory eligibility labels and ranks are suppressed**, even for jobs
+   with attractive training results. Descriptive metrics remain visible.
 5. Rank candidates by **training evidence only**:
    preliminary eligibility = at least 20 training trades, at least 60%
    strictly profitable training months, and positive training net USD/oz;
@@ -68,3 +71,20 @@ may already have been researched or exposed in earlier sessions.
   safeguards, and run full repo CI on the final commit.
 
 No raw Gold archive is contained in this change. PR #1 stays Draft.
+
+## Incomplete-universe fail-closed correction — 2026-10-29
+
+An earlier single-window screen could display `PASSED_EXPLORATORY` and rank 1
+for an attractive finished job even while other frozen jobs were unexecuted or
+non-comparable. This invites selection bias: unseen candidates can change the
+research family and invalidate any ranking. The screen now returns
+`INCOMPLETE_SEARCH_UNIVERSE`, lists unexecuted/non-comparable job IDs,
+sets every candidate's `training_rank` to null, and labels all descriptive
+rows `NOT_ELIGIBLE_BATCH_INCOMPLETE`. Only a complete audited universe
+receives training-only ranks. This is a **scientific governance gate**, not
+an adjusted p-value, forward validation or profitability proof.
+
+Three synthetic regressions were added for partial manifests, missing review
+months and a complete-universe control. The full current-HEAD repository suite
+and GitHub Actions result must be verified separately. No private Gold data
+was uploaded, and PR #1 remains Draft/unmerged.
