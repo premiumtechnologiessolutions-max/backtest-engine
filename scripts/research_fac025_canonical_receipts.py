@@ -16,7 +16,7 @@ FIELDS = frozenset({
     "side", "entry_price", "exit_price", "stop", "target", "ounces",
     "gross_pnl", "cost", "net_pnl", "exit_reason", "gap_minutes",
 })
-STOP_REASONS = frozenset({"stop", "ambiguous_stop_first", "open_stop", "gap_stop"})
+STOP_REASONS = frozenset({"stop", "ambiguous_stop_first", "open_stop", "gap_stop", "entry_open_beyond_stop"})
 TARGET_REASONS = frozenset({"target", "open_target"})
 OTHER_REASONS = frozenset({"time_exit", "end_of_data"})
 
@@ -96,7 +96,7 @@ def reconcile_canonical_closed_receipts(trades: list[dict], signal_at: datetime)
             _equal(exit_price, stop, "stop exit price")
         elif reason in TARGET_REASONS:
             _equal(exit_price, target, "target exit price")
-        elif reason in {"open_stop", "gap_stop"} and side * (exit_price - stop) > 1e-7:
+        elif reason in {"open_stop", "gap_stop", "entry_open_beyond_stop"} and side * (exit_price - stop) > 1e-7:
             raise ValueError("Canonical adverse open stop improved beyond stop")
         gross = side * (exit_price - entry_price) * ounces
         cost = FEE_PER_OUNCE * ounces
