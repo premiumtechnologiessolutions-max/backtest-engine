@@ -26,7 +26,7 @@ The original 2010–2026 Gold archive has been extensively inspected. Historical
 - Machine-checkable immutable plan:
   `research/preregistrations/sweep_reclaim_m1_2026-11-02.json`.
   Its canonical payload SHA256 is
-  `8375c0d0866017891b5ae14d071a984362a05f76ab5cc79b725cca66d2f23a6e`.
+  `1fe82085ce8413927d1fc64946f13b1111b0375804d244b635a66aa010a3959d`.
   Preserve the original Git commit that first introduced the plan; a
   locally supplied `registered_at_utc` alone is not proof of chronology.
 
@@ -53,3 +53,8 @@ future results and still call it the same preregistered experiment.
 complete original private ZIP 13-field replay (not run in this change), and
 collect genuinely later data under independently verifiable source provenance.
 PR #1 remains Draft. No live trades or raw market archive uploaded.
+
+The first draft of this preregistration JSON serialized the numeric 20.0 as
+integer 20, causing a digest mismatch. The canonical digest above was corrected
+before the future holdout began; the original Git history preserves the audit
+trail. No holdout data was opened during this correction.
