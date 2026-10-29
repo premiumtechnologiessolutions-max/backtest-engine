@@ -16,6 +16,7 @@ import numpy as np
 import pandas as pd
 
 from .limit_engine import LimitOrder
+from .executor_quote_contract import require_numeric_execution_ohlc
 from .portfolio import PortfolioResult, PortfolioSettings, validate_portfolio
 
 
@@ -60,6 +61,7 @@ def run_limit_portfolio(
         raise ValueError("M1 timestamps must align to minute opens")
     if not {"o", "h", "l", "c"}.issubset(minutes.columns):
         raise ValueError("M1 OHLC required")
+    require_numeric_execution_ohlc(minutes)
     quotes = minutes[["o", "h", "l", "c"]].to_numpy(dtype=float)
     if not np.isfinite(quotes).all():
         raise ValueError("Invalid M1 price")

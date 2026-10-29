@@ -17,6 +17,7 @@ import numpy as np
 import pandas as pd
 
 from .model import Signal
+from .executor_quote_contract import require_numeric_execution_ohlc
 
 
 @dataclass(frozen=True)
@@ -104,6 +105,7 @@ def run_portfolio(
         raise ValueError("M1 OHLC required")
     if (minutes.index.asi8 % 60_000_000_000 != 0).any():
         raise ValueError("M1 timestamps must align to whole minutes")
+    require_numeric_execution_ohlc(minutes)
     o, h, l, c = (minutes[col].to_numpy(dtype=float) for col in ("o", "h", "l", "c"))
     if not all(np.isfinite(x).all() for x in (o, h, l, c)) or (l <= 0).any() or (l > np.minimum(o,c)).any() or (h < np.maximum(o,c)).any():
         raise ValueError("Invalid source M1 OHLC")
