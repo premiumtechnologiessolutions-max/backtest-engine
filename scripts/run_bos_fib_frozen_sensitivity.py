@@ -23,8 +23,10 @@ import pandas as pd
 # as `python scripts/run_bos_fib_frozen_sensitivity.py` from the repo root.
 if __package__:
     from .frozen_evidence_manifest import write_evidence_manifest
+    from .frozen_summary_integrity import verify_frozen_summary_claims
 else:
     from frozen_evidence_manifest import write_evidence_manifest
+    from frozen_summary_integrity import verify_frozen_summary_claims
 from norisk_quant.bos_fib import BosFibSettings, bos_fib_limit_orders
 from norisk_quant.data import fingerprint_loaded_m1, load_market, sha256_file
 from norisk_quant.evidence_reconciliation import verify_exit_periods
@@ -178,13 +180,14 @@ def _execute_unpublished(gold_zip: Path, years: list[int], destination: Path) ->
         source_gap_minutes_verified = verify_source_gap_minutes(quotes, result.trades)
         if source_gap_minutes_verified != len(result.trades):
             raise AssertionError("Frozen source gap audit did not cover all executed trades")
+        loaded_fingerprint = fingerprint_loaded_m1(quotes)
         subdirectory = destination / str(year)
         summary = report(
             result, EXECUTION_SETTINGS, subdirectory,
             source="original_authorized_private_gold_zip",
             provenance={
                 "source_archive_sha256": actual_sha,
-                "loaded_m1_bidask_sha256": fingerprint_loaded_m1(quotes),
+                "loaded_m1_bidask_sha256": loaded_fingerprint,
                 "loaded_m1_rows": len(quotes),
             },
             run_parameters={
@@ -228,6 +231,20 @@ def _execute_unpublished(gold_zip: Path, years: list[int], destination: Path) ->
             exported_trades.to_dict(orient="records"),
             first_utc_date=f"{year}-01-01",
             last_utc_date=f"{year}-12-31",
+        )
+        # Verify the persisted headline summary independently against the
+        # executed trades, month buckets, original-source fingerprints and
+        # frozen strategy/disclaimer. A valid file hash alone cannot certify
+        # that the headline claims are true.
+        persisted_summary = json.loads(
+            (subdirectory / "summary.json").read_text(encoding="utf-8")
+        )
+        if persisted_summary != summary:
+            raise ValueError("Frozen persisted annual summary differs from report return")
+        verify_frozen_summary_claims(
+            persisted_summary, monthly, result.trades,
+            year=year, source_sha=actual_sha,
+            bidask_sha=loaded_fingerprint, m1_rows=len(quotes),
         )
         records.append({
             "year": year,
