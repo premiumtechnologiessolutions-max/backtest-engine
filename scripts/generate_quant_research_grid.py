@@ -67,6 +67,8 @@ def grids(years: tuple[int, ...]) -> list[dict]:
             "bos_pivot_left": [3, 5],
             "bos_pivot_right": [3, 5],
             "bos_fib_entry": [0.50, 0.62, 0.705, 0.79, 0.87],
+            "bos_zone_lower": [0.50],
+            "bos_zone_upper": [0.87],
             "bos_rr": [1.0, 1.5],
             "bos_stop_buffer_usd": [0.10],
             "bos_expiry_minutes": [120],
