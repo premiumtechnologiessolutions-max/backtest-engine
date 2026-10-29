@@ -234,7 +234,7 @@ def test_reader_rejects_oversized_post(hub):
     b'{"year":2012,"grid":{"fast":[-1e999]}}',
     b'{"year":2012,"grid":{"fast":[NaN]}}',
     b'{"year":2012,"grid":{"fast":[Infinity]}}',
-    b'\\xff',
+    b'\xff',
 ])
 def test_http_rejects_ambiguous_or_nonfinite_request_json(hub, raw):
     ui_file = Path(app.__file__).with_name("quantlab_desktop_ui.html")
