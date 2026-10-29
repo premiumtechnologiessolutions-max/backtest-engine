@@ -1,6 +1,6 @@
 {
   "format_version": 1,
-  "updated_utc": "2026-10-29T18:26:10Z",
+  "updated_utc": "2026-10-29T20:14:05Z",
   "project": "No Risk FX XAUUSD quant research factory",
   "branch": "feat/quant-engine-foundation",
   "original_private_zip_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
@@ -1284,6 +1284,21 @@
       "original_source_monthly_floating_drawdown_usd_per_oz": "N/A",
       "approved_strategies": 0,
       "note": "Explicit --evidence-commit generates immutable SHA-targeted report URLs, without falsely claiming target existence; default moving-branch links are marked mutable. No data, fees or strategy change."
+    },
+    {
+      "id": "NRF-ORIGINAL-BOS-13FIELD-CI-EPOCH-ARRAY-FIX",
+      "status": "EXACT_CODE_GITHUB_CI_PASSED_SYNTHETIC_ONLY",
+      "report": "docs/ORIGINAL_BOS_13_FIELD_CI_EPOCH_ARRAY_FIX_2026-10-29.md",
+      "fix_commit": "d229b900fb21c608ba0f97c7f2f44732ead701f9",
+      "verified_ci_run": 40947077717,
+      "verified_ci_pytest_passed": 2663,
+      "verified_ci_warning_count": 1,
+      "prior_ci_failed_tests": 15,
+      "original_source_strategy_backtests_added": 0,
+      "original_source_monthly_net_usd_per_oz": "N/A",
+      "original_source_monthly_floating_drawdown_usd_per_oz": "N/A",
+      "approved_strategies": 0,
+      "note": "Fixed archived timestamp Series-vs-ndarray conversion; 13-field synthetic replay tests now run. No historical backtest, cost, hypothesis or portfolio outcome changed."
     }
   ]
 }
