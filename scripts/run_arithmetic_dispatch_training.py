@@ -155,6 +155,62 @@ def _verify_monthly_booking(trades: pd.DataFrame, monthly: pd.DataFrame,
                 raise ValueError(f"Monthly ledger exit-booking mismatch: {month} {field}")
 
 
+def _verify_weekly_booking(trades: pd.DataFrame, weekly: pd.DataFrame,
+                           summary: dict, *, year: int) -> None:
+    """Reconstruct every UTC W-SUN exit bucket from the independent trade ledger.
+
+    Agreement between engines and annual net totals does not prove weekly
+    reports: equal-and-opposite edits to two weeks can otherwise pass.
+    """
+    required = ("period", "net_pnl", "total_cost", "trades", "wins")
+    if weekly.columns.has_duplicates or not set(required).issubset(weekly.columns):
+        raise ValueError("Weekly ledger missing required audit columns")
+    try:
+        start = pd.Timestamp(summary["start_utc"])
+        end = pd.Timestamp(summary["end_utc"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError("Weekly ledger requires valid UTC coverage bounds") from exc
+    if (pd.isna(start) or pd.isna(end) or start.tzinfo is None
+            or end.tzinfo is None):
+        raise ValueError("Weekly ledger requires timezone-aware coverage bounds")
+    start, end = start.tz_convert("UTC"), end.tz_convert("UTC")
+    if start > end or start.year != year or end.year != year:
+        raise ValueError("Weekly ledger coverage outside requested training year")
+    expected_periods = pd.period_range(
+        start.tz_localize(None).to_period("W-SUN"),
+        end.tz_localize(None).to_period("W-SUN"), freq="W-SUN")
+    if weekly["period"].tolist() != [str(period) for period in expected_periods]:
+        raise ValueError("Weekly ledger missing, duplicated, or unordered UTC weeks")
+    for field in required[1:]:
+        values = weekly[field]
+        if (not pd.api.types.is_numeric_dtype(values)
+                or not all(math.isfinite(float(value)) for value in values)):
+            raise ValueError(f"Weekly ledger invalid numeric field: {field}")
+    for field in ("trades", "wins"):
+        if any(value < 0 or int(value) != value for value in weekly[field]):
+            raise ValueError(f"Weekly ledger invalid integer count: {field}")
+    if any(weekly["wins"] > weekly["trades"]):
+        raise ValueError("Weekly ledger wins exceed trades")
+    if len(trades):
+        closes = pd.to_datetime(trades["closed_at"], utc=True, errors="raise")
+        close_weeks = closes.dt.tz_localize(None).dt.to_period("W-SUN").astype(str)
+        if not close_weeks.isin(weekly["period"]).all():
+            raise ValueError("Weekly ledger missing trade exit week")
+    else:
+        close_weeks = pd.Series([], dtype="str")
+    for week, row in zip(weekly["period"], weekly.itertuples(index=False)):
+        booked = trades.loc[close_weeks == week]
+        expected = {
+            "trades": len(booked),
+            "wins": int((booked["net_pnl"] > 0).sum()),
+            "net_pnl": float(booked["net_pnl"].sum()),
+            "total_cost": float(booked["cost"].sum()),
+        }
+        for field, value in expected.items():
+            if abs(float(getattr(row, field)) - value) > 1e-7:
+                raise ValueError(f"Weekly ledger exit-booking mismatch: {week} {field}")
+
+
 def _compare_outputs(reference: Path, fast: Path, *, identity: str, year: int) -> dict:
     """Fail on any differing execution field, report bucket, or M1 equity mark."""
     summaries = []
@@ -199,6 +255,8 @@ def _compare_outputs(reference: Path, fast: Path, *, identity: str, year: int) -
     _verify_trade_accounting(trades)
     _verify_monthly_booking(trades, pd.read_csv(reference / "monthly.csv"),
                             summary, year=year)
+    _verify_weekly_booking(trades, pd.read_csv(reference / "weekly.csv"),
+                           summary, year=year)
     if summary["trades"] != len(trades):
         raise ValueError("Trade count differs from persisted ledger")
     if len(trades):
