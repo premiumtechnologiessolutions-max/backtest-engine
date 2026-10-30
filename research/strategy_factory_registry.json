@@ -1,6 +1,6 @@
 {
   "format_version": 1,
-  "updated_utc": "2026-10-30T00:19:00Z",
+  "updated_utc": "2026-10-30T01:16:00Z",
   "project": "No Risk FX XAUUSD quant research factory",
   "branch": "feat/quant-engine-foundation",
   "original_private_zip_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
@@ -1392,6 +1392,23 @@
       "verified_ci_run": 40978782594,
       "verified_ci_pytest_passed": 2834,
       "verified_ci_warnings": 1
+    },
+    {
+      "id": "NRF-TERMINAL-VERIFIED-MONTH-LOCAL-M1-DD",
+      "status": "EXACT_CODE_GITHUB_CI_PASSED_SYNTHETIC_ONLY_NOT_SOURCE_REPLAY",
+      "report": "docs/TERMINAL_VERIFIED_MONTH_LOCAL_M1_RISK_2026-10-30.md",
+      "code": "scripts/research_batch_verified_monthly_terminal.py",
+      "unified_terminal": "scripts/research_terminal_verified_monthly_section.py",
+      "synthetic_regressions_added": 7,
+      "original_source_strategy_backtests_added": 0,
+      "original_source_monthly_net_usd_per_oz": "N/A",
+      "original_source_monthly_floating_drawdown_usd_per_oz": "N/A",
+      "approved_strategies": 0,
+      "verified_ci_commit": "11b5a3ec1098a59fd84a211d49f823b4e699a0ad",
+      "verified_ci_run": 40984715024,
+      "verified_ci_pytest_passed": 2870,
+      "verified_ci_warnings": 1,
+      "note": "Both offline terminals now show global-peak and month-local observed M1 close-equity DD only with independently pinned equity evidence. Defensive monthly/job cross-checks reject missing, nonfinite, boolean, inconsistent or unpinned local risk. Private source SHA checked locally, but no new strategy replay, shared-capacity source P/L or clean OOS."
     }
   ]
 }
