@@ -87,7 +87,7 @@ def test_repeated_formula_identity_cannot_fill_multiple_candidate_slots(tmp_path
 
 
 def test_embargo_blocks_nearby_prospective_period_and_records_verified_gap(tmp_path):
-    path = training(tmp_path, years=(2025,))
+    path = training(tmp_path, years=(2024, 2025))
     out = tmp_path / "freeze.json"
     with pytest.raises(ValueError, match="embargo"):
         attempt(path, out, start="2026-01-15", end="2026-03-15",
