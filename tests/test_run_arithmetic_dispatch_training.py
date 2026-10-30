@@ -355,3 +355,39 @@ def test_identical_invalid_canonical_summary_is_not_certified(
                 limit=1)
     assert not out.exists()
     assert not list(out.parent.glob(".nrfx_arithmetic_training_*"))
+
+@pytest.mark.parametrize("corruption,expected", [
+    ("shared_wrong_strategy", "Trade strategy identity mismatch"),
+    ("fast_changed_coverage", "summary mismatch: start_utc"),
+    ("fast_changed_run_parameters", "run parameters differ"),
+])
+def test_replay_cannot_certify_wrong_strategy_or_divergent_run_contract(
+        prepared, monkeypatch, corruption, expected):
+    """Identical ledgers are not enough to prove candidate/parameter provenance."""
+    source, generation, dispatch, archive, digest, out = prepared
+
+    def fake_run(command, **kwargs):
+        _fake_cli(command, **kwargs)
+        target = Path(command[command.index("--out") + 1])
+        engine = command[command.index("--execution") + 1]
+        if corruption == "shared_wrong_strategy":
+            ledger = target / "trades.csv"
+            trades = pd.read_csv(ledger)
+            trades.loc[:, "strategy"] = "arithmetic_other_candidate"
+            trades.to_csv(ledger, index=False)
+        elif engine == "fast":
+            path = target / "summary.json"
+            summary = json.loads(path.read_text())
+            if corruption == "fast_changed_coverage":
+                summary["start_utc"] = "2012-01-02T00:00:00+00:00"
+            elif corruption == "fast_changed_run_parameters":
+                summary["run_parameters"]["unapproved_setting"] = 1
+            path.write_text(json.dumps(summary))
+
+    monkeypatch.setattr("scripts.run_arithmetic_dispatch_training.subprocess.run",
+                        fake_run)
+    with pytest.raises(ValueError, match=expected):
+        execute(source, generation, dispatch, archive, digest, 2012, out,
+                limit=1)
+    assert not out.exists()
+    assert not list(out.parent.glob(".nrfx_arithmetic_training_*"))
