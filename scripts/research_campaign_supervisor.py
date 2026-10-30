@@ -19,6 +19,9 @@ from scripts.run_arithmetic_research_cycles import run_cycles, _outside_checkout
 from scripts.research_batch_orchestrator import exclusive_batch_lock
 from scripts.materialize_arithmetic_generation import _load_strict
 from scripts.run_arithmetic_dispatch_training import SOURCE_SHA, _digest
+from scripts.research_campaign_attestation import (
+    freeze_campaign_intent, attest_cached_generation,
+)
 
 SCHEMA = "NRFX_ARITHMETIC_CAMPAIGN_V1"
 
@@ -105,6 +108,10 @@ def campaign(input_path: Path, source_zip: Path, root: Path, *,
     _outside_checkout(runs.resolve())
     begin = time.monotonic()
     with exclusive_batch_lock(root):
+        freeze_campaign_intent(root, input_path, seed=seed,
+                               first_generation=first_generation,
+                               proposal_count=proposal_count,
+                               shard_size=shard_size)
         current_input = input_path
         completed = []
         state = {"schema": SCHEMA, "started_utc": _now(),
@@ -125,8 +132,14 @@ def campaign(input_path: Path, source_zip: Path, root: Path, *,
                     break
                 next_input = runs / f"generation_{number:04d}" / "next_training_input.json"
                 if next_input.exists():
+                    provenance = attest_cached_generation(
+                        current_input, next_input.parent,
+                        generation=number, seed=seed + offset,
+                        proposal_count=proposal_count)
                     fingerprint = _verified_feedback(next_input)
-                    status = "REUSED_VERIFIED_FEEDBACK"
+                    if provenance["next_input_sha256"] != fingerprint:
+                        raise ValueError("Reaudited cached generation SHA mismatch")
+                    status = "REUSED_FULLY_REAUDITED_FEEDBACK"
                 else:
                     result = run_cycles(
                         current_input, source_zip, runs, seed=seed + offset,
