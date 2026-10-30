@@ -17,7 +17,7 @@ Seven new synthetic regression cases cover a valid 12-month member, a missing mo
 - New monthly P/L / worst month / floating M1 drawdown: **N/A**.
 - New independently accepted hypotheses / strategies: **0 / 0**.
 - Fee contract remains **exactly $0.40/oz ALL-IN roundtrip**; no live execution.
-- CI verification: **pending exact-head check** until GitHub Actions reports completion.
+- Exact executable-code head `a34f45ff6c282d835c3ae0df588cec2a01437030`: [Engine quality gates 41032154851](https://github.com/premiumtechnologiessolutions-max/backtest-engine/actions/runs/41032154851) **SUCCESS — 2,978 pytest passed, 1 warning**; [Quant Lab 41032163081](https://github.com/premiumtechnologiessolutions-max/backtest-engine/actions/runs/41032163081) **SUCCESS**. Metadata-only follow-up commits require their own exact-head CI check.
 - PR #1 must remain **Draft, unmerged**; public repository must not contain raw quotes.
 
 This is a necessary calendar-integrity gate, not a complete missing-minute audit, broker BID/ASK fill proof, canonical parity replay, embargoed prospective OOS evaluation or a profitability result.
