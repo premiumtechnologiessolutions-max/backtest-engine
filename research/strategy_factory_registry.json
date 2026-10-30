@@ -1,6 +1,6 @@
 {
   "format_version": 1,
-  "updated_utc": "2026-10-30T03:25:00Z",
+  "updated_utc": "2026-10-30T03:30:00Z",
   "project": "No Risk FX XAUUSD quant research factory",
   "branch": "feat/quant-engine-foundation",
   "original_private_zip_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
@@ -1412,7 +1412,7 @@
     },
     {
       "id": "NRF-FAC-025-ORIGINAL-SOURCE-2012-2013-ONE-SLOT-PROVISIONAL",
-      "status": "HISTORICAL_EXPOSED_SOURCE_BID_PROXY_REJECT_CANONICAL_PARITY_PENDING",
+      "status": "HISTORICAL_EXPOSED_SOURCE_BID_PROXY_REJECT_CANONICAL_PARITY_VERIFIED_NOT_BROKER",
       "report": "docs/FAC025_SOURCE_M1_SHARED_PORTFOLIO_REJECTION_2026-10-30.md",
       "preregistration": "docs/FAC025_SOURCE_M1_ONE_SLOT_PREDECLARATION_2026-10-30.md",
       "code": "scripts/research_fac025_source_one_slot.py",
@@ -1444,30 +1444,41 @@
         "2013": 27.023582
       },
       "deterministic_aggregate_json_sha256": "b9eb3fa3bf0319609c9b14f36274a9f0c79ce0901e06cc62123e0852989de02c",
-      "original_source_canonical_parity_verified": false,
+      "original_source_canonical_parity_verified": true,
       "paired_bidask_executable_fill_verified": false,
       "clean_prospective_oos": false,
       "approved_strategies": 0,
-      "note": "Frozen FAC025-ENTRY-A source-only BID-reference 72 correlated filter variants and a single one-slot priority portfolio. 2012/2013 structural counts exactly match prior independent original-source preflight; two local full replays byte-identical. All 72 variants negative combined net; unified 6/24 positive months and -$234.60233 after fixed $0.40/oz fee. No official canonical run/run_fast parity or broker receipts. Provisional runs excluded from historical certified totals. Do not retune."
+      "note": "Frozen 72 correlated FAC025 filters and one shared-capacity position; 2012/13 BID-proxy net -$234.60233, 6/24 positive months. Original private SHA verified; source-selected fills and M1 equity match canonical run/run_fast on both years (618 fills, 705,292 M1 marks), twice deterministic. Still rejected, not authenticated executable BID/ASK, not clean OOS, not reoptimized. Provisional standalone 144 annual runs excluded from factory totals.",
+      "source_bid_proxy_canonical_parity_years": 2,
+      "source_bid_proxy_canonical_parity_m1_marks": 705292,
+      "source_bid_proxy_canonical_parity_trades": 618,
+      "source_bid_proxy_canonical_parity_aggregate_sha256": "6485e7a430cf4f3cc94516e45051924305ee5f2a292efd14506d1ca78c20328c",
+      "source_bid_proxy_canonical_parity_report": "docs/FAC025_SOURCE_CANONICAL_PARITY_VERIFIED_2012_2013_2026-10-30.md"
     },
     {
       "id": "NRF-FAC-025-SOURCE-CANONICAL-TRADE-M1-PARITY-BRIDGE",
-      "status": "EXACT_CODE_GITHUB_CI_PASSED_SYNTHETIC_ONLY_ORIGINAL_SOURCE_PARITY_NOT_RUN",
+      "status": "ORIGINAL_SOURCE_2012_2013_BID_PROXY_CANONICAL_PARITY_VERIFIED_NOT_BROKER_OOS",
       "report": "docs/FAC025_SOURCE_CANONICAL_PARITY_GATE_2026-10-30.md",
       "code": "scripts/verify_fac025_source_proxy_parity.py",
       "tests": "tests/test_verify_fac025_source_proxy_parity.py",
       "synthetic_regressions_added": 13,
       "frozen_correlated_specs": 72,
-      "original_source_parity_years_verified": 0,
+      "original_source_parity_years_verified": 2,
       "original_source_strategy_backtests_added": 0,
-      "original_source_monthly_net_usd_per_oz": "N/A",
-      "original_source_monthly_floating_drawdown_usd_per_oz": "N/A",
+      "original_source_monthly_net_usd_per_oz": -234.60233,
+      "original_source_monthly_floating_drawdown_usd_per_oz": "N/A (annual observed M1 close-equity DD separately reported)",
       "approved_strategies": 0,
       "verified_ci_commit": "d5ac3e059b90b6e4c39a9f0ca2cc56a4fbac7c94",
       "verified_ci_run": 40997162177,
       "verified_ci_pytest_passed": 2902,
       "verified_ci_warnings": 1,
-      "note": "Synthetic source-selected one-slot vs canonical run/run_fast trade, fees, monthly P/L and every observed M1 close-equity mark. Full original private ZIP parity NOT executed, source fills remain BID-proxy and historically exposed. FAC025 remains rejected at 6/24 months and -$234.60233/oz; do not retune or inflate canonical totals."
+      "note": "Original SHA-verified 2012/2013 BID-reference source selected one-slot fills match official canonical run/run_fast complete trade ledgers and 705,292 observed M1 equity marks across 618 trades. Two byte-identical local runs. This does not authenticate broker BID/ASK receipts, certify clean OOS, or change rejected 6/24 months and -$234.60233/oz. No strategy backtests added or canonical factory total inflation.",
+      "original_source_verified_m1_marks": 705292,
+      "original_source_verified_trades": 618,
+      "original_source_parity_aggregate_sha256": "6485e7a430cf4f3cc94516e45051924305ee5f2a292efd14506d1ca78c20328c",
+      "original_source_parity_local_deterministic_runs": 2,
+      "source_sha256_verified": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
+      "original_source_parity_report": "docs/FAC025_SOURCE_CANONICAL_PARITY_VERIFIED_2012_2013_2026-10-30.md"
     }
   ]
 }
