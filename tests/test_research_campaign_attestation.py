@@ -114,3 +114,45 @@ def test_cached_generation_refuses_missing_annual_replay(generation):
         cert.attest_cached_generation(
             source, folder, generation=1, seed=17, proposal_count=2)
     assert calls == []
+
+
+def test_resumed_cold_generation_restores_audits_then_rearchives(generation, monkeypatch):
+    source, folder, calls = generation
+    (folder / "equity_cold_storage.json").write_text("{}")
+    steps = []
+    monkeypatch.setattr(cert, "restore_equity_storage",
+                        lambda d: steps.append(("restore", d)))
+    monkeypatch.setattr(cert, "freeze_equity_storage",
+                        lambda d, *, prune_raw: steps.append(("archive", d, prune_raw)))
+    original = cert.compile_feedback
+
+    def audit(*args, **kwargs):
+        steps.append(("audit", folder))
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(cert, "compile_feedback", audit)
+    result = cert.attest_cached_generation(
+        source, folder, generation=1, seed=17, proposal_count=2)
+    assert result["status"] == "CACHED_GENERATION_FULLY_REAUDITED_NOT_OOS"
+    assert [step[0] for step in steps] == ["restore", "audit", "archive"]
+    assert steps[-1][-1] is True
+
+
+def test_failed_cold_reaudit_preserves_restored_forensic_ledgers(generation, monkeypatch):
+    source, folder, calls = generation
+    (folder / "equity_cold_storage.json").write_text("{}")
+    steps = []
+    monkeypatch.setattr(cert, "restore_equity_storage",
+                        lambda folder: steps.append("restore"))
+
+    def fail_audit(*args, **kwargs):
+        steps.append("audit")
+        raise ValueError("simulated report discrepancy")
+
+    monkeypatch.setattr(cert, "compile_feedback", fail_audit)
+    monkeypatch.setattr(cert, "freeze_equity_storage",
+                        lambda *args, **kwargs: steps.append("pruned"))
+    with pytest.raises(ValueError, match="report discrepancy"):
+        cert.attest_cached_generation(
+            source, folder, generation=1, seed=17, proposal_count=2)
+    assert steps == ["restore", "audit"]
