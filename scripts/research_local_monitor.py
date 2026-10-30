@@ -104,13 +104,20 @@ table{border-collapse:collapse;width:100%;font-size:13px}th,td{padding:10px;text
 <button id="refresh">Refresh</button><p id="error" class="err"></p>
 <div class="wrap"><table><thead><tr><th>Generation</th><th>Formula</th><th>Net USD/oz</th>
 <th>Positive months</th><th>Training score</th><th>Failure diagnostics</th></tr></thead><tbody id="rows"></tbody></table></div>
+<h2>Matched-parameter research hypotheses</h2>
+<p>Single-parameter post-hoc TRAINING comparisons; not causal or independent OOS evidence.</p>
+<div class="wrap"><table><thead><tr><th>Generation</th><th>Parameter</th><th>From</th><th>To</th><th>Net delta USD/oz</th><th>Improved months</th><th>Research action</th></tr></thead><tbody id="hypotheses"></tbody></table></div>
 <script>
-let rows=[];const escapeHTML=x=>String(x).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-function render(){let q=document.getElementById('filter').value.toLowerCase();document.getElementById('rows').innerHTML=rows.filter(x=>JSON.stringify(x).toLowerCase().includes(q)).map(x=>'<tr>'+[x.g,x.id.substring(0,16),x.net,x.months,x.score,x.reason].map(t=>'<td>'+escapeHTML(t)+'</td>').join('')+'</tr>').join('');}
+let rows=[],contrasts=[];const escapeHTML=x=>String(x).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function cells(vals){return '<tr>'+vals.map(t=>'<td>'+escapeHTML(t)+'</td>').join('')+'</tr>';}
+function render(){const q=document.getElementById('filter').value.toLowerCase();
+document.getElementById('rows').innerHTML=rows.filter(x=>JSON.stringify(x).toLowerCase().includes(q)).map(x=>cells([x.g,x.id.substring(0,16),x.net,x.months,x.score,x.reason])).join('');
+document.getElementById('hypotheses').innerHTML=contrasts.filter(x=>JSON.stringify(x).toLowerCase().includes(q)).map(x=>cells([x.g,x.field,x.from,x.to,x.delta,x.months,x.action])).join('');
+}
 async function refresh(){try{let [sr,gr]=await Promise.all([fetch('/api/status',{cache:'no-store'}),fetch('/api/generations',{cache:'no-store'})]);if(!sr.ok||!gr.ok)throw Error('Verified evidence unavailable');let s=await sr.json(),gs=await gr.json();
 document.getElementById('state').textContent=s.state+(s.observation_stale?' (STALE)':'');
 document.getElementById('count').textContent=s.completed_generations;document.getElementById('updated').textContent=s.last_update_utc||'—';
-rows=gs.flatMap(g=>(g.items||[]).map(i=>({g:g.generation,id:i.identity,net:i.net_usd_per_oz,months:i.positive_months+'/'+i.total_months,score:i.training_score,reason:(i.failure_reasons||[]).join(', ')})));render();document.getElementById('error').textContent='';
+rows=gs.flatMap(g=>(g.items||[]).map(i=>({g:g.generation,id:i.identity,net:i.net_usd_per_oz,months:i.positive_months+'/'+i.total_months,score:i.training_score,reason:(i.failure_reasons||[]).join(', ')})));contrasts=gs.flatMap(g=>(g.hypotheses||[]).map(h=>({g:g.generation,field:h.changed_field,from:h.from_value,to:h.to_value,delta:h.training_net_delta_usd_per_oz,months:h.months_improved+'/'+h.total_months,action:h.next_action})));render();document.getElementById('error').textContent='';
 }catch(err){document.getElementById('error').textContent=err.message;}}
 document.getElementById('refresh').addEventListener('click',refresh);document.getElementById('filter').addEventListener('input',render);refresh();setInterval(refresh,15000);
 </script></main></body></html>""".encode("utf-8")
