@@ -28,6 +28,11 @@ def candles(df, rule, expected):
 
 def load_year(archive, year):
     df = pd.DataFrame(json.loads(archive.read(f"{year}.json")))
+    # Reject malformed timestamps before numeric comparisons can silently
+    # coerce a fractional epoch into an apparently valid M1 minute.
+    if (df.empty or "ts" not in df
+            or not pd.api.types.is_integer_dtype(df["ts"])):
+        raise ValueError("Original M1 timestamps must be nonempty integer UTC seconds")
     if (not df.ts.is_monotonic_increasing or df.ts.duplicated().any()
             or not np.all(np.diff(df.ts.to_numpy()) >= 60)
             or not (df.ts % 60 == 0).all()):
@@ -43,7 +48,15 @@ def load_year(archive, year):
             and (df.al <= df[["ao", "ac"]].min(axis=1)).all()
             and (df[["ao", "ac"]].max(axis=1) <= df.ah).all()):
         raise ValueError("Invalid original quote OHLC")
-    df.index = pd.to_datetime(df.ts, unit="s", utc=True)
+    observed_utc = pd.to_datetime(df.ts, unit="s", utc=True)
+    # A correctly named ZIP member is not evidence that it contains the
+    # requested year or all twelve calendar months. This is a necessary
+    # preflight only; missing trading minutes/closures remain separately gated.
+    if not (observed_utc.year == year).all():
+        raise ValueError("Original M1 archive member UTC year mismatch")
+    if set(observed_utc.month) != set(range(1, 13)):
+        raise ValueError("Original M1 year lacks all 12 UTC calendar months")
+    df.index = observed_utc
     return df
 
 
