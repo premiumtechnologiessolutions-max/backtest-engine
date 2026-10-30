@@ -58,12 +58,18 @@ historical archive cannot establish genuine prospective performance.
 
 ## Verification status and limits
 
-The source and synthetic contract tests were added on 2026-10-30. At the
-time of this documentation commit, the new runner **has not been executed**
-against the original private Gold ZIP, and its new tests have **not yet been
-confirmed by a GitHub CI result**. Previous successful CI runs on older
-commits do not certify this integration. Keep PR #1 Draft until actual full
-pytest/CI and original-archive replay parity pass.
+The new source and synthetic contract tests were added on 2026-10-30.
+**Full GitHub Actions Engine quality gates succeeded** at commit
+`e39696f50ec604d6ff0b985101d78afa99ddae13`:
+[run 40997760732](https://github.com/premiumtechnologiessolutions-max/backtest-engine/actions/runs/40997760732),
+**2,908 tests passed, one warning**; Python compilation, CLI smoke, and
+26-trade synthetic Reference/Fast parity also passed. This is CI evidence
+for the implementation, **not** original-source replay certification.
+
+The new runner **has not been executed against the original private Gold ZIP**
+in this run. Keep PR #1 Draft until the original-archive replay parity passes.
+A documentation-only commit after the tested SHA does not alter executable
+code, but should not be confused with a separate CI certification.
 
 This runner does not yet automatically feed audited results back into the
 evolution controller; that requires a separate verified training-evidence
