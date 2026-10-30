@@ -343,7 +343,9 @@ def test_zip_one_ask_quote_change_invalidates_frozen_file_and_quote_lineage(tmp_
 
 
 def test_zip_missing_year_and_incorrect_year_not_silently_trusted(tmp_path):
-    archive, frame, manifest, proposal = zip_fixtures(tmp_path,member="XAUUSD_2023.json")
+    archive, frame, manifest, proposal = zip_fixtures(tmp_path)
+    with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as zip:
+        zip.writestr("XAUUSD_2023.json", json.dumps(data_rows()))
     with pytest.raises(ValueError, match="lacks exactly one"):
         preflight_private_gold_zip_window(
             proposal, manifest, original_gold_zip=archive, observed_engine_commit=HEAD,
