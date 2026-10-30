@@ -13,6 +13,9 @@ from scripts.materialize_arithmetic_generation import (
 )
 from scripts.compile_arithmetic_training_feedback import compile_feedback
 from scripts.run_arithmetic_dispatch_training import SOURCE_SHA
+from scripts.research_equity_cold_storage import (
+    restore_equity_storage, freeze_equity_storage,
+)
 
 PLAN_SCHEMA = "NRFX_ARITHMETIC_CAMPAIGN_INTENT_V1"
 
@@ -86,10 +89,23 @@ def attest_cached_generation(original_input: Path, folder: Path, *,
     shards = sorted(folder.glob("replay_*"))
     if not shards or any(p.is_symlink() or not p.is_dir() for p in shards):
         raise ValueError("Cached generation has no safe annual replay shards")
-    result = compile_feedback(original_input, manifest, dispatch_dir,
-                              shards, next_input)
-    if result["status"] != "COMPLETE_EXPOSED_TRAINING_FEEDBACK_NOT_OOS":
-        raise ValueError("Cached generation failed annual re-audit")
+    cold_storage = folder / "equity_cold_storage.json"
+    if cold_storage.is_symlink():
+        raise ValueError("Unsafe cold storage manifest")
+    # Archived raw equity must be recovered and independently re-audited,
+    # never trusted merely because a compressed digest exists.
+    if cold_storage.is_file():
+        restore_equity_storage(folder)
+    try:
+        result = compile_feedback(original_input, manifest, dispatch_dir,
+                                  shards, next_input)
+        if result["status"] != "COMPLETE_EXPOSED_TRAINING_FEEDBACK_NOT_OOS":
+            raise ValueError("Cached generation failed annual re-audit")
+    finally:
+        if cold_storage.is_file():
+            # Re-compress only after all original bytes have been restored
+            # with SHA validation. This preserves the compact cold state.
+            freeze_equity_storage(folder, prune_raw=True)
     return {
         "training_input_sha256": original_sha,
         "next_input_sha256": result["next_input_sha256"],
