@@ -8,10 +8,6 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 import json
-import os
-import stat
-import fcntl
-from contextlib import contextmanager
 
 from scripts.run_arithmetic_evolution import run as generate
 from scripts.materialize_arithmetic_generation import materialize, _load_strict
@@ -21,6 +17,7 @@ from scripts.run_arithmetic_dispatch_training import (
 from scripts.compile_arithmetic_training_feedback import (
     compile_feedback, _checked_index,
 )
+from scripts.research_batch_orchestrator import exclusive_batch_lock as _exclusive_research_lock
 
 
 def _real_file(path: Path) -> Path:
@@ -40,37 +37,6 @@ def _real_directory(path: Path) -> Path:
     return path
 
 
-
-@contextmanager
-def _exclusive_research_lock(root: Path):
-    """One nonblocking POSIX writer per private output root; no stale PID locks.
-
-    The lock inode persists, but kernel flock is released even after crashes.
-    Never unlink it: unlinking a live lock would permit a second writer.
-    """
-    lock = root / ".nrfx_research.lock"
-    if lock.is_symlink():
-        raise ValueError("Symlink research lock forbidden")
-    try:
-        fd = os.open(lock, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC,
-                     0o600)
-    except OSError as exc:
-        raise ValueError("Cannot safely open research lock") from exc
-    try:
-        info = os.fstat(fd)
-        if (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1
-                or info.st_mode & 0o077):
-            raise ValueError("Research lock must be a private regular file")
-        try:
-            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError as exc:
-            raise ValueError("Research output root already has an active writer") from exc
-        try:
-            yield
-        finally:
-            fcntl.flock(fd, fcntl.LOCK_UN)
-    finally:
-        os.close(fd)
 
 
 def _prior_shard(directory: Path, dispatch: dict, year: int, start: int,
