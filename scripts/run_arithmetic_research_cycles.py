@@ -88,6 +88,24 @@ def _prior_shard(directory: Path, dispatch: dict, year: int, start: int,
         raise ValueError("Pre-existing shard does not match frozen replay window")
 
 
+def _outside_checkout(path: Path) -> None:
+    """Do not put private source-derived ledgers in any Git working tree."""
+    for parent in (path, *path.parents):
+        if (parent / ".git").exists() or (parent / ".git").is_symlink():
+            raise ValueError("Private research outputs cannot live in a Git checkout")
+
+
+def _preflight_capacity(training_input: Path, proposal_count: int) -> None:
+    """Do not start expensive backtests if feedback exceeds the 128-candidate cap."""
+    source, _ = _load_strict(training_input)
+    if (type(source) is not dict or source.get("schema") !=
+            "NRFX_ARITHMETIC_TRAINING_INPUT_V1"
+            or type(source.get("candidates")) is not list):
+        raise ValueError("Unexpected frozen training input before replay")
+    if len(source["candidates"]) + proposal_count > 128:
+        raise ValueError("Next-generation candidate pool would exceed 128")
+
+
 def run_cycles(training_input: Path, source_zip: Path, output_root: Path, *,
                seed: int, first_generation: int, generations: int,
                proposal_count: int, shard_size: int = 8) -> dict:
@@ -111,12 +129,14 @@ def run_cycles(training_input: Path, source_zip: Path, output_root: Path, *,
             or root.is_relative_to(training_input.resolve())
             or root.is_relative_to(source_zip.resolve())):
         raise ValueError("Research outputs must be separate from frozen inputs")
+    _outside_checkout(output_root.resolve())
     output_root.mkdir(parents=True, exist_ok=True)
     with _exclusive_research_lock(output_root):
         initial_input = training_input
         completed = []
         for offset in range(generations):
             generation = first_generation + offset
+            _preflight_capacity(initial_input, proposal_count)
             folder = _real_directory(output_root / f"generation_{generation:04d}")
             folder.mkdir(parents=True, exist_ok=True)
             manifest_path = folder / "generation.json"
