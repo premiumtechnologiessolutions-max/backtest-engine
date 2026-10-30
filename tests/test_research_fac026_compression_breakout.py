@@ -24,9 +24,9 @@ def fixture(side=1):
             m.append(candle(end, 100, 100.4, 99.6, 100, 15))
         else:
             if side == 1:
-                m.append(candle(end, 100.4, 100.8, 100.3, 100.7, 15))
+                m.append(candle(end, 100.42, 100.57, 100.41, 100.55, 15))
             else:
-                m.append(candle(end, 99.6, 99.7, 99.2, 99.3, 15))
+                m.append(candle(end, 99.58, 99.59, 99.43, 99.45, 15))
     # Last completed H1 ends 13:00, strictly before trigger M15 end 13:15.
     h = []
     for i in range(3):
@@ -84,7 +84,8 @@ def test_preknown_fail_closed(change, reason):
     if change == "incomplete":
         m[-2]["observed_m1_count"] = 14
     elif change == "gap":
-        m[-4]["end_at"] -= timedelta(minutes=15)
+        for bar in m[:-4]:
+            bar["end_at"] -= timedelta(minutes=15)
     elif change == "compression":
         for x in m[8:16]:
             x["high"], x["low"] = 101, 99
