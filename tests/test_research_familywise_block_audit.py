@@ -53,7 +53,7 @@ def test_reject_invalid_universe(matrix, ids):
 
 
 @pytest.mark.parametrize("kwargs", [
-    {"block_length": 0}, {"block_length": 13},
+    {"block_length": 0}, {"block_length": 5}, {"block_length": 13},
     {"block_length": True}, {"replicates": 998},
     {"replicates": True}, {"replicates": 20001},
     {"seed": -1}, {"seed": True}, {"seed": 2**63},
