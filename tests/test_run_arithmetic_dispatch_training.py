@@ -47,7 +47,8 @@ def prepared(tmp_path, monkeypatch):
 
 
 def _fake_cli(command, *, check, capture_output, text, tamper=False,
-              corrupt_both=False, monthly_corruption=None):
+              corrupt_both=False, monthly_corruption=None,
+              weekly_corruption=None):
     assert check and capture_output and text
     assert command[:3] == [__import__("sys").executable, "-m", "norisk_quant.cli"]
     assert "--strategy" in command and command[command.index("--strategy") + 1] == "arithmetic"
@@ -65,6 +66,8 @@ def _fake_cli(command, *, check, capture_output, text, tamper=False,
         },
         "source_fingerprints": {"loaded_m1_bidask_sha256": "a" * 64},
         "months_with_m1_observations": 12,
+        "start_utc": "2012-01-01T00:00:00+00:00",
+        "end_utc": "2012-12-31T23:59:00+00:00",
         "trades": 1, "net_pnl": -0.4, "total_fees": 0.4,
         "positive_months": 0, "months_observed": 12,
         "max_drawdown_observed_m1": 0.4,
@@ -109,8 +112,28 @@ def _fake_cli(command, *, check, capture_output, text, tamper=False,
     elif monthly_corruption == "wrong_wins":
         monthly.loc[0, "wins"] = 1
     monthly.to_csv(target / "monthly.csv", index=False)
-    pd.DataFrame({"period": ["2012-01-01"], "net_pnl": [-0.4]}).to_csv(
-        target / "weekly.csv", index=False)
+    weeks = pd.period_range("2012-01-01", "2012-12-31", freq="W-SUN")
+    weekly = pd.DataFrame({
+        "period": [str(week) for week in weeks],
+        "net_pnl": [-0.4] + [0.0] * (len(weeks) - 1),
+        "total_cost": [0.4] + [0.0] * (len(weeks) - 1),
+        "trades": [1] + [0] * (len(weeks) - 1),
+        "wins": [0] * len(weeks),
+    })
+    if weekly_corruption == "offsetting_net":
+        weekly.loc[0, "net_pnl"] = -0.2
+        weekly.loc[1, "net_pnl"] = -0.2
+    elif weekly_corruption == "missing_zero_week":
+        weekly = weekly.drop(index=1)
+    elif weekly_corruption == "duplicate_week":
+        weekly.loc[1, "period"] = weekly.loc[0, "period"]
+    elif weekly_corruption == "wrong_fee":
+        weekly.loc[0, "total_cost"] = 0.3
+    elif weekly_corruption == "wrong_trade_count":
+        weekly.loc[0, "trades"] = 0
+    elif weekly_corruption == "wrong_wins":
+        weekly.loc[0, "wins"] = 1
+    weekly.to_csv(target / "weekly.csv", index=False)
     pd.DataFrame({"time": ["2012-01-01T00:02:00Z"],
                   "equity": [-0.4]}).to_csv(target / "equity_m1.csv", index=False)
     pd.DataFrame(columns=["gap_start", "gap_end"]).to_csv(
@@ -223,6 +246,26 @@ def test_same_corruption_in_both_engines_cannot_fake_monthly_stability(
     monkeypatch.setattr("scripts.run_arithmetic_dispatch_training.subprocess.run",
                         fake_run)
     with pytest.raises(ValueError, match="Monthly ledger"):
+        execute(source, generation, dispatch, archive, digest, 2012, out,
+                limit=1)
+    assert not out.exists()
+    assert not list(out.parent.glob(".nrfx_arithmetic_training_*"))
+
+
+@pytest.mark.parametrize("corruption", [
+    "offsetting_net", "missing_zero_week", "duplicate_week",
+    "wrong_fee", "wrong_trade_count", "wrong_wins",
+])
+def test_identical_weekly_corruption_in_both_engines_is_rejected(
+        prepared, monkeypatch, corruption):
+    source, generation, dispatch, archive, digest, out = prepared
+
+    def fake_run(command, **kwargs):
+        _fake_cli(command, weekly_corruption=corruption, **kwargs)
+
+    monkeypatch.setattr("scripts.run_arithmetic_dispatch_training.subprocess.run",
+                        fake_run)
+    with pytest.raises(ValueError, match="Weekly ledger"):
         execute(source, generation, dispatch, archive, digest, 2012, out,
                 limit=1)
     assert not out.exists()
