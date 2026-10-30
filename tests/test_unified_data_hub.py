@@ -50,6 +50,7 @@ def terminal_meta():
 def test_original_m1_metadata_has_no_tick_or_authentication_claim():
     row = register_original_gold_m1(gold_meta())
     assert row.family == "original_gold_m1_bidask"
+    assert row.source_claim == "ORIGINAL_M1_DECLARED"
     assert row.instrument == "XAUUSD"
     assert row.account_currency is None
     assert row.execution == "NONE"
@@ -64,6 +65,7 @@ def test_original_m1_metadata_has_no_tick_or_authentication_claim():
 def test_terminal_usc_scope_and_quote_fingerprints_remain_separate():
     item = register_terminal_tick_evidence(terminal_meta())
     assert item.family == "private_terminal_bidask_ticks"
+    assert item.source_claim == "BROKER_HISTORY_DECLARED"
     assert item.asset == "XAUUSD"
     assert item.account_currency == "USC"
     assert item.quote_currency == "USD"
@@ -138,7 +140,7 @@ def test_same_feed_changed_account_currency_changes_manifest():
     ("last_utc", "2026-10-28T12:00:00Z", "interval"),
     ("account_currency_label", "USD01", "account_currency"),
     ("quote_currency_label", "EUR", "Quote currency"),
-    ("symbol_declared", "EURUSD-STDc", "Quote currency"),
+    ("symbol_declared", "USDJPY-STDc", "Quote currency"),
     ("symbol_declared", "XAUUSD-STDc hacked", "symbol_declared"),
 ])
 def test_broker_metadata_fails_closed(key, bad, match):
@@ -165,6 +167,7 @@ def test_no_synthetic_unless_opted_in():
     # The source remains UNVERIFIED; synthetic opt-in is never evidence of broker execution.
     assert row.source_authentication == "NOT_VERIFIED"
     assert row.execution == "NONE"
+    assert row.source_claim == "SYNTHETIC"
 
 
 def test_m1_prevents_timestamp_with_seconds_and_invalid_origin():
