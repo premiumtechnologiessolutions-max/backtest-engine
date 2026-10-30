@@ -4,6 +4,8 @@ on:
     paths:
       - 'src/norisk_quant/research_control_plane.py'
       - 'tests/test_research_control_plane.py'
+      - 'tests/test_aiquantlab_import_cli.py'
+      - 'scripts/import_aiquantlab_hypothesis.py'
       - '.github/workflows/unified-research-control-plane.yml'
   workflow_dispatch:
 permissions:
@@ -25,9 +27,9 @@ jobs:
       - name: Install pinned canonical quant dependencies
         run: python -m pip install -c constraints-ci.txt -e '.[dev]'
       - name: Compile research-control module
-        run: python -m compileall -q src/norisk_quant/research_control_plane.py
+        run: python -m compileall -q src/norisk_quant/research_control_plane.py scripts/import_aiquantlab_hypothesis.py
       - name: Run concurrency, restart, policy, no-trading tests
-        run: python -m pytest -q tests/test_research_control_plane.py tests/test_registry.py
+        run: python -m pytest -q tests/test_research_control_plane.py tests/test_aiquantlab_import_cli.py tests/test_registry.py
   full-canonical:
     runs-on: ubuntu-latest
     timeout-minutes: 20
