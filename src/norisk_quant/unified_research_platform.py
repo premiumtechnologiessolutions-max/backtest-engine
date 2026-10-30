@@ -13,12 +13,54 @@ before exposing any snapshot. Do not pass raw snapshots to client browsers.
 from __future__ import annotations
 
 from typing import Any
+from dataclasses import dataclass
+from pathlib import Path
+import sqlite3
 
 from .integrations.unified_source_intake import ingest_terminal_snapshot
 from .research_control_plane import ResearchQueue
 from .source_registry import (
     SourceRegistry, verify_record_manifest,
 )
+
+
+@dataclass(frozen=True)
+class ExistingResearchQueueStatus:
+    """SQLite status-only reader. Does not initialize a queue or take leases.
+
+    No schema creation, BEGIN IMMEDIATE, heartbeat, queue resume, mutation
+    or task payload exposure. The local operator must enforce owner-only
+    source file permissions before construction.
+    """
+    path: Path
+
+    def counts(self) -> dict[str, int | bool]:
+        source = Path(self.path)
+        if source.is_symlink() or not source.is_file():
+            raise ValueError("Expected an existing original local research queue")
+        uri = source.resolve().as_uri() + "?mode=ro"
+        try:
+            with sqlite3.connect(uri,uri=True,timeout=3) as db:
+                db.execute("PRAGMA query_only=ON")
+                pause = db.execute(
+                    "SELECT value FROM control WHERE key='paused'"
+                ).fetchone()
+                if pause is None or pause[0] not in ("0","1"):
+                    raise ValueError("Invalid research operator pause status")
+                status: dict[str, int | bool] = {
+                    key: 0 for key in
+                    ("queued","leased","completed","rejected","exhausted")
+                }
+                for state, count in db.execute(
+                    "SELECT state, COUNT(*) FROM research_jobs GROUP BY state"
+                ).fetchall():
+                    if state not in status or type(count) is not int or count < 0:
+                        raise ValueError("Unrecognized research queue state")
+                    status[state] = count
+                status["paused"] = pause[0] == "1"
+                return status
+        except sqlite3.Error as exc:
+            raise ValueError("Unreadable private research queue metadata") from exc
 
 
 class UnifiedResearchPlatform:
@@ -29,9 +71,10 @@ class UnifiedResearchPlatform:
     authenticated service must version and persist source records properly.
     """
 
-    def __init__(self, *, queue: ResearchQueue, sources: SourceRegistry | None = None) -> None:
-        if not isinstance(queue, ResearchQueue):
-            raise TypeError("ResearchQueue is required")
+    def __init__(self, *, queue: ResearchQueue | ExistingResearchQueueStatus,
+                 sources: SourceRegistry | None = None) -> None:
+        if not isinstance(queue, (ResearchQueue, ExistingResearchQueueStatus)):
+            raise TypeError("ResearchQueue or ExistingResearchQueueStatus is required")
         if sources is not None and not isinstance(sources, SourceRegistry):
             raise TypeError("SourceRegistry is required")
         self.queue = queue
