@@ -135,15 +135,16 @@ def _fake_cli(command, *, check, capture_output, text, tamper=False,
         weekly.loc[0, "wins"] = 1
     weekly.to_csv(target / "weekly.csv", index=False)
     # Synthetic observed marks span all 12 months; gaps are NOT filled.
-    observed = (["2012-01-01T00:00:00Z", "2012-01-01T00:02:00Z"]
+    observed = (["2012-01-01T00:00:00Z", "2012-01-01T00:01:00Z",
+                 "2012-01-01T00:02:00Z"]
                 + [f"2012-{month:02d}-01T00:00:00Z" for month in range(2, 12)]
                 + ["2012-12-31T23:59:00Z"])
     equity = pd.DataFrame({
         "at": observed,
-        "realized_pnl": [0.0] + [-0.4] * (len(observed) - 1),
+        "realized_pnl": [0.0, 0.0] + [-0.4] * (len(observed) - 2),
         "floating_pnl": [0.0] * len(observed),
-        "equity": [0.0] + [-0.4] * (len(observed) - 1),
-        "drawdown": [0.0] + [0.4] * (len(observed) - 1),
+        "equity": [0.0, 0.0] + [-0.4] * (len(observed) - 2),
+        "drawdown": [0.0, 0.0] + [0.4] * (len(observed) - 2),
     })
     if equity_corruption == "wrong_drawdown":
         equity.loc[1, "drawdown"] = 0.2
@@ -155,6 +156,8 @@ def _fake_cli(command, *, check, capture_output, text, tamper=False,
         equity = pd.concat([equity.iloc[:2], equity.iloc[[1]], equity.iloc[2:]],
                            ignore_index=True)
     elif equity_corruption == "missing_exit_mark":
+        equity = equity.drop(index=2)
+    elif equity_corruption == "missing_entry_mark":
         equity = equity.drop(index=1)
     elif equity_corruption == "wrong_summary_dd":
         summary["max_drawdown_observed_m1"] = 0.3
@@ -301,7 +304,8 @@ def test_identical_weekly_corruption_in_both_engines_is_rejected(
 
 @pytest.mark.parametrize("corruption", [
     "wrong_drawdown", "shift_realized", "duplicate_minute",
-    "missing_exit_mark", "wrong_summary_dd", "wrong_last_equity",
+    "missing_exit_mark", "missing_entry_mark",
+    "wrong_summary_dd", "wrong_last_equity",
 ])
 def test_identical_m1_equity_corruption_in_both_engines_is_rejected(
         prepared, monkeypatch, corruption):

@@ -274,7 +274,10 @@ def _verify_m1_equity(trades: pd.DataFrame, marks: pd.DataFrame,
     if len(trades):
         closes = pd.to_datetime(trades["closed_at"], utc=True, errors="raise")
         entries = pd.to_datetime(trades["entry_at"], utc=True, errors="raise")
+        # A canonical M1 fill requires an observed source bar at its entry
+        # minute. Bounds-only checks accept fabricated fills inside quote gaps.
         if (not closes.isin(timestamps).all()
+                or not entries.isin(timestamps).all()
                 or (entries < timestamps.iloc[0]).any()
                 or (closes > timestamps.iloc[-1]).any()):
             raise ValueError("M1 equity missing observed trade close or entry coverage")
