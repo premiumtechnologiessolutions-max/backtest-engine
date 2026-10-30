@@ -72,7 +72,7 @@ def _fake_cli(command, *, check, capture_output, text, tamper=False,
         "positive_months": 0, "months_observed": 12,
         "max_drawdown_observed_m1": 0.4,
         "last_observed_equity": -0.4, "last_observed_realized_pnl": -0.4,
-        "accounting_checks": {"status": "PASSED"},
+        "accounting_checks": "PASSED",
         "forced_end_of_data_closures": 0,
         "same_entry_bar_target_deferred": 0,
         "trades_exposed_to_uncertain_gaps": 0,
@@ -313,6 +313,44 @@ def test_identical_m1_equity_corruption_in_both_engines_is_rejected(
     monkeypatch.setattr("scripts.run_arithmetic_dispatch_training.subprocess.run",
                         fake_run)
     with pytest.raises(ValueError, match="M1 equity"):
+        execute(source, generation, dispatch, archive, digest, 2012, out,
+                limit=1)
+    assert not out.exists()
+    assert not list(out.parent.glob(".nrfx_arithmetic_training_*"))
+
+
+@pytest.mark.parametrize("corruption", [
+    "accounting_failed", "accounting_object", "bad_bidask_fingerprint",
+    "negative_forced_count", "excess_gap_count", "noninteger_trades",
+])
+def test_identical_invalid_canonical_summary_is_not_certified(
+        prepared, monkeypatch, corruption):
+    """Both engines can agree on invalid evidence; agreement is insufficient."""
+    source, generation, dispatch, archive, digest, out = prepared
+
+    def fake_run(command, **kwargs):
+        _fake_cli(command, **kwargs)
+        target = Path(command[command.index("--out") + 1])
+        summary_path = target / "summary.json"
+        summary = json.loads(summary_path.read_text())
+        if corruption == "accounting_failed":
+            summary["accounting_checks"] = "FAILED"
+        elif corruption == "accounting_object":
+            summary["accounting_checks"] = {"status": "PASSED"}
+        elif corruption == "bad_bidask_fingerprint":
+            summary["source_fingerprints"]["loaded_m1_bidask_sha256"] = "not-a-sha"
+        elif corruption == "negative_forced_count":
+            summary["forced_end_of_data_closures"] = -1
+        elif corruption == "excess_gap_count":
+            summary["trades_exposed_to_uncertain_gaps"] = 2
+        elif corruption == "noninteger_trades":
+            summary["trades"] = 1.0
+        summary_path.write_text(json.dumps(summary))
+
+    monkeypatch.setattr("scripts.run_arithmetic_dispatch_training.subprocess.run",
+                        fake_run)
+    with pytest.raises(ValueError, match=(
+            "accounting|fingerprint|count|trade count")):
         execute(source, generation, dispatch, archive, digest, 2012, out,
                 limit=1)
     assert not out.exists()
