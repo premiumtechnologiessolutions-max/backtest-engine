@@ -126,3 +126,57 @@ def test_parity_sample_budget_fails_closed(budget):
     with pytest.raises(ValueError, match="sample budget"):
         parity_for_variant(sample(600), 8, .8, .35, (9, 13),
                            negative_per_month=budget)
+
+
+def _calendar_member(year=2012):
+    """Tiny synthetic annual calendar; tests membership, NOT M1 completeness."""
+    rows = []
+    for month in range(1, 13):
+        ts = int(pd.Timestamp(year=year, month=month, day=2,
+                              tz="UTC").timestamp())
+        rows.append({
+            "ts": ts, "o": 100.0, "h": 101.0, "l": 99.0, "c": 100.0,
+            "ao": 100.4, "ah": 101.4, "al": 99.4, "ac": 100.4,
+        })
+    return rows
+
+
+def _read_synthetic_member(tmp_path, rows):
+    path = tmp_path / "calendar.zip"
+    with zipfile.ZipFile(path, "w") as archive:
+        archive.writestr("2012.json", json.dumps(rows))
+    with zipfile.ZipFile(path) as archive:
+        return load_year(archive, 2012)
+
+
+def test_source_calendar_preflight_accepts_twelve_utc_months(tmp_path):
+    df = _read_synthetic_member(tmp_path, _calendar_member())
+    assert len(df) == 12
+    assert df.index.year.unique().tolist() == [2012]
+    assert df.index.month.tolist() == list(range(1, 13))
+
+
+def test_source_calendar_preflight_rejects_missing_month(tmp_path):
+    rows = _calendar_member()
+    with pytest.raises(ValueError, match="all 12 UTC calendar months"):
+        _read_synthetic_member(tmp_path, [r for r in rows
+                                         if pd.Timestamp(r["ts"], unit="s",
+                                                         tz="UTC").month != 7])
+
+
+def test_source_calendar_preflight_rejects_wrong_utc_year(tmp_path):
+    with pytest.raises(ValueError, match="UTC year mismatch"):
+        _read_synthetic_member(tmp_path, _calendar_member(2013))
+
+
+@pytest.mark.parametrize("replacement", [0.5, None, "1325545200"])
+def test_source_calendar_preflight_rejects_noninteger_epoch(tmp_path, replacement):
+    rows = _calendar_member()
+    rows[0]["ts"] = replacement
+    with pytest.raises(ValueError, match="integer UTC seconds"):
+        _read_synthetic_member(tmp_path, rows)
+
+
+def test_source_calendar_preflight_rejects_empty_member(tmp_path):
+    with pytest.raises(ValueError, match="integer UTC seconds"):
+        _read_synthetic_member(tmp_path, [])
