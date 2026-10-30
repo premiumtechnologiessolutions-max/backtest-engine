@@ -9,7 +9,7 @@ from scripts import run_arithmetic_research_cycles as cycles
 @pytest.fixture
 def harness(tmp_path, monkeypatch):
     source = tmp_path / "training.json"
-    source.write_text(json.dumps({"schema": "NRFX_ARITHMETIC_TRAINING_INPUT_V1", "candidates": []}), encoding="utf-8")
+    source.write_text(json.dumps({"schema": "NRFX_ARITHMETIC_TRAINING_INPUT_V1", "candidates": [{}]}), encoding="utf-8")
     gold = tmp_path / "Gold data.zip"
     gold.write_bytes(b"fixture-not-market-data")
     output = tmp_path / "research"
@@ -38,7 +38,7 @@ def harness(tmp_path, monkeypatch):
     def feedback(inp, manifest, directory, shards, next_input):
         calls.append(("feedback", len(shards)))
         if not next_input.exists():
-            next_input.write_text(json.dumps({"schema": "NRFX_ARITHMETIC_TRAINING_INPUT_V1", "candidates": []}), encoding="utf-8")
+            next_input.write_text(json.dumps({"schema": "NRFX_ARITHMETIC_TRAINING_INPUT_V1", "candidates": [{}]}), encoding="utf-8")
         return {"status": "COMPLETE_EXPOSED_TRAINING_FEEDBACK_NOT_OOS",
                 "next_input_sha256": "b" * 64}
 
