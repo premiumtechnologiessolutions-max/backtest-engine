@@ -42,7 +42,14 @@ def _formula(raw: object) -> Formula:
     if type(raw) is not dict or set(raw) != set(Formula.__dataclass_fields__):
         raise ValueError("Each formula requires exactly the frozen grammar fields")
     try:
-        return Formula(**raw)
+        validated = Formula(**raw)
+        # The grammar accepts both 1 and 1.0 for continuous parameters.
+        # They have identical trading semantics but distinct JSON digests;
+        # normalize before deduplication, lineage, and evidence hashing.
+        canonical = asdict(validated)
+        for field in ("threshold", "stop_usd", "reward_risk"):
+            canonical[field] = float(canonical[field])
+        return Formula(**canonical)
     except (TypeError, ValueError) as exc:
         raise ValueError("Invalid arithmetic formula") from exc
 
