@@ -84,7 +84,89 @@ def signals(df, n, compression, efficiency, session):
     return observed_triggers, observed_triggers[eligible_next_open.isin(df.index)]
 
 
-def run(path, years=(2012, 2013)):
+
+
+def parity_for_variant(df, n, compression, efficiency, session, *, raw=None,
+                       negative_per_month=8):
+    """Independently compare ALL vectorized positives and sampled negatives.
+
+    Only frozen pre-halt structural intents are checked. This is not a trade,
+    next-open fill, complete negative scan, or a portfolio backtest.
+    No quote values or individual timestamps are returned.
+    """
+    from scripts.research_fac026_compression_breakout import evaluate, frozen_specs
+
+    if type(negative_per_month) is not int or not 1 <= negative_per_month <= 64:
+        raise ValueError("Invalid deterministic parity sample budget")
+    key = (n, compression, efficiency, tuple(session))
+    candidates = [s for s in frozen_specs()
+                  if (s["params"]["window"], s["params"]["compression"],
+                      s["params"]["h1_efficiency"],
+                      tuple(s["params"]["session"])) == key
+                  and s["params"]["daily_loss_halt"] == 2.0]
+    if len(candidates) != 1:
+        raise ValueError("Not a frozen FAC026 structural variant")
+    spec = candidates[0]
+    if raw is None:
+        raw, _ = signals(df, n, compression, efficiency, session)
+    positives = set(raw)
+    m = candles(df, "15min", 15)
+    h = candles(df, "1h", 60)
+
+    def context(end):
+        mb = m.loc[:end].tail(2 * n + 1)
+        hb = h.loc[:end].tail(3)
+        if len(mb) != 2 * n + 1 or len(hb) != 3:
+            return None
+        if not mb.full.all() or not hb.full.all():
+            return None
+        if not (mb.index.to_series().diff().iloc[1:] ==
+                pd.Timedelta(minutes=15)).all():
+            return None
+        if not (hb.index.to_series().diff().iloc[1:] ==
+                pd.Timedelta(hours=1)).all():
+            return None
+        def records(frame):
+            return [{"end_at": end_at.to_pydatetime(),
+                     "open": float(row.o), "high": float(row.h),
+                     "low": float(row.l), "close": float(row.c),
+                     "observed_m1_count": int(row.n)}
+                    for end_at, row in frame.iterrows()]
+        return records(mb), records(hb)
+
+    negatives = set()
+    for year, month in sorted({(t.year, t.month) for t in m.index}):
+        choices = [end for end in m.index
+                   if end.year == year and end.month == month
+                   and end not in positives
+                   and session[0] <= (end + pd.Timedelta(minutes=1))
+                   .tz_convert("America/New_York").hour < session[1]
+                   and context(end) is not None]
+        stride = max(1, len(choices) // negative_per_month)
+        negatives.update(choices[::stride][:negative_per_month])
+    positive_checks = negative_checks = 0
+    for end in sorted(positives | negatives):
+        bars = context(end)
+        if bars is None:
+            if end in positives:
+                raise ValueError("FAC026 scanner positive lacks causal context")
+            continue
+        result = evaluate((end + pd.Timedelta(minutes=1)).to_pydatetime(),
+                          bars[0], bars[1], [], spec=spec)
+        actual = result["status"] == "ELIGIBLE_RESEARCH_INTENT_ONLY"
+        expected = end in positives
+        if actual != expected:
+            raise ValueError("FAC026 vectorized/frozen evaluator signal mismatch")
+        if expected:
+            positive_checks += 1
+        else:
+            negative_checks += 1
+    return {"positive_checks": positive_checks,
+            "sampled_negative_checks": negative_checks,
+            "negative_sampling": "deterministic_month_stratified_not_exhaustive",
+            "daily_halt_evaluated": False, "executed_trades": 0}
+
+def run(path, years=(2012, 2013), *, parity=False):
     if (not years or len(set(years)) != len(years)
             or any(type(year) is not int or year not in (2012, 2013)
                    for year in years)):
@@ -115,6 +197,12 @@ def run(path, years=(2012, 2013)):
                 unique_next_opens.update(available)
                 monthly = pd.Series(1, index=available).groupby(
                     available.tz_localize(None).to_period("M")).sum()
+                if parity:
+                    detail.setdefault("causal_evaluator_parity", []).append({
+                        "window": n, "compression": c, "h1_efficiency": e,
+                        "session": list(session),
+                        **parity_for_variant(df, n, c, e, session, raw=triggers),
+                    })
                 detail["settings"].append({
                     "window": n, "compression": c, "h1_efficiency": e,
                     "session": list(session),
@@ -135,8 +223,10 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("zip", type=Path, help="Local original Gold data.zip; NEVER upload")
     parser.add_argument("--out", type=Path, default=Path("fac026_structural.json"))
+    parser.add_argument("--parity", action="store_true",
+                        help="Independently audit frozen evaluator vs vectorized signals")
     args = parser.parse_args(argv)
-    result = run(args.zip)
+    result = run(args.zip, parity=args.parity)
     args.out.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
     for year, detail in result["years_detail"].items():
         print(year, "M1", detail["observed_m1"],
