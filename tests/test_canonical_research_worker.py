@@ -180,6 +180,14 @@ def test_successful_canonical_auditor_only_commits_artifact_pointer(tmp_path,mon
         (folder/"batch_manifest.json").write_bytes(b'{"simulation":"historical-only"}')
         return {"executed_this_invocation":1,"reconciled_jobs":1}
     monkeypatch.setattr(batch,"run_plan",audited)
+    # This legacy test mocks the runner: the separate B09 suite below
+    # exercises actual on-disk independent attestation end-to-end.
+    from types import SimpleNamespace
+    def attest(plan,folder,**kwargs):
+        assert kwargs["expected_experiment_id"]==id_
+        assert kwargs["source_manifest_id"]=="c"*64
+        return SimpleNamespace(manifest_sha256=sha256(b'{"simulation":"historical-only"}').hexdigest())
+    monkeypatch.setattr(worker,"verify_frozen_batch_evidence",attest)
     result=execute_one_approved_job(
         q,source_manifest={},data_zip=src,checkout=tmp_path,output_root=out,
     )
@@ -209,7 +217,7 @@ def test_missing_ledger_artifact_cannot_mark_queue_completed(tmp_path,monkeypatc
     def fake(plan,folder,**kwargs):
         return {"executed_this_invocation":1,"reconciled_jobs":1}
     monkeypatch.setattr(batch,"run_plan",fake)
-    with pytest.raises(ValueError,match="Missing bounded"):
+    with pytest.raises(ValueError,match="Missing or unsafe"):
         execute_one_approved_job(q,source_manifest={},data_zip=src,checkout=tmp_path,output_root=out)
     assert q.status(id_)["state"]=="rejected"
     assert q.status(id_)["profitability_verified"] is False
@@ -402,8 +410,11 @@ def test_real_canonical_runner_creates_audited_month_week_trade_files(tmp_path,m
     assert len(manifest["results"])==1
     runs=list((root/"runs").iterdir())
     assert len(runs)==1
-    for file in ("summary.json","trades.csv","weekly.csv","monthly.csv"):
+    for file in ("summary.json","trades.csv","weekly.csv","monthly.csv",
+                 "gap_catalogue.csv","equity_m1.csv"):
         assert (runs[0]/file).is_file(),file
+        if os.name == "posix":
+            assert (runs[0]/file).stat().st_mode & 0o077 == 0, file
     assert q.status(id_)["state"]=="completed"
     assert q.status(id_)["risk_approved"] is False
     assert q.counts()["completed"]==1

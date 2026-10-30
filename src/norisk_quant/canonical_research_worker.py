@@ -13,7 +13,6 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
-from hashlib import sha256
 import json
 import os
 import stat
@@ -27,6 +26,7 @@ from .research_control_plane import (
 )
 from .research_source_loader import preflight_private_gold_zip_window
 from .research_source_preflight import inspect_local_checkout
+from .frozen_batch_attestation import verify_frozen_batch_evidence
 
 # Only code-implemented audited *canonical* strategy families may execute.
 # No aliases, unsafe Python expressions, native agent strategy names or
@@ -225,13 +225,16 @@ def execute_one_approved_job(
             )
         if result["executed_this_invocation"] != 1 or result["reconciled_jobs"] != 1:
             raise ValueError("Canonical runner did not reconcile one fresh research ledger")
-        artifact = folder / "batch_manifest.json"
-        if artifact.is_symlink() or not artifact.is_file() or artifact.stat().st_size > MAX_OUTPUT_JOB_BYTES:
-            raise ValueError("Missing bounded canonical audit manifest")
-        content = artifact.read_bytes()
-        if not content:
-            raise ValueError("Empty audited canonical manifest")
-        evidence_sha = sha256(content).hexdigest()
+        # Independently re-read the original frozen plan and on-disk
+        # trade/week/month files; do not trust run_plan's claimed counters.
+        # This is still historical reference-model consistency, NOT OOS
+        # or verified real broker fills.
+        attestation = verify_frozen_batch_evidence(
+            checked["plan"], folder,
+            expected_experiment_id=lease.job_id,
+            source_manifest_id=checked["source_manifest_id"],
+        )
+        evidence_sha = attestation.manifest_sha256
         accepted = queue.finish(
             lease, now=datetime.now(timezone.utc),
             result={
