@@ -174,3 +174,20 @@ def test_private_cli_rejects_untrusted_source(tmp_path):
     with pytest.raises(SystemExit) as exc:
         main([str(sample)])
     assert exc.value.code == 2
+
+
+@pytest.mark.parametrize("case", ["changed_tick", "changed_declared_factor", "missing_claim", "nonfinite_declared_factor"])
+def test_vt_cent_denomination_cannot_be_spoofed(case):
+    row = fixture()
+    if case == "changed_tick":
+        row["ticks"][1]["quote_to_account"] = 1
+    elif case == "changed_declared_factor":
+        row["source_evidence"]["denomination_factor"] = 1
+        for tick in row["ticks"]:
+            tick["quote_to_account"] = 1
+    elif case == "missing_claim":
+        row["source_evidence"].pop("account_kind")
+    else:
+        row["source_evidence"]["denomination_factor"] = float("inf")
+    with pytest.raises(ValueError, match="USC|Cent|denomination"):
+        import_terminal_ticks(encoded(row))
