@@ -1,6 +1,6 @@
 {
   "format_version": 1,
-  "updated_utc": "2026-10-30T11:25:40Z",
+  "updated_utc": "2026-10-30T12:22:53Z",
   "project": "No Risk FX XAUUSD quant research factory",
   "branch": "feat/quant-engine-foundation",
   "original_private_zip_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
@@ -1675,6 +1675,24 @@
       "clean_oos_verified": false,
       "approved_strategies": 0,
       "note": "One preregistered London/Asia session-continuation hypothesis, 16 correlated configurations, 32 source-SHA verified annual BID-reference M1 replays and 384 exit-month P/L points; all two-year totals negative. Shared priority arbitration uses one position, not summed standalone profits. Local executable exactly matches GitHub blob, twice deterministic. CI synthetic tests successful. Provisional research excluded from historical canonical factory totals pending canonical parity; no broker fills, prospective OOS or raw quotes uploaded."
+    },
+    {
+      "id": "NRF-ARITHMETIC-RESEARCH-CYCLES-EXCLUSIVE-POSIX-WRITER",
+      "status": "SYNTHETIC_FULL_ENGINE_CI_PASSED_NO_ORIGINAL_SOURCE_REPLAY",
+      "report": "docs/ARITHMETIC_RESEARCH_CYCLE_ORCHESTRATOR_2026-10-30.md",
+      "code": "scripts/run_arithmetic_research_cycles.py",
+      "tests": "tests/test_run_arithmetic_research_cycles.py",
+      "synthetic_regressions_added": 5,
+      "verified_ci_code_commit": "5e35c8a5f556dcb36f0000f9bda0b4806bf23c2d",
+      "verified_ci_run": 41054646336,
+      "verified_ci_pytest_passed": 3029,
+      "verified_ci_warnings": 1,
+      "original_source_strategy_backtests_added": 0,
+      "original_source_monthly_net_usd_per_oz": "N/A",
+      "original_source_monthly_floating_drawdown_usd_per_oz": "N/A",
+      "approved_strategies": 0,
+      "source_zip_sha256_local_verified": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
+      "note": "One nonblocking POSIX flock per private output root serializes synchronous arithmetic generation/dispatch/replay/feedback; fail-closed on active writer, symlink/nonregular/insecure lock. Lock survives on disk but kernel releases after process death; no distributed locking. Five synthetic regressions, 3029 full-suite tests on code commit. Original private ZIP SHA independently rechecked locally in this cycle but NO private original-source backtest, monthly P/L, M1 drawdown, canonical parity, prospective OOS or live trading. Registry-only commit needs exact-head CI separately."
     }
   ]
 }
