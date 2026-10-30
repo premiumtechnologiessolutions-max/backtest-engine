@@ -88,7 +88,8 @@ def test_equivalent_integer_and_float_parameters_cannot_double_count_training():
     # The Formula grammar permits 1 and 1.0, but these are one strategy.
     integer = evidence(Formula(threshold=1, stop_usd=8, reward_risk=1))
     floating = evidence(Formula(threshold=1.0, stop_usd=8.0, reward_risk=1.0))
-    assert integer["formula"] != floating["formula"]
+    # Python dict equality considers 1 == 1.0; their raw JSON IDs differ.
+    assert Formula(**integer["formula"]).identity() != Formula(**floating["formula"]).identity()
     with pytest.raises(ValueError, match="Duplicate evaluated formula"):
         evolve_training_generation([integer, floating], YEARS,
                                    seed=7, generation=0)
