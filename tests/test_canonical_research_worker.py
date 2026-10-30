@@ -180,6 +180,14 @@ def test_successful_canonical_auditor_only_commits_artifact_pointer(tmp_path,mon
         (folder/"batch_manifest.json").write_bytes(b'{"simulation":"historical-only"}')
         return {"executed_this_invocation":1,"reconciled_jobs":1}
     monkeypatch.setattr(batch,"run_plan",audited)
+    # This legacy test mocks the runner: the separate B09 suite below
+    # exercises actual on-disk independent attestation end-to-end.
+    from types import SimpleNamespace
+    def attest(plan,folder,**kwargs):
+        assert kwargs["expected_experiment_id"]==id_
+        assert kwargs["source_manifest_id"]=="c"*64
+        return SimpleNamespace(manifest_sha256=sha256(b'{"simulation":"historical-only"}').hexdigest())
+    monkeypatch.setattr(worker,"verify_frozen_batch_evidence",attest)
     result=execute_one_approved_job(
         q,source_manifest={},data_zip=src,checkout=tmp_path,output_root=out,
     )
@@ -209,7 +217,7 @@ def test_missing_ledger_artifact_cannot_mark_queue_completed(tmp_path,monkeypatc
     def fake(plan,folder,**kwargs):
         return {"executed_this_invocation":1,"reconciled_jobs":1}
     monkeypatch.setattr(batch,"run_plan",fake)
-    with pytest.raises(ValueError,match="Missing bounded"):
+    with pytest.raises(ValueError,match="Missing or unsafe"):
         execute_one_approved_job(q,source_manifest={},data_zip=src,checkout=tmp_path,output_root=out)
     assert q.status(id_)["state"]=="rejected"
     assert q.status(id_)["profitability_verified"] is False
