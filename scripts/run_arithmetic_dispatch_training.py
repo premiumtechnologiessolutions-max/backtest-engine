@@ -102,7 +102,7 @@ def _verify_trade_accounting(trades: pd.DataFrame) -> None:
         elif row.exit_reason in ("open_stop", "gap_stop", "entry_open_beyond_stop"):
             if row.side * (row.exit_price - row.stop) > 1e-7:
                 raise ValueError("Adverse open exit improved beyond stop")
-        elif row.exit_reason != "end_of_data":
+        elif row.exit_reason not in ("end_of_data", "time_exit"):
             raise ValueError("Unknown trade exit reason")
 
 
@@ -287,9 +287,26 @@ def _compare_outputs(reference: Path, fast: Path, *, identity: str, year: int) -
                 or params.get("all_in_cost_per_ounce") != 0.40
                 or params.get("ounces") != 1.0):
             raise ValueError("Unexpected or mismatched canonical CLI parameters")
-        if summary.get("source_fingerprints", {}).get("loaded_m1_bidask_sha256") is None:
-            raise ValueError("Missing loaded M1 Bid/Ask fingerprint")
-        if summary.get("months_with_m1_observations") != 12:
+        fingerprints = summary.get("source_fingerprints")
+        fingerprint = (fingerprints.get("loaded_m1_bidask_sha256")
+                       if type(fingerprints) is dict else None)
+        if type(fingerprint) is not str or SHA.fullmatch(fingerprint) is None:
+            raise ValueError("Missing or invalid loaded M1 Bid/Ask SHA256 fingerprint")
+        # The canonical report writes the literal string PASSED, not an
+        # arbitrary object. Reference/Fast agreement on FAILED is not proof.
+        if summary.get("accounting_checks") != "PASSED":
+            raise ValueError("Canonical execution accounting was not PASSED")
+        trade_count = summary.get("trades")
+        if type(trade_count) is not int or trade_count < 0:
+            raise ValueError("Invalid canonical summary trade count")
+        for count_name in ("forced_end_of_data_closures",
+                           "same_entry_bar_target_deferred",
+                           "trades_exposed_to_uncertain_gaps"):
+            count = summary.get(count_name)
+            if type(count) is not int or not 0 <= count <= trade_count:
+                raise ValueError(f"Invalid canonical summary count: {count_name}")
+        if (type(summary.get("months_with_m1_observations")) is not int
+                or summary["months_with_m1_observations"] != 12):
             raise ValueError("Annual training sample omits an observed calendar month")
         summaries.append(summary)
     if summaries[0]["source_fingerprints"] != summaries[1]["source_fingerprints"]:
