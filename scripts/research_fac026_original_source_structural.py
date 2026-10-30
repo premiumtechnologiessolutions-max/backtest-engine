@@ -17,12 +17,28 @@ SOURCE_SHA = "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121"
 
 
 def candles(df, rule, expected):
-    """Only fully observed, contiguous UTC minutes can form an M15/H1 candle."""
+    """Only exact, observed UTC minute grids can form an M15/H1 candle.
+
+    Count plus first/last separation alone is insufficient: a duplicate
+    minute can conceal a missing constituent minute. Reject off-grid epochs,
+    index/epoch disagreement, and any non-unique or incomplete UTC bin.
+    """
+    if (not isinstance(df.index, pd.DatetimeIndex) or df.index.tz is None
+            or str(df.index.tz) != "UTC" or "ts" not in df
+            or not pd.api.types.is_integer_dtype(df["ts"])):
+        raise ValueError("FAC026 M1 requires UTC index and integer epochs")
+    ts = df["ts"].to_numpy(dtype=np.int64)
+    if (not np.array_equal(df.index.asi8 // 1_000_000_000, ts)
+            or np.any(ts % 60 != 0)):
+        raise ValueError("FAC026 M1 index/epoch mismatch or unaligned minute")
     x = df.resample(rule, closed="left", label="right").agg(
         o=("o", "first"), h=("h", "max"), l=("l", "min"), c=("c", "last"),
-        n=("o", "count"), first=("ts", "min"), last=("ts", "max"))
-    x["full"] = ((x.n == expected) &
-                 ((x["last"] - x["first"]) == (expected - 1) * 60))
+        n=("o", "count"), first=("ts", "min"), last=("ts", "max"),
+        distinct=("ts", "nunique"))
+    ends = x.index.asi8 // 1_000_000_000
+    x["full"] = ((x.n == expected) & (x.distinct == expected)
+                 & (x["first"] == ends - expected * 60)
+                 & (x["last"] == ends - 60))
     return x
 
 

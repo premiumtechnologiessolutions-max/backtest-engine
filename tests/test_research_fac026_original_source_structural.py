@@ -180,3 +180,40 @@ def test_source_calendar_preflight_rejects_noninteger_epoch(tmp_path, replacemen
 def test_source_calendar_preflight_rejects_empty_member(tmp_path):
     with pytest.raises(ValueError, match="integer UTC seconds"):
         _read_synthetic_member(tmp_path, [])
+
+
+def test_candle_grid_rejects_duplicate_replacing_missing_constituent():
+    """Fifteen rows with correct first/last can still hide a missing minute."""
+    original = sample(60)
+    forged = pd.concat([original.drop(original.index[7]),
+                        original.iloc[[6]]]).sort_index()
+    assert len(forged) == len(original)
+    assert not candles(forged, "15min", 15).full.iloc[0]
+    assert not candles(forged, "1h", 60).full.iloc[0]
+
+
+def test_candle_grid_rejects_subminute_shifted_epochs():
+    shifted = sample(60).copy()
+    shifted.index = shifted.index + pd.Timedelta(seconds=30)
+    shifted["ts"] = shifted["ts"] + 30
+    with pytest.raises(ValueError, match="unaligned minute"):
+        candles(shifted, "15min", 15)
+
+
+def test_candle_grid_rejects_index_epoch_disagreement():
+    shifted = sample(60).copy()
+    shifted.index = shifted.index + pd.Timedelta(minutes=1)
+    with pytest.raises(ValueError, match="index/epoch mismatch"):
+        candles(shifted, "15min", 15)
+
+
+def test_candle_grid_rejects_non_utc_index():
+    shifted = sample(60).copy()
+    shifted.index = shifted.index.tz_convert("America/New_York")
+    with pytest.raises(ValueError, match="UTC index"):
+        candles(shifted, "15min", 15)
+
+
+def test_candle_grid_rejects_incomplete_final_boundary():
+    missing = sample(60).drop(sample(60).index[-1])
+    assert not candles(missing, "1h", 60).full.iloc[0]
