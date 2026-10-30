@@ -1,6 +1,6 @@
 {
   "format_version": 1,
-  "updated_utc": "2026-10-30T14:14:33Z",
+  "updated_utc": "2026-10-30T15:15:39Z",
   "project": "No Risk FX XAUUSD quant research factory",
   "branch": "feat/quant-engine-foundation",
   "original_private_zip_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
@@ -1739,6 +1739,24 @@
       "independent_hypotheses_added": 0,
       "approved_strategies": 0,
       "note": "Audited historical candidate screen now exposes worst net month, worst contiguous 3-month net, zero-trade months and longest nonpositive streak. No new Gold ZIP replay; full 3143-test CI and scoped Quant Lab passed on code commit. Descriptive month-end risk only, NOT M1 floating DD, clean OOS, multiple-testing correction or live authorization. Registry commit requires its own exact-head CI."
+    },
+    {
+      "id": "NRF-CANDIDATE-SCREEN-ZERO-TRADE-OVERFLOW-GATE-2026-10-30",
+      "status": "SYNTHETIC_FULL_ENGINE_CI_PASSED_NO_PRIVATE_SOURCE_REPLAY",
+      "code": "scripts/research_candidate_screen.py",
+      "tests": "tests/test_research_candidate_screen_accounting_integrity.py",
+      "report": "docs/RESEARCH_MONTHLY_EXIT_LEDGER_ZERO_TRADE_OVERFLOW_GATE_2026-10-30.md",
+      "verified_ci_code_commit": "e478be52f3502d888d37fd76d93fa36a1c91e6fc",
+      "verified_ci_run": 41078775588,
+      "verified_ci_pytest_passed": 3173,
+      "verified_quant_lab_run": 41078775534,
+      "synthetic_regressions_added": 5,
+      "original_source_strategy_backtests_added": 0,
+      "original_source_monthly_net_usd_per_oz": "N/A",
+      "original_source_monthly_floating_drawdown_usd_per_oz": "N/A",
+      "independent_hypotheses_added": 0,
+      "approved_strategies": 0,
+      "note": "Historical candidate screen now fails closed on nonzero exit-booked net P/L in a zero-completed-trade UTC month, and on overflow of monthly aggregate, cumulative equity or month-end peak-to-trough risk. Five synthetic regressions and 3173 full-suite tests passed in GitHub Actions on code/docs commit e478be52; no new original private source replay, canonical OOS, floating M1 drawdown, broker parity or live trading. Registry-only commit requires separate head CI."
     }
   ]
 }
