@@ -432,6 +432,10 @@ def test_no_trade_training_marks_cannot_invent_floating_profit():
         "last_observed_equity": 0.0,
         "last_observed_realized_pnl": 0.0,
     }
+    empty_trades = pd.DataFrame(columns=["closed_at", "entry_at", "net_pnl"])
     with pytest.raises(ValueError, match="floating P/L without any trade"):
-        _verify_m1_equity(pd.DataFrame(columns=["closed_at", "entry_at", "net_pnl"]),
-                          marks, summary)
+        _verify_m1_equity(empty_trades, marks, summary)
+    # Legitimate zero-trade observed months must remain accepted.
+    marks.loc[:, ["floating_pnl", "equity", "drawdown"]] = 0.0
+    summary["max_drawdown_observed_m1"] = 0.0
+    _verify_m1_equity(empty_trades, marks, summary)
