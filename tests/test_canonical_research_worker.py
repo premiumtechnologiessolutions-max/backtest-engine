@@ -5,6 +5,7 @@ from copy import deepcopy
 from datetime import datetime, timezone, timedelta
 from hashlib import sha256
 import json
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -264,3 +265,67 @@ def test_operator_cli_requires_explicit_resume_and_execute(tmp_path,capsys):
         main(["--queue-db",str(q.path),"--execute"])
     assert result.value.code==2
     assert ResearchQueue(q.path).counts()["queued"]==1
+
+
+def test_actual_source_pipeline_accepts_closed_month_edge_without_fabrication(tmp_path,monkeypatch):
+    from norisk_quant import canonical_research_worker as worker
+    from norisk_quant.data import load_market,sha256_file,fingerprint_loaded_m1
+    from norisk_quant.source_registry import register_original_gold_m1
+    source=tmp_path/"original_gold.zip"
+    def candle(when):
+        return {"ts":int(datetime.fromisoformat(when).timestamp()),
+                "o":2000,"h":2002,"l":1999,"c":2001,
+                "ao":2000.2,"ah":2002.2,"al":1999.2,"ac":2001.2}
+    rows=[candle("2024-01-02T23:00:00+00:00"),candle("2024-01-31T23:59:00+00:00")]
+    with zipfile.ZipFile(source,"w",compression=zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("XAUUSD_2024.json",json.dumps(rows))
+    frame=load_market(source,"2024-01-01","2024-01-31")
+    metadata={
+        "origin":"user_supplied_gold_m1_bidask",
+        "source_file_sha256":sha256_file(source),
+        "observed_slice_sha256":fingerprint_loaded_m1(frame),
+        "rows":len(frame),
+        "first_utc":frame.index[0].isoformat(),
+        "last_utc":frame.index[-1].isoformat(),
+    }
+    manifest=register_original_gold_m1(metadata).internal_manifest()
+    p=proposal()
+    p["dataset_sha256"]=sha256_file(source)
+    private_intent=intent(p)
+    monkeypatch.setattr(worker,"inspect_local_checkout",lambda _:HEAD)
+    preview=preflight_queued_research(
+        private_intent,source_manifest=manifest,data_zip=source,checkout=tmp_path)
+    assert preview["experiment_id"]==private_intent["canonical_experiment_id"]
+    assert preview["source_manifest_id"]==manifest["id"]
+    assert preview["execution"]=="NONE_PREFLIGHT_ONLY"
+    assert preview["independent_oos"] is False
+    assert len(frame)==2  # no fabricated in-between M1 candles
+
+
+def test_unbounded_calendar_edge_missing_observations_remain_rejected(tmp_path,monkeypatch):
+    from norisk_quant import canonical_research_worker as worker
+    from norisk_quant.data import load_market,sha256_file,fingerprint_loaded_m1
+    from norisk_quant.source_registry import register_original_gold_m1
+    source=tmp_path/"source.zip"
+    def row(when):
+        return {"ts":int(datetime.fromisoformat(when).timestamp()),
+                "o":2000,"h":2002,"l":1999,"c":2001,
+                "ao":2000.2,"ah":2002.2,"al":1999.2,"ac":2001.2}
+    with zipfile.ZipFile(source,"w",compression=zipfile.ZIP_DEFLATED) as z:
+        z.writestr("XAUUSD_2024.json",json.dumps([
+            row("2024-01-05T00:00:00+00:00"),
+            row("2024-01-31T23:59:00+00:00"),
+        ]))
+    frame=load_market(source,"2024-01-01","2024-01-31")
+    meta=register_original_gold_m1({
+        "origin":"user_supplied_gold_m1_bidask",
+        "source_file_sha256":sha256_file(source),
+        "observed_slice_sha256":fingerprint_loaded_m1(frame),
+        "rows":len(frame),"first_utc":frame.index[0].isoformat(),
+        "last_utc":frame.index[-1].isoformat(),
+    }).internal_manifest()
+    p=proposal()
+    p["dataset_sha256"]=sha256_file(source)
+    monkeypatch.setattr(worker,"inspect_local_checkout",lambda _:HEAD)
+    with pytest.raises(ValueError,match="before the available"):
+        preflight_queued_research(intent(p),source_manifest=meta,data_zip=source,checkout=tmp_path)
