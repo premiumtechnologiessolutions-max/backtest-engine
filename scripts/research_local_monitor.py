@@ -23,7 +23,7 @@ _VALID_STATES = frozenset({
 _VALID_COMPLETED = frozenset({
     "EXECUTED_AND_VERIFIED_FEEDBACK", "REUSED_FULLY_REAUDITED_FEEDBACK",
 })
-_HEX64 = re.compile(r"[0-9a-f]{64}\\Z".replace("\\\\", "\\"))
+_HEX64 = re.compile(r"[0-9a-f]{64}\Z")
 
 
 def safe_status(root: Path, *, current: datetime | None = None) -> dict:
