@@ -15,6 +15,7 @@ from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from hashlib import sha256
 import json
+import os
 from pathlib import Path
 import re
 import threading
@@ -203,6 +204,12 @@ def execute_one_approved_job(
             folder = root / lease.job_id
             if folder.is_symlink():
                 raise ValueError("Unsafe canonical research output symlink")
+            # The canonical orchestrator's private evidence lock/manifest
+            # mode checks are POSIX-specific. Native NTFS ACL assurance is
+            # not yet independently audited: refuse Windows executions
+            # rather than claim that chmod emulates protected directories.
+            if os.name != "posix":
+                raise ValueError("Canonical research execution requires reviewed POSIX evidence permissions")
             # The canonical orchestrator checks source SHA, exact Git HEAD,
             # frozen plan, trades/month/week, and independent accounting.
             result = batch.run_plan(
