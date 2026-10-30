@@ -12,7 +12,7 @@ import pytest
 from norisk_quant.registry import ExperimentIdentity, fingerprint
 from norisk_quant.research_control_plane import (
     EXTERNAL_SOURCE, MAX_ACTIVE, MAX_ATTEMPTS, SCHEMA,
-    Lease, ResearchQueue, proposal_identity,
+    Lease, ResearchQueue, proposal_identity, proposal_from_aiquantlab_hypothesis,
 )
 
 UTC = timezone.utc
@@ -454,3 +454,124 @@ def test_external_result_record_is_not_authoritative_execution(tmp_path):
     assert stored[1] == "f"*64  # unverified artifact pointer; no fabricated performance
     assert "approved_for_live" not in stored[0]
     assert "net_profit" not in stored[0]
+
+
+def aql_record():
+    # Shape of AI Quant Lab V4 Institutional HypothesisRecord.model_dump(mode="json").
+    return {
+        "hypothesis_id": "hypothesis_123",
+        "campaign_id": "campaign_20261030",
+        "proposed_by": "nova",
+        "strategy_name": "kalman_adaptive_trend",
+        "parameters": {"lookback": 20, "threshold": 0.25},
+        "statement": "A price move may persist when a stable latent slope is present.",
+        "economic_rationale": "A persistent slope may reflect slow order adaptation.",
+        "falsification_criteria": [
+            "No persistent out-of-sample predictive advantage",
+            "Severe sensitivity to execution-cost assumptions",
+            "Instability across predeclared market regimes",
+        ],
+        "compatible_regimes": ["trending_up"],
+        "parameters_locked_before_test": True,
+        "created_at": "2026-10-30T00:00:00+00:00",
+    }
+
+
+def aql_context():
+    return {
+        "asset": "XAUUSD",
+        "dataset_sha256": HEX64,
+        "engine_commit": HEX40,
+        "aiquantlab_commit": "c" * 40,
+        "timeframe": "M1",
+        "window_start_utc": "2025-01-01T00:00:00Z",
+        "window_end_exclusive_utc": "2025-07-01T00:00:00Z",
+        "quantity_ounces": 1.0,
+        "fee_all_in_per_ounce": 0.4,
+        "execution_mode": "m1_conservative",
+        "exposure_context": "historical_exposed",
+    }
+
+
+def test_aiquantlab_v4_nova_record_maps_to_a_pinned_unverified_gold_proposal(tmp_path):
+    row = aql_record()
+    context = aql_context()
+    proposal = proposal_from_aiquantlab_hypothesis(row, context)
+    assert proposal["schema"] == SCHEMA
+    assert proposal["producer"] == EXTERNAL_SOURCE
+    assert proposal["agent"] == "nova"
+    assert proposal["strategy_id"] == "aql_kalman_adaptive_trend_cccccccccccc"
+    assert "rationale" not in str(proposal)
+    assert "statement" not in str(proposal)
+    assert row["economic_rationale"] not in str(proposal)
+    assert proposal["fee_all_in_per_ounce"] == 0.4
+    q = queue(tmp_path)
+    job = q.submit(proposal, now=t())
+    assert q.status(job)["state"] == "queued"
+    assert q.status(job)["profitability_verified"] is False
+    assert q.counts()["paused"] is True
+
+
+def test_aiquantlab_strategy_code_sha_is_part_of_candidate_identity():
+    hypothesis = aql_record()
+    context = aql_context()
+    first = proposal_identity(proposal_from_aiquantlab_hypothesis(hypothesis, context))[0]
+    context["aiquantlab_commit"] = "d" * 40
+    second = proposal_identity(proposal_from_aiquantlab_hypothesis(hypothesis, context))[0]
+    assert first != second
+
+
+def test_qualitative_text_cannot_change_experiment_or_supply_backtest_evidence():
+    context = aql_context()
+    a = aql_record()
+    b = deepcopy(a)
+    b["statement"] = "A longer revised explanation of an unchanged historical hypothesis."
+    b["economic_rationale"] = "Another prose rationale, without any mathematical difference."
+    first = proposal_identity(proposal_from_aiquantlab_hypothesis(a, context))[0]
+    second = proposal_identity(proposal_from_aiquantlab_hypothesis(b, context))[0]
+    assert first == second
+
+
+@pytest.mark.parametrize("modifier,error", [
+    (lambda row: row.update(proposed_by="sentinel"), "Only Nova"),
+    (lambda row: row.update(proposed_by="forge"), "Only Nova"),
+    (lambda row: row.update(parameters_locked_before_test=False), "locked"),
+    (lambda row: row.update(parameters={"eval": "__import__('os')"}), "Parameters"),
+    (lambda row: row.update(parameters={"buy_live": True}), "Parameters"),
+    (lambda row: row.update(parameters={"forecast": float("nan")}), "Parameters"),
+    (lambda row: row.update(statement="short"), "statement"),
+    (lambda row: row.update(falsification_criteria=[]), "falsification_criteria"),
+    (lambda row: row.update(compatible_regimes=[]), "compatible_regimes"),
+    (lambda row: row.update(created_at="2026-10-30T03:00:00+03:00"), "UTC"),
+    (lambda row: row.update(quant_score=99.99), "HypothesisRecord fields"),
+    (lambda row: row.update(order_send=True), "HypothesisRecord fields"),
+    (lambda row: row.update(password="secret"), "HypothesisRecord fields"),
+])
+def test_non_authoritative_aiquantlab_hypothesis_is_fail_closed(modifier, error):
+    row = aql_record()
+    modifier(row)
+    with pytest.raises(ValueError, match=error):
+        proposal_from_aiquantlab_hypothesis(row, aql_context())
+
+
+def test_aiquantlab_context_cannot_override_market_or_prospective_claims():
+    for changes in (
+        {"asset": "EURUSD"}, {"execution_mode": "observed_tick_research"},
+        {"exposure_context": "future_prospective"},
+        {"fee_all_in_per_ounce": 0.10},
+        {"aiquantlab_commit": "mutable-main"},
+        {"password": "secret"},
+        {"approved_for_live": True},
+    ):
+        ctx = aql_context()
+        ctx.update(changes)
+        with pytest.raises(ValueError):
+            proposal_from_aiquantlab_hypothesis(aql_record(), ctx)
+
+
+def test_forge_is_not_mistaken_for_a_nova_hypothesis_record():
+    row = aql_record()
+    row["proposed_by"] = "forge"
+    with pytest.raises(ValueError, match="evolution proposal contract"):
+        proposal_from_aiquantlab_hypothesis(row, aql_context())
+
