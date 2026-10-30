@@ -27,11 +27,18 @@ appear fresh instead of failing closed.
    local monitor clock. A future offset of at most 60 seconds is treated
    as age zero to tolerate small clock skew. Reject a naive monitor
    clock passed by test/integration callers.
-3. Add real loopback HTTP regression cases for the valid Host, missing
+3. Accept only the supervisor's five frozen campaign state names and two
+   independently audited completed-generation statuses. Require a canonical
+   lowercase SHA256 digest, exactly three completed-record keys, positive
+   contiguous generation numbers starting from `first_generation`, and
+   a bounded requested-generation count. Reject a claimed COMPLETE state
+   unless every requested generation is present. This prevents malformed
+   local status files from inflating the monitor's completion count.
+4. Add real loopback HTTP regression cases for the valid Host, missing
    Host, hostile DNS name, `localhost` alias, missing port and duplicate
    Host on all three allowlisted endpoints. Assert forbidden responses
    contain neither campaign JSON nor the research HTML. Add controlled
-   UTC clock-skew tests.
+   UTC clock-skew tests, plus forged-state/duplicate-generation regressions.
 
 ## Verification boundaries
 
