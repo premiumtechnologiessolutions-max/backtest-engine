@@ -231,7 +231,7 @@ def _verify_m1_equity(trades: pd.DataFrame, marks: pd.DataFrame,
     except (KeyError, TypeError, ValueError) as exc:
         raise ValueError("M1 equity invalid UTC observation timestamps") from exc
     if (any(pd.isna(t) or t.tzinfo is None for t in raw_times + bounds)
-            or timestamps.has_duplicates or not timestamps.is_monotonic_increasing
+            or timestamps.duplicated().any() or not timestamps.is_monotonic_increasing
             or any(t.second or t.microsecond or t.nanosecond for t in timestamps)
             or timestamps.iloc[0] != bounds[0].tz_convert("UTC")
             or timestamps.iloc[-1] != bounds[1].tz_convert("UTC")):
