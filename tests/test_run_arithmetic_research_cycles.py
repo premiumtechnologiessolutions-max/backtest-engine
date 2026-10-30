@@ -9,7 +9,7 @@ from scripts import run_arithmetic_research_cycles as cycles
 @pytest.fixture
 def harness(tmp_path, monkeypatch):
     source = tmp_path / "training.json"
-    source.write_text("{}", encoding="utf-8")
+    source.write_text(json.dumps({"schema": "NRFX_ARITHMETIC_TRAINING_INPUT_V1", "candidates": []}), encoding="utf-8")
     gold = tmp_path / "Gold data.zip"
     gold.write_bytes(b"fixture-not-market-data")
     output = tmp_path / "research"
@@ -38,7 +38,7 @@ def harness(tmp_path, monkeypatch):
     def feedback(inp, manifest, directory, shards, next_input):
         calls.append(("feedback", len(shards)))
         if not next_input.exists():
-            next_input.write_text("{}", encoding="utf-8")
+            next_input.write_text(json.dumps({"schema": "NRFX_ARITHMETIC_TRAINING_INPUT_V1", "candidates": []}), encoding="utf-8")
         return {"status": "COMPLETE_EXPOSED_TRAINING_FEEDBACK_NOT_OOS",
                 "next_input_sha256": "b" * 64}
 
@@ -163,3 +163,49 @@ def test_world_readable_existing_lock_rejected(harness):
     with pytest.raises(ValueError, match="private regular file"):
         run(harness)
     assert not (output / "generation_0001").exists()
+
+
+def test_candidate_budget_preflight_rejects_without_running_market_data(harness):
+    source, gold, root, calls = harness
+    source.write_text(json.dumps({
+        "schema": "NRFX_ARITHMETIC_TRAINING_INPUT_V1",
+        "candidates": [{}] * 127,
+    }), encoding="utf-8")
+    with pytest.raises(ValueError, match="candidate pool"):
+        run(harness, proposal_count=2)
+    assert not (root / "generation_0001").exists()
+    assert calls == []
+
+
+def test_private_output_directory_inside_git_checkout_is_forbidden(harness, tmp_path):
+    source, gold, _, calls = harness
+    checkout = tmp_path / "checkout"
+    checkout.mkdir()
+    (checkout / ".git").mkdir()
+    with pytest.raises(ValueError, match="Git checkout"):
+        cycles.run_cycles(source, gold, checkout / "private-research",
+                          seed=7, first_generation=1, generations=1,
+                          proposal_count=2)
+    assert not (checkout / "private-research").exists()
+    assert calls == []
+
+
+def test_candidate_budget_checked_again_before_second_generation(harness, monkeypatch):
+    # Simulated first-generation feedback can exceed the frozen 128-candidate
+    # input bound. The second generation must not run any formula replays.
+    real_feedback = cycles.compile_feedback
+    seen = []
+
+    def full_feedback(inp, manifest, directory, shards, next_input):
+        result = real_feedback(inp, manifest, directory, shards, next_input)
+        source = json.loads(next_input.read_text())
+        source["candidates"] = [{}] * 128
+        next_input.write_text(json.dumps(source), encoding="utf-8")
+        seen.append(next_input)
+        return result
+
+    monkeypatch.setattr(cycles, "compile_feedback", full_feedback)
+    with pytest.raises(ValueError, match="candidate pool"):
+        run(harness, generations=2)
+    assert len(seen) == 1
+    assert not (harness[2] / "generation_0002").exists()
