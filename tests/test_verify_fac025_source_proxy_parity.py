@@ -72,7 +72,7 @@ def test_two_nonoverlapping_source_trades_share_capacity():
 
 def test_rejects_unsorted_or_crossed_private_quotes_before_parity():
     rows = bars([(100, 100, 100, 100), (100, 100, 100, 100)])
-    rows[1]["ao"] = 99.0
+    rows[1].update({"ao": 99.0, "ah": 99.0, "al": 99.0, "ac": 99.0})
     with pytest.raises(ValueError, match="Crossed"):
         parity.verify_rows(rows, [])
     rows = list(reversed(bars([(100, 100, 100, 100), (100, 100, 100, 100)])))
