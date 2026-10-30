@@ -58,7 +58,8 @@ def _verified_generation(training_input: Path, generation_manifest: Path):
         source["candidates"], tuple(source["years"]),
         seed=result["seed"], generation=result["generation"],
         proposal_count=len(result["proposals"]),
-        explored_ids=tuple(source["explored_ids"]))
+        explored_ids=tuple(source["explored_ids"]),
+        proposal_policy=result.get("proposal_policy", "legacy_random"))
     if _encoded(result) != _encoded(expected):
         raise ValueError("Evolution manifest fails deterministic training replay")
     return expected, input_sha
