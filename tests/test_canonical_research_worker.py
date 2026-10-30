@@ -410,8 +410,11 @@ def test_real_canonical_runner_creates_audited_month_week_trade_files(tmp_path,m
     assert len(manifest["results"])==1
     runs=list((root/"runs").iterdir())
     assert len(runs)==1
-    for file in ("summary.json","trades.csv","weekly.csv","monthly.csv"):
+    for file in ("summary.json","trades.csv","weekly.csv","monthly.csv",
+                 "gap_catalogue.csv","equity_m1.csv"):
         assert (runs[0]/file).is_file(),file
+        if os.name == "posix":
+            assert (runs[0]/file).stat().st_mode & 0o077 == 0, file
     assert q.status(id_)["state"]=="completed"
     assert q.status(id_)["risk_approved"] is False
     assert q.counts()["completed"]==1
