@@ -62,7 +62,10 @@ def _iso(value: object, label: str) -> str:
         parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError as exc:
         raise ValueError(f"Invalid {label}") from exc
-    return _clock(parsed)
+    # Registry fingerprint hashes timestamp *text*: pin one exact UTC
+    # representation, including preservation of genuinely fractional times.
+    instant = _utc(parsed)
+    return instant.isoformat(timespec="microseconds" if instant.microsecond else "seconds")
 
 
 def _sha(value: object, name: str, pattern=HEX64) -> str:
