@@ -11,6 +11,10 @@ from norisk_quant.research_training_integrity import training_summary
 
 MAX_ACTIVE = 128
 MAX_UNIVERSE = 256
+RECORD_METRICS = frozenset({
+    "months", "net_usd_per_oz", "trades", "fees_usd", "positive_months",
+    "uncertain_gap_trades", "synthetic_forced_closures", "accounting",
+})
 
 
 def _failure_reasons(summary: dict, records: list[dict]) -> list[str]:
@@ -50,6 +54,11 @@ def select_training_memory(candidates: list[dict], years: tuple[int, ...],
                 or set(candidate) != {"formula", "records"}
                 or type(candidate["records"]) is not list):
             raise ValueError("Unexpected training candidate envelope")
+        if any(type(record) is not dict or set(record) != {"year", "metrics"}
+               or type(record["metrics"]) is not dict
+               or set(record["metrics"]) != RECORD_METRICS
+               for record in candidate["records"]):
+            raise ValueError("Candidate evidence must contain only frozen training metrics")
         identity = _formula(candidate["formula"]).identity()
         if identity in seen:
             raise ValueError("Duplicate training candidate identity")
