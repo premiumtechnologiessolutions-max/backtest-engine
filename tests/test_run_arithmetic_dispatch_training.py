@@ -80,7 +80,9 @@ def _fake_cli(command, *, check, capture_output, text, tamper=False,
     (target / "summary.json").write_text(json.dumps(summary))
     trade = {
         "strategy": "arithmetic_" + formula.identity()[:16],
-        "signal_at": "2012-01-01T00:00:00+00:00",
+        # 00:00 observed M1 candle confirms at 00:01; entry may occur
+        # at the next candle's 00:01 open, never before confirmation.
+        "signal_at": "2012-01-01T00:01:00+00:00",
         "entry_at": "2012-01-01T00:01:00+00:00",
         "closed_at": "2012-01-01T00:02:00+00:00",
         "side": 1, "entry_price": 100.0,
