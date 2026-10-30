@@ -1482,7 +1482,7 @@
     },
     {
       "id": "NRF-ARITHMETIC-TRAINING-EXIT-BOOKED-MONTHLY-RECONCILIATION",
-      "status": "SYNTHETIC_REGRESSIONS_ADDED_CI_PENDING_NOT_ORIGINAL_SOURCE_REPLAY",
+      "status": "EXACT_CODE_GITHUB_CI_PASSED_SYNTHETIC_ONLY_NOT_ORIGINAL_SOURCE_REPLAY",
       "report": "docs/ARITHMETIC_TRAINING_MONTHLY_EXIT_LEDGER_GATE_2026-10-30.md",
       "code": "scripts/run_arithmetic_dispatch_training.py",
       "tests": "tests/test_run_arithmetic_dispatch_training.py",
@@ -1491,7 +1491,11 @@
       "original_source_monthly_net_usd_per_oz": "N/A",
       "original_source_monthly_floating_drawdown_usd_per_oz": "N/A",
       "approved_strategies": 0,
-      "note": "Independent UTC month-by-month trade exit booking audit (net, fees, trades, wins) and complete ordered 12-month coverage. Detects identical corruptions in both canonical engines that annual sums/parity miss. No private source replay or strategy result."
+      "note": "Independent UTC month-by-month trade exit booking audit (net, fees, trades, wins) and complete ordered 12-month coverage. Detects identical corruptions in both canonical engines that annual sums/parity miss. No private source replay or strategy result.",
+      "verified_ci_commit": "514564e8dc4096e4b483783287d064b54db23664",
+      "verified_ci_run": 41001851794,
+      "verified_ci_pytest_passed": 2914,
+      "verified_ci_warnings": 1
     }
   ]
 }

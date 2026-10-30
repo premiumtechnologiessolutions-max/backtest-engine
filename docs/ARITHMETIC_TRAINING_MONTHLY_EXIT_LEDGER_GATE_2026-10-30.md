@@ -1,6 +1,6 @@
 # Arithmetic training replay — independent monthly exit-booking gate (2026-10-30)
 
-**Status: code and six synthetic regressions committed; full-head CI pending.**
+**Status: six synthetic negative regressions and full GitHub CI verified on executable commit `514564e8dc4096e4b483783287d064b54db23664`: [Engine quality gates 41001851794](https://github.com/premiumtechnologiessolutions-max/backtest-engine/actions/runs/41001851794) SUCCESS, 2,914/2,914 pytest, one warning.**
 This change strengthens `scripts/run_arithmetic_dispatch_training.py` after the frozen Reference/Fast comparison. A pair of matching monthly reports can still be wrong if both engines place P/L into the wrong calendar month. Matching annual net P/L is not sufficient for the project's monthly-stability objective.
 
 ## New independent checks
