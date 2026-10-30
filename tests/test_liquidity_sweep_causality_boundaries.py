@@ -8,7 +8,18 @@ from datetime import timedelta
 import pytest
 
 from scripts.liquidity_sweep_signal import detect_liquidity_sweeps
-from tests.test_liquidity_sweep_signal import T, fixture
+from datetime import datetime, timezone
+from scripts.liquidity_sweep_signal import M1Bar
+
+T = datetime(2026, 1, 5, tzinfo=timezone.utc)
+
+def fixture():
+    bars = [M1Bar(T + timedelta(minutes=i), 100, 100.1, 99.9, 100, 100.02)
+            for i in range(1440)]
+    bars += [M1Bar(T + timedelta(days=1, minutes=i), 100, 100.1, 99.9, 100, 100.02)
+             for i in range(6)]
+    bars[1440] = replace(bars[1440], bid_high=100.5)
+    return bars
 
 
 def test_future_bars_cannot_rewrite_already_emitted_signal():
