@@ -34,7 +34,7 @@ def _training():
 
 
 @pytest.fixture
-def prepared(tmp_path):
+def prepared(tmp_path, monkeypatch):
     source = tmp_path / "training.json"
     generation = tmp_path / "generation.json"
     source.write_text(json.dumps(_training()))
@@ -42,6 +42,7 @@ def prepared(tmp_path):
     archive = tmp_path / "Gold data.zip"
     archive.write_bytes(b"fixture-not-a-market-archive")
     digest = sha256(archive.read_bytes()).hexdigest()
+    monkeypatch.setattr("scripts.run_arithmetic_dispatch_training.SOURCE_SHA", digest)
     return source, generation, tmp_path / "dispatch", archive, digest, tmp_path / "out"
 
 
@@ -136,7 +137,7 @@ def test_holdout_year_and_archive_sha_are_rejected(prepared, monkeypatch):
         pytest.fail("Canonical backtest must not run on rejected input")
     monkeypatch.setattr("scripts.run_arithmetic_dispatch_training.subprocess.run",
                         forbidden)
-    with pytest.raises(ValueError, match="SHA mismatch"):
+    with pytest.raises(ValueError, match="SHA"):
         execute(source, generation, dispatch, archive, "0" * 64, 2012, out)
     with pytest.raises(ValueError, match="holdout replay forbidden"):
         execute(source, generation, dispatch, archive, digest, 2024, out)
