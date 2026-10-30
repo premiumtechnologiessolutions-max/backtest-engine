@@ -16,7 +16,7 @@ from .math_discovery import Formula
 from .research_training_integrity import training_summary
 
 _SCHEMA = "NRFX_ARITHMETIC_EVOLUTION_V1"
-_HEX = re.compile(r"[0-9a-f]{64}\\Z")
+_HEX = re.compile(r"[0-9a-f]{64}\Z")
 _METRICS = frozenset({"months", "net_usd_per_oz", "trades", "fees_usd",
                       "positive_months", "uncertain_gap_trades",
                       "synthetic_forced_closures", "accounting"})
