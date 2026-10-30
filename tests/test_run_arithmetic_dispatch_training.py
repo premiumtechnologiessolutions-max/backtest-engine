@@ -48,7 +48,7 @@ def prepared(tmp_path, monkeypatch):
 
 def _fake_cli(command, *, check, capture_output, text, tamper=False,
               corrupt_both=False, monthly_corruption=None,
-              weekly_corruption=None):
+              weekly_corruption=None, equity_corruption=None):
     assert check and capture_output and text
     assert command[:3] == [__import__("sys").executable, "-m", "norisk_quant.cli"]
     assert "--strategy" in command and command[command.index("--strategy") + 1] == "arithmetic"
@@ -134,8 +134,35 @@ def _fake_cli(command, *, check, capture_output, text, tamper=False,
     elif weekly_corruption == "wrong_wins":
         weekly.loc[0, "wins"] = 1
     weekly.to_csv(target / "weekly.csv", index=False)
-    pd.DataFrame({"time": ["2012-01-01T00:02:00Z"],
-                  "equity": [-0.4]}).to_csv(target / "equity_m1.csv", index=False)
+    # Synthetic observed marks span all 12 months; gaps are NOT filled.
+    observed = (["2012-01-01T00:00:00Z", "2012-01-01T00:02:00Z"]
+                + [f"2012-{month:02d}-01T00:00:00Z" for month in range(2, 12)]
+                + ["2012-12-31T23:59:00Z"])
+    equity = pd.DataFrame({
+        "at": observed,
+        "realized_pnl": [0.0] + [-0.4] * (len(observed) - 1),
+        "floating_pnl": [0.0] * len(observed),
+        "equity": [0.0] + [-0.4] * (len(observed) - 1),
+        "drawdown": [0.0] + [0.4] * (len(observed) - 1),
+    })
+    if equity_corruption == "wrong_drawdown":
+        equity.loc[1, "drawdown"] = 0.2
+    elif equity_corruption == "shift_realized":
+        equity.loc[1, "realized_pnl"] = -0.2
+        equity.loc[1, "equity"] = -0.2
+        equity.loc[1, "drawdown"] = 0.2
+    elif equity_corruption == "duplicate_minute":
+        equity = pd.concat([equity.iloc[:2], equity.iloc[[1]], equity.iloc[2:]],
+                           ignore_index=True)
+    elif equity_corruption == "missing_exit_mark":
+        equity = equity.drop(index=1)
+    elif equity_corruption == "wrong_summary_dd":
+        summary["max_drawdown_observed_m1"] = 0.3
+        (target / "summary.json").write_text(json.dumps(summary))
+    elif equity_corruption == "wrong_last_equity":
+        equity.loc[equity.index[-1], "equity"] = -0.3
+        equity.loc[equity.index[-1], "realized_pnl"] = -0.3
+    equity.to_csv(target / "equity_m1.csv", index=False)
     pd.DataFrame(columns=["gap_start", "gap_end"]).to_csv(
         target / "gap_catalogue.csv", index=False)
 
@@ -266,6 +293,26 @@ def test_identical_weekly_corruption_in_both_engines_is_rejected(
     monkeypatch.setattr("scripts.run_arithmetic_dispatch_training.subprocess.run",
                         fake_run)
     with pytest.raises(ValueError, match="Weekly ledger"):
+        execute(source, generation, dispatch, archive, digest, 2012, out,
+                limit=1)
+    assert not out.exists()
+    assert not list(out.parent.glob(".nrfx_arithmetic_training_*"))
+
+
+@pytest.mark.parametrize("corruption", [
+    "wrong_drawdown", "shift_realized", "duplicate_minute",
+    "missing_exit_mark", "wrong_summary_dd", "wrong_last_equity",
+])
+def test_identical_m1_equity_corruption_in_both_engines_is_rejected(
+        prepared, monkeypatch, corruption):
+    source, generation, dispatch, archive, digest, out = prepared
+
+    def fake_run(command, **kwargs):
+        _fake_cli(command, equity_corruption=corruption, **kwargs)
+
+    monkeypatch.setattr("scripts.run_arithmetic_dispatch_training.subprocess.run",
+                        fake_run)
+    with pytest.raises(ValueError, match="M1 equity"):
         execute(source, generation, dispatch, archive, digest, 2012, out,
                 limit=1)
     assert not out.exists()
