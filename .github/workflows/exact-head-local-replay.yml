@@ -1,0 +1,45 @@
+name: NoRiskFX - exact commit private local replay handoff
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/exact-head-local-replay.yml'
+      - 'docs/EXACT_HEAD_PRIVATE_GOLD_REPLAY_BATCH10.md'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  produce-exact-replay-checkout:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout the PR head, not GitHub synthetic merge commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Prepare self-contained tracked-source Git bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p private-replay-handoff
+          test -z "$(git status --porcelain --untracked-files=no)"
+          git rev-parse HEAD > private-replay-handoff/exact_commit.txt
+          git bundle create private-replay-handoff/exact_commit.bundle HEAD
+          git bundle verify private-replay-handoff/exact_commit.bundle
+          ( cd private-replay-handoff && sha256sum exact_commit.bundle > bundle_sha256.txt && sha256sum -c bundle_sha256.txt )
+          expected="$(cat private-replay-handoff/exact_commit.txt)"
+          temporary="$(mktemp -d)"
+          git clone -q private-replay-handoff/exact_commit.bundle "$temporary/recheck"
+          test "$(git -C "$temporary/recheck" rev-parse HEAD)" = "$expected"
+          test -z "$(git -C "$temporary/recheck" status --porcelain --untracked-files=no)"
+          rm -rf "$temporary"
+          echo "Exact SHA verified by independent local clone; NO market data included."
+      - name: Upload source-only sealed reproducibility bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: nrfx-exact-head-local-replay
+          path: private-replay-handoff/
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
