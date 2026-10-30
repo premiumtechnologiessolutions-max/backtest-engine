@@ -46,7 +46,8 @@ def prepared(tmp_path, monkeypatch):
     return source, generation, tmp_path / "dispatch", archive, digest, tmp_path / "out"
 
 
-def _fake_cli(command, *, check, capture_output, text, tamper=False):
+def _fake_cli(command, *, check, capture_output, text, tamper=False,
+              corrupt_both=False):
     assert check and capture_output and text
     assert command[:3] == [__import__("sys").executable, "-m", "norisk_quant.cli"]
     assert "--strategy" in command and command[command.index("--strategy") + 1] == "arithmetic"
@@ -82,7 +83,8 @@ def _fake_cli(command, *, check, capture_output, text, tamper=False):
         "side": 1, "entry_price": 100.0,
         "exit_price": 100.1 if tamper and engine == "fast" else 100.0,
         "stop": 99.0, "target": 102.0, "ounces": 1.0,
-        "gross_pnl": 0.0, "cost": 0.4, "net_pnl": -0.4,
+        "gross_pnl": 0.1 if corrupt_both else 0.0,
+        "cost": 0.4, "net_pnl": -0.4,
         "exit_reason": "end_of_data", "gap_minutes": 0,
     }
     pd.DataFrame([trade]).to_csv(target / "trades.csv", index=False)
@@ -161,3 +163,29 @@ def test_tampered_dispatch_and_output_symlink_rejected(prepared, tmp_path):
     with pytest.raises(ValueError, match="Symlink"):
         execute(source, generation, dispatch, archive, digest, 2012, out)
     assert not list(outside.iterdir())
+
+
+def test_shared_execution_accounting_corruption_is_not_certified(prepared, monkeypatch):
+    source, generation, dispatch, archive, digest, out = prepared
+    def fake_run(command, **kwargs):
+        _fake_cli(command, corrupt_both=True, **kwargs)
+    monkeypatch.setattr("scripts.run_arithmetic_dispatch_training.subprocess.run",
+                        fake_run)
+    with pytest.raises(ValueError, match="gross/net/fee arithmetic"):
+        execute(source, generation, dispatch, archive, digest, 2012, out,
+                limit=1)
+    assert not out.exists()
+
+
+def test_out_of_range_ordinals_and_noninteger_year_rejected(prepared, monkeypatch):
+    source, generation, dispatch, archive, digest, out = prepared
+    def forbidden(*args, **kwargs):
+        pytest.fail("Rejected research request must never invoke the CLI")
+    monkeypatch.setattr("scripts.run_arithmetic_dispatch_training.subprocess.run",
+                        forbidden)
+    with pytest.raises(ValueError, match="ordinal exceeds"):
+        execute(source, generation, dispatch, archive, digest, 2012, out,
+                start_ordinal=4, limit=1)
+    with pytest.raises(ValueError, match="Invalid bounded"):
+        execute(source, generation, dispatch, archive, digest, True, out)
+    assert not out.exists()
