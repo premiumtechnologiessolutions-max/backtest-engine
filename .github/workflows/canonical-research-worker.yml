@@ -28,8 +28,11 @@ jobs:
         run: python -m pip install -c constraints-ci.txt -e '.[dev]'
       - name: Compile research worker and queue
         run: python -m compileall -q src/norisk_quant/research_control_plane.py src/norisk_quant/canonical_research_worker.py scripts/canonical_research_worker.py
-      - name: Historical worker and canonical accounting safety tests
-        run: python -m pytest -q tests/test_canonical_research_worker.py tests/test_research_control_plane.py tests/test_research_source_preflight.py tests/test_research_batch_orchestrator.py
+      - name: Cross-platform worker and source-contract tests
+        run: python -m pytest -q tests/test_canonical_research_worker.py tests/test_research_control_plane.py tests/test_research_source_preflight.py
+      - name: POSIX-only canonical batch locks and private report permissions
+        if: runner.os == 'Linux'
+        run: python -m pytest -q tests/test_research_batch_orchestrator.py
   full-canonical:
     runs-on: ubuntu-latest
     timeout-minutes: 25
