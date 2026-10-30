@@ -350,3 +350,53 @@ def test_windows_canonical_execution_fails_closed_before_invoking_runner(tmp_pat
         execute_one_approved_job(q,source_manifest={},data_zip=src,checkout=tmp_path,output_root=out)
     assert q.status(job)["state"]=="rejected"
     assert q.counts()["completed"]==0
+
+
+@pytest.mark.skipif(os.name != "posix",reason="Canonical evidence writes require POSIX permissions")
+def test_real_canonical_runner_creates_audited_month_week_trade_files(tmp_path,monkeypatch):
+    """Actually run norisk_quant.cli on a made-up ZIP; no broker or user data."""
+    from norisk_quant import canonical_research_worker as worker
+    from scripts import research_batch_orchestrator as batch
+    from norisk_quant.data import sha256_file
+    src=tmp_path/"synthetic_market_2024.zip"
+    first=int(datetime.fromisoformat("2024-01-01T00:00:00+00:00").timestamp())
+    candles=[]
+    for idx in range(280):
+        price=2000.0+0.001*idx
+        candles.append({
+            "ts":first+idx*60, "o":price, "h":price+0.20,
+            "l":price-0.20, "c":price+0.05,
+            "ao":price+0.10, "ah":price+0.30,
+            "al":price-0.10, "ac":price+0.15,
+        })
+    with zipfile.ZipFile(src,"w",compression=zipfile.ZIP_DEFLATED) as z:
+        z.writestr("XAUUSD_2024.json",json.dumps(candles))
+    p=proposal()
+    p["dataset_sha256"]=sha256_file(src)
+    q=ResearchQueue(tmp_path/"queue.sqlite3")
+    id_=q.submit(p,now=t())
+    q.set_paused(False,now=t(1))
+    folder=tmp_path/"reports"
+    folder.mkdir()
+    expected_plan=frozen_plan_from_intent(intent(p),data_zip=src)
+    proof={"experiment_id":id_,"source_manifest_id":"f"*64,"plan":expected_plan}
+    monkeypatch.setattr(worker,"preflight_queued_research",lambda *a,**kw:proof)
+    monkeypatch.setattr(batch,"checkout_commit",lambda:HEAD)
+    outcome=execute_one_approved_job(
+        q,source_manifest={},data_zip=src,checkout=tmp_path,output_root=folder,
+    )
+    assert outcome["status"]=="HISTORICAL_RESEARCH_ARTIFACT_RECORDED_NOT_APPROVED"
+    assert outcome["profitability_verified"] is False
+    assert outcome["broker_fill_parity"] is False
+    root=folder/id_
+    assert (root/"batch_manifest.json").is_file()
+    manifest=json.loads((root/"batch_manifest.json").read_text(encoding="utf-8"))
+    assert manifest["source_sha256"]==sha256_file(src)
+    assert len(manifest["results"])==1
+    runs=list((root/"runs").iterdir())
+    assert len(runs)==1
+    for file in ("summary.json","trades.csv","weekly.csv","monthly.csv"):
+        assert (runs[0]/file).is_file(),file
+    assert q.status(id_)["state"]=="completed"
+    assert q.status(id_)["risk_approved"] is False
+    assert q.counts()["completed"]==1
