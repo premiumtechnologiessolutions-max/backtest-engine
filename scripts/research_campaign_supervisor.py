@@ -75,12 +75,16 @@ def _verified_feedback(next_input: Path) -> str:
 def campaign(input_path: Path, source_zip: Path, root: Path, *,
              seed: int, first_generation: int = 1, generations: int = 10,
              proposal_count: int = 12, shard_size: int = 8,
-             min_free_gb: int = 2, max_wall_seconds: int = 7200) -> dict:
+             min_free_gb: int = 2, max_wall_seconds: int = 7200,
+             proposal_policy: str = "legacy_random") -> dict:
     """Resume a bounded batch. Each completed generation is immutable.
 
     Runtime budget is observed BETWEEN generations; a single real M1 replay
     cannot be forcibly terminated safely by this wrapper.
     """
+    if type(proposal_policy) is not str or proposal_policy not in (
+            "legacy_random", "matched_guided_v1"):
+        raise ValueError("Unknown campaign proposal policy")
     controls = (seed, first_generation, generations, proposal_count,
                 shard_size, min_free_gb, max_wall_seconds)
     if (any(type(x) is not int for x in controls)
@@ -111,7 +115,8 @@ def campaign(input_path: Path, source_zip: Path, root: Path, *,
         freeze_campaign_intent(root, input_path, seed=seed,
                                first_generation=first_generation,
                                proposal_count=proposal_count,
-                               shard_size=shard_size)
+                               shard_size=shard_size,
+                               proposal_policy=proposal_policy)
         current_input = input_path
         completed = []
         state = {"schema": SCHEMA, "started_utc": _now(),
@@ -141,10 +146,15 @@ def campaign(input_path: Path, source_zip: Path, root: Path, *,
                         raise ValueError("Reaudited cached generation SHA mismatch")
                     status = "REUSED_FULLY_REAUDITED_FEEDBACK"
                 else:
-                    result = run_cycles(
-                        current_input, source_zip, runs, seed=seed + offset,
-                        first_generation=number, generations=1,
-                        proposal_count=proposal_count, shard_size=shard_size)
+                    cycle_options = {
+                        "seed": seed + offset, "first_generation": number,
+                        "generations": 1, "proposal_count": proposal_count,
+                        "shard_size": shard_size,
+                    }
+                    if proposal_policy != "legacy_random":
+                        cycle_options["proposal_policy"] = proposal_policy
+                    result = run_cycles(current_input, source_zip, runs,
+                                        **cycle_options)
                     if result["status"] != "COMPLETE_TRAINING_ONLY_NOT_OOS":
                         raise ValueError("Generation did not finish canonical training audit")
                     fingerprint = _verified_feedback(next_input)
@@ -179,12 +189,15 @@ def main(argv=None) -> int:
     parser.add_argument("--shard-size", type=int, default=8)
     parser.add_argument("--min-free-gb", type=int, default=2)
     parser.add_argument("--max-wall-seconds", type=int, default=7200)
+    parser.add_argument("--proposal-policy", choices=("legacy_random", "matched_guided_v1"),
+                        default="legacy_random")
     args = parser.parse_args(argv)
     result = campaign(args.training_input, args.gold_zip, args.out,
                       seed=args.seed, first_generation=args.first_generation,
                       generations=args.generations, proposal_count=args.count,
                       shard_size=args.shard_size, min_free_gb=args.min_free_gb,
-                      max_wall_seconds=args.max_wall_seconds)
+                      max_wall_seconds=args.max_wall_seconds,
+                      proposal_policy=args.proposal_policy)
     print(json.dumps(result, sort_keys=True, indent=2))
     return 0
 
