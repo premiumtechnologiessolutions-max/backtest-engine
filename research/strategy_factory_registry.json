@@ -1,6 +1,6 @@
 {
   "format_version": 1,
-  "updated_utc": "2026-10-30T12:22:53Z",
+  "updated_utc": "2026-10-30T13:24:00Z",
   "project": "No Risk FX XAUUSD quant research factory",
   "branch": "feat/quant-engine-foundation",
   "original_private_zip_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
@@ -1693,6 +1693,29 @@
       "approved_strategies": 0,
       "source_zip_sha256_local_verified": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
       "note": "One nonblocking POSIX flock per private output root serializes synchronous arithmetic generation/dispatch/replay/feedback; fail-closed on active writer, symlink/nonregular/insecure lock. Lock survives on disk but kernel releases after process death; no distributed locking. Five synthetic regressions, 3029 full-suite tests on code commit. Original private ZIP SHA independently rechecked locally in this cycle but NO private original-source backtest, monthly P/L, M1 drawdown, canonical parity, prospective OOS or live trading. Registry-only commit needs exact-head CI separately."
+    },
+    {
+      "id": "NRF-PROSPECTIVE-EMBARGO-STRICT-IDENTITY-2026-10-30",
+      "status": "SYNTHETIC_FULL_ENGINE_CI_PASSED_NOT_OOS",
+      "code": "scripts/freeze_prospective_validation.py",
+      "tests": "tests/test_prospective_embargo_gate.py",
+      "report": "docs/PROSPECTIVE_EMBARGO_DUPLICATE_IDENTITY_GATES_2026-10-30.md",
+      "default_training_embargo_days": 30,
+      "embargo_days_valid_range": [
+        1,
+        366
+      ],
+      "canonical_iso_calendar_dates_required": true,
+      "unique_sorted_integer_training_years_required": true,
+      "duplicate_formula_identity_rejected": true,
+      "verified_ci_code_commit": "4cc7532cad3c6f43b4ca9737d4c38d04fbeddbcc",
+      "verified_ci_run": 41062793856,
+      "verified_ci_pytest_passed": 3107,
+      "original_source_strategy_backtests_added": 0,
+      "original_source_monthly_net_usd_per_oz": "N/A",
+      "original_source_monthly_floating_drawdown_usd_per_oz": "N/A",
+      "approved_strategies": 0,
+      "note": "Strict publish-once prospective freeze date syntax, frozen chronological training-year integrity, default 30-calendar-day embargo after the final training year's Dec 31, and formula identity deduplication. Synthetic CI passed on exact code-containing commit; no original ZIP backtest, untouched prospective observations, canonical trade replay or live trading. No change to factory backtest totals. This registry update requires its own head CI."
     }
   ]
 }
