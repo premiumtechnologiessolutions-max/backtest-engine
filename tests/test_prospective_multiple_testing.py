@@ -27,7 +27,7 @@ def test_bad_family_fails_closed(values):
         holm_bonferroni(values)
 
 
-@pytest.mark.parametrize("alpha", [0, 1, 0.05, float("nan"), float("inf"), -0.1])
+@pytest.mark.parametrize("alpha", [0, 1, True, float("nan"), float("inf"), -0.1])
 def test_bad_alpha_fails_closed(alpha):
     with pytest.raises(ValueError):
         holm_bonferroni({"a": 0.01}, alpha)
