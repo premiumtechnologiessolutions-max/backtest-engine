@@ -31,7 +31,7 @@ def _reject_constant(value):
 
 
 def run(input_path: Path, output_path: Path, *, seed: int, generation: int,
-        proposal_count: int) -> dict:
+        proposal_count: int, proposal_policy: str = "legacy_random") -> dict:
     if input_path.resolve() == output_path.resolve():
         raise ValueError("Input and output must be different files")
     raw = input_path.read_bytes()
@@ -47,7 +47,8 @@ def run(input_path: Path, output_path: Path, *, seed: int, generation: int,
     result = evolve_training_generation(
         source["candidates"], tuple(source["years"]), seed=seed,
         generation=generation, proposal_count=proposal_count,
-        explored_ids=tuple(source["explored_ids"]))
+        explored_ids=tuple(source["explored_ids"]),
+        proposal_policy=proposal_policy)
     envelope = {"input_sha256": sha256(raw).hexdigest(), "result": result}
     content = (json.dumps(envelope, sort_keys=True, indent=2, allow_nan=False)
                + "\n").encode("utf-8")
@@ -81,9 +82,11 @@ def main(argv=None) -> int:
     parser.add_argument("--seed", type=int, required=True)
     parser.add_argument("--generation", type=int, required=True)
     parser.add_argument("--count", type=int, default=12)
+    parser.add_argument("--proposal-policy", choices=("legacy_random", "matched_guided_v1"),
+                        default="legacy_random")
     args = parser.parse_args(argv)
     envelope = run(args.input, args.output, seed=args.seed,
-                   generation=args.generation, proposal_count=args.count)
+                   generation=args.generation, proposal_count=args.count, proposal_policy=args.proposal_policy)
     print(f"Training-only proposals: {len(envelope['result']['proposals'])}; "
           f"manifest SHA256: {envelope['result']['manifest_sha256']}")
     return 0
