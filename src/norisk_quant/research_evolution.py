@@ -68,7 +68,8 @@ def _mutate(parent: Formula, rng: random.Random) -> tuple[Formula, list[str]]:
 def evolve_training_generation(candidates: list[dict], years: tuple[int, ...], *,
                                seed: int, generation: int,
                                proposal_count: int = 12,
-                               explored_ids: tuple[str, ...] = ()) -> dict:
+                               explored_ids: tuple[str, ...] = (),
+                               proposal_policy: str = "legacy_random") -> dict:
     """Create bounded, reproducible next-generation hypotheses from TRAINING only.
 
     candidates: [{"formula": all Formula fields,
@@ -76,6 +77,9 @@ def evolve_training_generation(candidates: list[dict], years: tuple[int, ...], *
     All records MUST cover exactly ``years``; holdout/OOS fields are rejected.
     Returns an immutable-content SHA envelope, not a performance certificate.
     """
+    if (type(proposal_policy) is not str or proposal_policy not in
+            ("legacy_random", "matched_guided_v1")):
+        raise ValueError("Unknown frozen proposal policy")
     if (type(seed) is not int or not 0 <= seed < 2**63
             or type(generation) is not int or not 0 <= generation <= 1_000_000
             or type(proposal_count) is not int or not 1 <= proposal_count <= 128
@@ -113,6 +117,41 @@ def evolve_training_generation(candidates: list[dict], years: tuple[int, ...], *
     source_digest = _digest(source)
     rng = random.Random(seed + generation * 1_000_003)
     proposals = []
+    matched_count = 0
+    guided_count = 0
+    if proposal_policy == "matched_guided_v1":
+        from .research_failure_hypotheses import analyze_matched_training_pairs
+        contrasts = analyze_matched_training_pairs(candidates, years, limit=1000)
+        matched_count = contrasts["total_single_parameter_pairs"]
+        guided_budget = max(1, proposal_count // 2)
+        # The favorable direction is chosen POST HOC from exposed training.
+        # It only proposes a new experiment, never certifies a market edge.
+        for contrast in contrasts["contrasts"]:
+            if len(proposals) >= guided_budget:
+                break
+            if contrast["next_action"] != "PREREGISTER_A_NEW_COMPARISON":
+                continue
+            parent_id = contrast["comparison_formula_identity"]
+            parent = evaluated[parent_id][0]
+            field = contrast["changed_field"]
+            values = asdict(parent)
+            alternatives = [v for v in _OPTIONS[field] if v != values[field]]
+            rng.shuffle(alternatives)
+            for value in alternatives:
+                candidate_values = {**values, field: value}
+                child = _formula(candidate_values)
+                child_id = child.identity()
+                if child_id in seen:
+                    continue
+                seen.add(child_id)
+                proposals.append({
+                    "identity": child_id, "parent_identity": parent_id,
+                    "mutated_fields": [field], "formula": asdict(child),
+                    "proposal_basis": "POST_HOC_MATCHED_TRAINING_HYPOTHESIS",
+                    "source_contrast_sha256": _digest(contrast),
+                })
+                guided_count += 1
+                break
     # Bounded attempts: duplicates cannot produce infinite loops.
     for _ in range(proposal_count * 100):
         if len(proposals) == proposal_count:
@@ -125,8 +164,11 @@ def evolve_training_generation(candidates: list[dict], years: tuple[int, ...], *
         if child_id in seen:
             continue
         seen.add(child_id)
-        proposals.append({"identity": child_id, "parent_identity": parent_id,
-                          "mutated_fields": changed, "formula": asdict(child)})
+        proposal = {"identity": child_id, "parent_identity": parent_id,
+                    "mutated_fields": changed, "formula": asdict(child)}
+        if proposal_policy == "matched_guided_v1":
+            proposal["proposal_basis"] = "BASELINE_DIVERSITY_MUTATION"
+        proposals.append(proposal)
     if len(proposals) != proposal_count:
         raise ValueError("Mutation space exhausted under the frozen research budget")
     result = {"schema": _SCHEMA, "generation": generation, "seed": seed,
@@ -138,5 +180,13 @@ def evolve_training_generation(candidates: list[dict], years: tuple[int, ...], *
               "proposals": proposals,
               "independent_oos_proven": False, "live_trading_authorized": False,
               "selection_authority": "TRAINING_ONLY_RESEARCH_PROPOSALS"}
+    if proposal_policy == "matched_guided_v1":
+        result["proposal_policy"] = proposal_policy
+        result["planning_diagnostics"] = {
+            "matched_training_pairs": matched_count,
+            "guided_proposals": guided_count,
+            "diversity_proposals": proposal_count - guided_count,
+            "evidence_scope": "POST_HOC_EXPOSED_TRAINING_ONLY_NOT_OOS",
+        }
     result["manifest_sha256"] = _digest(result)
     return result
