@@ -50,6 +50,8 @@ def proposal():
 def setup(tmp_path, *, paused=False):
     source = tmp_path / "source.zip"
     source.write_bytes(b"synthetic offline only")
+    if os.name == "posix":
+        source.chmod(0o600)
     q = ResearchQueue(tmp_path / "operator.sqlite3")
     p = proposal()
     job_id = q.submit(p, now=t())
@@ -57,6 +59,8 @@ def setup(tmp_path, *, paused=False):
         q.set_paused(False, now=t(1))
     output = tmp_path / "local_reports"
     output.mkdir()
+    if os.name == "posix":
+        output.chmod(0o700)
     return q, p, source, output, job_id
 
 
@@ -378,6 +382,9 @@ def test_real_canonical_runner_creates_audited_month_week_trade_files(tmp_path,m
     q.set_paused(False,now=t(1))
     folder=tmp_path/"reports"
     folder.mkdir()
+    if os.name == "posix":
+        folder.chmod(0o700)
+        src.chmod(0o600)
     expected_plan=frozen_plan_from_intent(intent(p),data_zip=src)
     proof={"experiment_id":id_,"source_manifest_id":"f"*64,"plan":expected_plan}
     monkeypatch.setattr(worker,"preflight_queued_research",lambda *a,**kw:proof)
@@ -400,3 +407,24 @@ def test_real_canonical_runner_creates_audited_month_week_trade_files(tmp_path,m
     assert q.status(id_)["state"]=="completed"
     assert q.status(id_)["risk_approved"] is False
     assert q.counts()["completed"]==1
+
+
+@pytest.mark.skipif(os.name != "posix",reason="POSIX owner-only permissions contract")
+@pytest.mark.parametrize("unsafe", ["source", "output", "queue"])
+def test_posix_private_file_permissions_must_be_approved_before_runner(tmp_path,monkeypatch,unsafe):
+    from norisk_quant import canonical_research_worker as worker
+    from scripts import research_batch_orchestrator as batch
+    q,p,source,output,job=setup(tmp_path)
+    proof={"experiment_id":job,"source_manifest_id":"c"*64,
+           "plan":frozen_plan_from_intent(intent(p),data_zip=source)}
+    monkeypatch.setattr(worker,"preflight_queued_research",lambda *a,**kw:proof)
+    def forbidden(*a,**kw):
+        raise AssertionError("Canonical subprocess executed despite insecure local permissions")
+    monkeypatch.setattr(batch,"run_plan",forbidden)
+    target={"source":source,"output":output,"queue":q.path}[unsafe]
+    target.chmod(0o755 if unsafe=="output" else 0o644)
+    with pytest.raises(ValueError,match="owner-only"):
+        execute_one_approved_job(q,source_manifest={},data_zip=source,
+                                 checkout=tmp_path,output_root=output)
+    assert q.status(job)["state"]=="rejected"
+    assert q.counts()["completed"]==0
