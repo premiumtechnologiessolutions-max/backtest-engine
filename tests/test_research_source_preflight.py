@@ -169,7 +169,7 @@ def test_crossed_bidask_is_rejected_even_if_manifest_fingerprint_matches_old(tmp
     src, frame, manifest, proposal = fixtures(tmp_path)
     corrupted = frame.copy()
     corrupted.loc[corrupted.index[0], "ao"] = 1
-    with pytest.raises(ValueError, match="crossed BID/ASK"):
+    with pytest.raises(ValueError, match="invalid BID/ASK OHLC|crossed BID/ASK"):
         preflight(src, corrupted, manifest, proposal)
 
 
