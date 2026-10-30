@@ -90,6 +90,11 @@ def training_summary(records: list[dict], years: tuple[int, ...], *,
             raise ValueError("Training equity accumulation overflowed")
         high = max(high, equity)
         drawdown = max(drawdown, high - equity)
+        # Individually finite observations can still overflow when subtracting
+        # the running equity from an earlier high-water mark. Never allow an
+        # infinite drawdown into a ranking or a signed research manifest.
+        if not math.isfinite(drawdown):
+            raise ValueError("Training month-end drawdown overflowed")
     # Ranking is deliberately a TRAINING heuristic, not a statistical result.
     screened = (total_trades >= 30 and net > 0 and
                 positive_months / len(monthly) >= 0.60 and gap == 0
