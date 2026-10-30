@@ -61,3 +61,13 @@ def test_dst_monday_entry_uses_new_york_clock():
 def test_grid_exactly_one_family_16_correlated_configs():
     assert len(fac.GRID) == len(set(fac.GRID)) == 16
     assert fac.FEE == 0.40
+
+
+def test_shared_capacity_priority_does_not_sum_correlated_variants():
+    df, row = sample_day()
+    solo = fac.simulate(df, fac.GRID[0], days=[row])
+    shared = fac.simulate(df, fac.GRID, days=[row])
+    assert shared["trades"] == solo["trades"] == 1
+    assert shared["net"] == solo["net"] == -0.4
+    assert len(shared["monthly"]) == 12
+    assert len(shared["monthly_observed_m1_drawdown"]) == 12
