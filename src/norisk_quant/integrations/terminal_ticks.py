@@ -153,6 +153,18 @@ def import_terminal_ticks(payload: bytes, *, allow_synthetic: bool = False) -> T
     contract = _validate_contract(request["contract"], kind)
     _validate_config(request.get("config"))
     _validate_evidence(request.get("source_evidence"))
+    source_evidence = request.get("source_evidence") or {}
+    cent_denomination = contract["quote_currency"] == "USD" and contract["account_currency"] == "USC"
+    if cent_denomination:
+        expected_factor = source_evidence.get("denomination_factor")
+        if (type(expected_factor) not in (int, float)
+                or not math.isfinite(expected_factor) or expected_factor <= 0):
+            raise ValueError("USC source requires an explicit positive denomination factor")
+        if kind == "broker_history" and source_evidence.get("account_kind") != "real_cent_read_only":
+            raise ValueError("VT Cent history requires explicit Cent account provenance")
+        if (kind == "broker_history" and contract["provider"] == "VT Markets MT5 · Cent"
+                and expected_factor != 100):
+            raise ValueError("VT Cent must use 100 USC per USD")
     rows = request["ticks"]
     if not isinstance(rows, list) or not 2 <= len(rows) <= MAX_TICKS:
         raise ValueError("Terminal dataset must contain 2–250000 observed ticks")
@@ -188,6 +200,8 @@ def import_terminal_ticks(payload: bytes, *, allow_synthetic: bool = False) -> T
                 raise ValueError("Historical quote/account conversion requires evidence on each tick")
             _text(row["conversion_source"], "conversion_source")
             factor = _positive(row.get("quote_to_account"), "quote_to_account")
+        if cent_denomination and factor != float(source_evidence["denomination_factor"]):
+            raise ValueError("USC denomination must stay constant on every observed tick")
         if at.year < 1970 or at.year > 2100:
             raise ValueError("Tick outside supported UTC clock range")
         ts_ns = int(pd.Timestamp(at).value)
