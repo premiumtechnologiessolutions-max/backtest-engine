@@ -5,7 +5,7 @@ No external bind, write API, market ZIP, broker access or OOS certification.
 from __future__ import annotations
 
 import argparse
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 from pathlib import Path
@@ -46,10 +46,15 @@ def safe_status(root: Path, *, current: datetime | None = None) -> dict:
         updated = datetime.fromisoformat(data["updated_utc"])
     except (KeyError, ValueError, TypeError) as exc:
         raise ValueError("Campaign missing UTC observation timestamp") from exc
-    if updated.tzinfo is None:
-        raise ValueError("Naive campaign observation timestamp")
+    if updated.tzinfo is None or updated.utcoffset() != timedelta(0):
+        raise ValueError("Campaign observation timestamp must be UTC")
     now = datetime.now(timezone.utc) if current is None else current
-    age = max(0, int((now - updated.astimezone(timezone.utc)).total_seconds()))
+    if type(now) is not datetime or now.tzinfo is None:
+        raise ValueError("Monitor clock must be timezone aware")
+    elapsed = (now.astimezone(timezone.utc) - updated).total_seconds()
+    if elapsed < -60:
+        raise ValueError("Campaign observation timestamp is in the future")
+    age = max(0, int(elapsed))
     return {"state": data["status"], "completed_generations": len(completed),
             "completed": completed, "last_update_utc": updated.isoformat(),
             "seconds_since_update": age,
@@ -93,6 +98,14 @@ def make_handler(root: Path):
 
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
+            # A loopback socket alone does not prevent DNS rebinding: a
+            # malicious website may resolve its own hostname to 127.0.0.1.
+            # Require the exact Host printed by main() before reading data.
+            host_headers = self.headers.get_all("Host", [])
+            expected_host = f"127.0.0.1:{self.server.server_port}"
+            if len(host_headers) != 1 or host_headers[0] != expected_host:
+                self.send_error(403, "Invalid loopback Host")
+                return
             endpoint = urlsplit(self.path).path
             if endpoint not in ("/", "/api/status", "/api/generations"):
                 self.send_error(404, "Unknown endpoint")
