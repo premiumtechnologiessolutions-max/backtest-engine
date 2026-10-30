@@ -37,3 +37,17 @@ def test_equal_p_values_are_deterministic_and_monotonic():
     result = holm_bonferroni({"z": 0.01, "a": 0.01, "m": 0.01})
     assert list(result) == ["a", "m", "z"]
     assert all(v["holm_adjusted_p"] == pytest.approx(0.03) for v in result.values())
+
+
+def test_registered_family_requires_exact_membership():
+    family = frozenset({"a", "b"})
+    assert holm_bonferroni({"a": 0.01, "b": 0.02}, registered_ids=family)["a"]["reject"]
+    for observed in ({"a": 0.01}, {"a": 0.01, "b": 0.02, "c": 0.03}):
+        with pytest.raises(ValueError, match="preregistered"):
+            holm_bonferroni(observed, registered_ids=family)
+
+
+@pytest.mark.parametrize("family", [frozenset(), frozenset({""}), {"a"}, frozenset({1})])
+def test_invalid_registered_family_fails_closed(family):
+    with pytest.raises(ValueError):
+        holm_bonferroni({"a": 0.01}, registered_ids=family)
