@@ -64,8 +64,21 @@ def metrics(months: list[str], pnl: dict, trades: dict) -> dict:
     if any(type(v) is not int or v < 0 for v in counts):
         raise ValueError("Invalid monthly trade count")
     positives = sum(x > 0 for x in values)
+    # Contiguous UTC month windows: descriptive net/month-end risk, never M1 floating DD.
+    nonpositive_streak = longest_nonpositive = 0
+    for value in values:
+        nonpositive_streak = nonpositive_streak + 1 if value <= 0 else 0
+        longest_nonpositive = max(longest_nonpositive, nonpositive_streak)
+    worst_index = min(range(len(values)), key=lambda i: (values[i], i))
+    rolling_three = (round(min(sum(values[i:i + 3])
+                           for i in range(len(values) - 2)), 8)
+                     if len(values) >= 3 else None)
     return {
         "months": len(months), "trades": sum(counts),
+        "zero_trade_months": sum(n == 0 for n in counts),
+        "worst_month_utc": months[worst_index],
+        "worst_rolling_3m_net_usd_per_oz": rolling_three,
+        "longest_nonpositive_month_streak": longest_nonpositive,
         "positive_months": positives,
         "positive_month_fraction": round(positives / len(months), 8),
         "net_pnl_usd_per_oz": round(sum(values), 8),
@@ -183,7 +196,9 @@ def select(plan: dict, manifest: dict, runs_root: Path, *, train_start: str,
 
 def render(report: dict) -> str:
     cols = ["Rank", "Job", "Strategy", "Train screen", "Train trades",
-            "Train +months", "Train net/oz", "Train DD/oz",
+            "Train +months", "Train net/oz", "Train worst month/oz",
+            "Train worst 3m/oz", "Train zero-trade months",
+            "Train longest nonpositive streak", "Train month-end DD/oz",
             "Review net/oz", "Review +months"]
     rows = []
     for item in report["results"]:
@@ -193,6 +208,11 @@ def render(report: dict) -> str:
                   item["training_screen"], str(t["trades"]),
                   f'{t["positive_month_fraction"]:.0%}',
                   f'{t["net_pnl_usd_per_oz"]:+.2f}',
+                  f'{t["worst_month_usd_per_oz"]:+.2f}' if "worst_month_usd_per_oz" in t else "N/A",
+                  (f'{t["worst_rolling_3m_net_usd_per_oz"]:+.2f}'
+                   if t.get("worst_rolling_3m_net_usd_per_oz") is not None else "N/A"),
+                  str(t.get("zero_trade_months", "N/A")),
+                  str(t.get("longest_nonpositive_month_streak", "N/A")),
                   f'{t["max_month_end_drawdown_usd_per_oz"]:.2f}',
                   f'{r["net_pnl_usd_per_oz"]:+.2f}',
                   f'{r["positive_month_fraction"]:.0%}']
@@ -213,7 +233,9 @@ def render(report: dict) -> str:
             'Later review is descriptive, with no multiple-testing correction. '
             'Incomplete search universes show descriptive values only: no eligibility or ranks. '
             'Net P/L includes fixed 0.40 USD/oz fee; monthly drawdown '
-            'does not reflect intramonth exposure.</p>'
+            'does not reflect intramonth exposure. Rolling-three-month and '
+            'nonpositive streaks are descriptive, not independent OOS '
+            'or multiple-testing-adjusted evidence.</p>'
             '<p>Training: ' + escape(report["train_months"][0]) + '–'
             + escape(report["train_months"][-1]) + ' | Review: '
             + escape(report["later_review_months"][0]) + '–'

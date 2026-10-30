@@ -196,3 +196,37 @@ def test_complete_search_universe_preserves_training_only_eligibility(monkeypatc
     assert result["noncomparable_job_ids"] == []
     assert result["results"][0]["training_rank"] == 1
     assert result["results"][0]["training_screen"] == "PASSED_EXPLORATORY"
+
+
+def test_monthly_downside_inactivity_and_nonpositive_streak():
+    months = screen.months_between("2024-01", "2024-06")
+    pnl = dict(zip(months, [10., -3., -5., 0., 2., -1.]))
+    trades = dict(zip(months, [2, 1, 1, 0, 2, 1]))
+    result = screen.metrics(months, pnl, trades)
+    assert result["worst_month_utc"] == "2024-03"
+    assert result["worst_month_usd_per_oz"] == -5.
+    assert result["worst_rolling_3m_net_usd_per_oz"] == -8.
+    assert result["longest_nonpositive_month_streak"] == 3
+    assert result["zero_trade_months"] == 1
+    assert result["max_month_end_drawdown_usd_per_oz"] == 8.
+
+
+def test_candidate_screen_renders_downside_but_not_floating_m1(monkeypatch, tmp_path):
+    plan, manifest, _, opts = setup(monkeypatch)
+    html = screen.render(screen.select(plan, manifest, tmp_path, **opts))
+    for label in ("Train worst month/oz", "Train worst 3m/oz",
+                  "Train zero-trade months", "Train longest nonpositive streak",
+                  "Train month-end DD/oz"):
+        assert label in html
+    assert "NOT independent OOS" in html
+    assert "floating M1 DD" not in html
+
+
+def test_downside_rejects_nonfinite_and_missing_months():
+    months = screen.months_between("2024-01", "2024-03")
+    with pytest.raises(ValueError, match="Invalid monthly"):
+        screen.metrics(months, dict(zip(months, [1., float("inf"), -1.])),
+                       dict.fromkeys(months, 1))
+    with pytest.raises(ValueError, match="Missing comparison"):
+        screen.metrics(months, {"2024-01": 1., "2024-02": 2.},
+                       dict.fromkeys(months, 1))
