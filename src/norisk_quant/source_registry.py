@@ -78,6 +78,7 @@ def _identity(record: dict[str, Any]) -> str:
 @dataclass(frozen=True)
 class SourceRecord:
     family: DataFamily
+    source_claim: Literal["ORIGINAL_M1_DECLARED", "BROKER_HISTORY_DECLARED", "SYNTHETIC"]
     asset: str
     instrument: str
     provider_declared: str
@@ -105,7 +106,8 @@ class SourceRecord:
         """Safe descriptive status. No file hash, source scope or quote prices."""
         return {
             "schema": SCHEMA, "manifest_id": self.id,
-            "family": self.family, "asset": self.asset, "rows": self.rows,
+            "family": self.family, "source_claim": self.source_claim,
+            "asset": self.asset, "rows": self.rows,
             "first_utc": self.first_utc, "last_utc": self.last_utc,
             "source_authentication": self.source_authentication,
             "access": self.access, "execution": self.execution,
@@ -116,11 +118,18 @@ class SourceRecord:
 _FIELDS = tuple(name for name in SourceRecord.__dataclass_fields__ if name != "id")
 
 
-def _make_record(*, family: DataFamily, asset: str, instrument: str,
+def _make_record(*, family: DataFamily, source_claim: str,
+                 asset: str, instrument: str,
                  provider_declared: str, quote_currency: str,
                  account_currency: str | None, rows: int,
                  first_utc: str, last_utc: str, source_file_sha256: str,
                  observed_quote_sha256: str) -> SourceRecord:
+    if family not in ("original_gold_m1_bidask", "private_terminal_bidask_ticks"):
+        raise ValueError("Unknown source family")
+    if ((family == "original_gold_m1_bidask" and source_claim != "ORIGINAL_M1_DECLARED")
+            or (family == "private_terminal_bidask_ticks" and source_claim not in
+                ("BROKER_HISTORY_DECLARED", "SYNTHETIC"))):
+        raise ValueError("Source claim does not match source family")
     _text(asset, "asset")
     if asset not in _ASSETS or (family == "original_gold_m1_bidask" and asset != "XAUUSD"):
         raise ValueError("Unrecognized or unsupported asset")
@@ -146,7 +155,8 @@ def _make_record(*, family: DataFamily, asset: str, instrument: str,
     if family == "private_terminal_bidask_ticks" and count < 2:
         raise ValueError("Terminal quote evidence needs at least two tick observations")
 
-    values = dict(family=family, asset=asset, instrument=instrument,
+    values = dict(family=family, source_claim=source_claim,
+                  asset=asset, instrument=instrument,
                   provider_declared=provider_declared, quote_currency=quote_currency,
                   account_currency=account_currency, rows=count,
                   first_utc=first.isoformat(), last_utc=last.isoformat(),
@@ -165,7 +175,8 @@ def register_original_gold_m1(metadata: dict[str, Any]) -> SourceRecord:
     if metadata["origin"] != "user_supplied_gold_m1_bidask":
         raise ValueError("Original M1 origin must be explicitly declared")
     return _make_record(
-        family="original_gold_m1_bidask", asset="XAUUSD", instrument="XAUUSD",
+        family="original_gold_m1_bidask", source_claim="ORIGINAL_M1_DECLARED",
+        asset="XAUUSD", instrument="XAUUSD",
         provider_declared="User-supplied BID ASK M1 source",
         quote_currency="USD", account_currency=None,
         rows=metadata["rows"], first_utc=metadata["first_utc"],
@@ -203,7 +214,9 @@ def register_terminal_tick_evidence(evidence: dict[str, Any], *,
     instrument = _text(evidence["symbol_declared"], "symbol_declared", expression=_SYMBOL)
     asset = instrument[:6]
     return _make_record(
-        family="private_terminal_bidask_ticks", asset=asset,
+        family="private_terminal_bidask_ticks",
+        source_claim="SYNTHETIC" if kind == "synthetic_test" else "BROKER_HISTORY_DECLARED",
+        asset=asset,
         instrument=instrument, provider_declared=evidence["provider_declared"],
         quote_currency=evidence["quote_currency_label"],
         account_currency=evidence["account_currency_label"],
@@ -225,7 +238,7 @@ def verify_record_manifest(manifest: dict[str, Any]) -> SourceRecord:
         raise ValueError("Data Hub manifest identity mismatch")
     # Rebuild with a strictly defined field set; never trust serialized flags.
     accepted = _make_record(**{k: record[k] for k in (
-        "family", "asset", "instrument", "provider_declared", "quote_currency",
+        "family", "source_claim", "asset", "instrument", "provider_declared", "quote_currency",
         "account_currency", "rows", "first_utc", "last_utc",
         "source_file_sha256", "observed_quote_sha256",
     )})
