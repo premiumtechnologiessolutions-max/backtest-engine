@@ -106,7 +106,56 @@ def _verify_trade_accounting(trades: pd.DataFrame) -> None:
             raise ValueError("Unknown trade exit reason")
 
 
-def _compare_outputs(reference: Path, fast: Path, *, identity: str) -> dict:
+def _verify_monthly_booking(trades: pd.DataFrame, monthly: pd.DataFrame,
+                            summary: dict, *, year: int) -> None:
+    """Reconstruct each exit-booked UTC month from fills, not just annual sums.
+
+    Reference/Fast agreement is insufficient when both reports share a
+    misplaced trade or offsetting monthly edits. Empty months remain zero,
+    never fabricated P/L, and all 12 training months must be represented.
+    """
+    required = ("period", "net_pnl", "total_cost", "trades", "wins")
+    if monthly.columns.has_duplicates or not set(required).issubset(monthly.columns):
+        raise ValueError("Monthly ledger missing required audit columns")
+    periods = [f"{year}-{month:02d}" for month in range(1, 13)]
+    if monthly["period"].tolist() != periods:
+        raise ValueError("Monthly ledger missing, duplicated, or unordered UTC months")
+    for field in required[1:]:
+        values = monthly[field]
+        if (not pd.api.types.is_numeric_dtype(values)
+                or not all(math.isfinite(float(v)) for v in values)):
+            raise ValueError(f"Monthly ledger invalid numeric field: {field}")
+    for field in ("trades", "wins"):
+        if any(value < 0 or int(value) != value for value in monthly[field]):
+            raise ValueError(f"Monthly ledger invalid integer count: {field}")
+    if any(monthly["wins"] > monthly["trades"]):
+        raise ValueError("Monthly ledger wins exceed trades")
+    if (type(summary.get("months_observed")) is not int
+            or summary["months_observed"] != 12
+            or type(summary.get("positive_months")) is not int
+            or summary["positive_months"] != int((monthly["net_pnl"] > 0).sum())):
+        raise ValueError("Monthly ledger disagrees with annual month summary")
+    if len(trades):
+        closes = pd.to_datetime(trades["closed_at"], utc=True, errors="raise")
+        close_months = closes.dt.strftime("%Y-%m")
+        if not close_months.isin(periods).all():
+            raise ValueError("Monthly ledger has trade exits outside training year")
+    else:
+        close_months = pd.Series([], dtype="str")
+    for month, row in zip(periods, monthly.itertuples(index=False)):
+        booked = trades.loc[close_months == month]
+        expected = {
+            "trades": len(booked),
+            "wins": int((booked["net_pnl"] > 0).sum()),
+            "net_pnl": float(booked["net_pnl"].sum()),
+            "total_cost": float(booked["cost"].sum()),
+        }
+        for field, value in expected.items():
+            if abs(float(getattr(row, field)) - value) > 1e-7:
+                raise ValueError(f"Monthly ledger exit-booking mismatch: {month} {field}")
+
+
+def _compare_outputs(reference: Path, fast: Path, *, identity: str, year: int) -> dict:
     """Fail on any differing execution field, report bucket, or M1 equity mark."""
     summaries = []
     for engine, directory in (("reference", reference), ("fast", fast)):
@@ -148,6 +197,8 @@ def _compare_outputs(reference: Path, fast: Path, *, identity: str) -> dict:
     trades = pd.read_csv(reference / "trades.csv")
     summary = summaries[0]
     _verify_trade_accounting(trades)
+    _verify_monthly_booking(trades, pd.read_csv(reference / "monthly.csv"),
+                            summary, year=year)
     if summary["trades"] != len(trades):
         raise ValueError("Trade count differs from persisted ledger")
     if len(trades):
@@ -224,7 +275,7 @@ def execute(training_input: Path, generation_manifest: Path,
                                text=True)
                 outputs[engine] = target
             metrics = _compare_outputs(outputs["reference"], outputs["fast"],
-                                       identity=row["identity"])
+                                       identity=row["identity"], year=year)
             records.append({"ordinal": row["ordinal"], "identity": row["identity"],
                             "reference_fast_parity": "PASSED",
                             "metrics": metrics, "relative_dir": name})

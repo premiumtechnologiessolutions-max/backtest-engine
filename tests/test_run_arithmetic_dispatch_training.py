@@ -47,7 +47,7 @@ def prepared(tmp_path, monkeypatch):
 
 
 def _fake_cli(command, *, check, capture_output, text, tamper=False,
-              corrupt_both=False):
+              corrupt_both=False, monthly_corruption=None):
     assert check and capture_output and text
     assert command[:3] == [__import__("sys").executable, "-m", "norisk_quant.cli"]
     assert "--strategy" in command and command[command.index("--strategy") + 1] == "arithmetic"
@@ -88,9 +88,27 @@ def _fake_cli(command, *, check, capture_output, text, tamper=False,
         "exit_reason": "end_of_data", "gap_minutes": 0,
     }
     pd.DataFrame([trade]).to_csv(target / "trades.csv", index=False)
-    pd.DataFrame({"period": [f"2012-{m:02d}" for m in range(1, 13)],
-                  "net_pnl": [-0.4] + [0.0] * 11}).to_csv(
-        target / "monthly.csv", index=False)
+    monthly = pd.DataFrame({
+        "period": [f"2012-{m:02d}" for m in range(1, 13)],
+        "net_pnl": [-0.4] + [0.0] * 11,
+        "total_cost": [0.4] + [0.0] * 11,
+        "trades": [1] + [0] * 11,
+        "wins": [0] * 12,
+    })
+    if monthly_corruption == "offsetting_net":
+        monthly.loc[0, "net_pnl"] = -0.2
+        monthly.loc[1, "net_pnl"] = -0.2
+    elif monthly_corruption == "missing_zero_month":
+        monthly = monthly.drop(index=1)
+    elif monthly_corruption == "duplicate_month":
+        monthly.loc[1, "period"] = "2012-01"
+    elif monthly_corruption == "wrong_fee":
+        monthly.loc[0, "total_cost"] = 0.3
+    elif monthly_corruption == "wrong_trade_count":
+        monthly.loc[0, "trades"] = 0
+    elif monthly_corruption == "wrong_wins":
+        monthly.loc[0, "wins"] = 1
+    monthly.to_csv(target / "monthly.csv", index=False)
     pd.DataFrame({"period": ["2012-01-01"], "net_pnl": [-0.4]}).to_csv(
         target / "weekly.csv", index=False)
     pd.DataFrame({"time": ["2012-01-01T00:02:00Z"],
@@ -189,3 +207,23 @@ def test_out_of_range_ordinals_and_noninteger_year_rejected(prepared, monkeypatc
     with pytest.raises(ValueError, match="Invalid bounded"):
         execute(source, generation, dispatch, archive, digest, True, out)
     assert not out.exists()
+
+
+@pytest.mark.parametrize("corruption", [
+    "offsetting_net", "missing_zero_month", "duplicate_month",
+    "wrong_fee", "wrong_trade_count", "wrong_wins",
+])
+def test_same_corruption_in_both_engines_cannot_fake_monthly_stability(
+        prepared, monkeypatch, corruption):
+    source, generation, dispatch, archive, digest, out = prepared
+
+    def fake_run(command, **kwargs):
+        _fake_cli(command, monthly_corruption=corruption, **kwargs)
+
+    monkeypatch.setattr("scripts.run_arithmetic_dispatch_training.subprocess.run",
+                        fake_run)
+    with pytest.raises(ValueError, match="Monthly ledger"):
+        execute(source, generation, dispatch, archive, digest, 2012, out,
+                limit=1)
+    assert not out.exists()
+    assert not list(out.parent.glob(".nrfx_arithmetic_training_*"))
