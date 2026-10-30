@@ -64,6 +64,30 @@ bars remain **local only**. The GitHub repository is currently **PUBLIC**;
 only this aggregate, non-trading report and synthetic contract tests are
 committed. No raw source data, billing change, PR merge or live trade occurred.
 
+## Structural capacity benchmark — synthetic, not Gold backtests
+
+A separate bounded `scripts/benchmark_guided_planner_synthetic.py`
+stress test used the real frozen **20-candidate initial training input**
+but assigned **explicitly fabricated** monthly outcomes to newly proposed
+formulas, solely to measure planning/memory throughput.
+
+- **100 planning generations × 10 new formulas** = **1,000 distinct**
+  proposal identities without duplication or early capacity failure.
+- **72** proposals were guided by retained post-hoc comparisons; the
+  rest were diversity mutations.
+- **128 active** parents were retained while **1,020 total identities**
+  (20 pre-existing + 1,000 newly proposed) remained in explored memory.
+- Local planning-only runtime: **4.49 seconds** on this environment;
+  not a hardware-general throughput estimate.
+- Fixed deterministic synthetic accounting, *not* gold prices or any
+  actual backtest outcome. In particular **this does NOT prove capacity
+  to execute 1,000 source-data backtests or that any formula earns money**.
+
+The exact runnable benchmark is now versioned with bounded resource controls,
+rejects noncanonical training/OOS fields, and is accompanied by synthetic
+unit regressions. A true 1,000+ strategy market-data benchmark with CPU,
+RAM, disk and power/hosting telemetry remains a separate launch gate.
+
 ## Verification and unfinished launch gates
 
 Exact guided-policy branch commit
