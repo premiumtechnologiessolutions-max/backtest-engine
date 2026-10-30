@@ -22,7 +22,8 @@ PLAN_SCHEMA = "NRFX_ARITHMETIC_CAMPAIGN_INTENT_V1"
 
 def freeze_campaign_intent(root: Path, initial_input: Path, *, seed: int,
                            first_generation: int, proposal_count: int,
-                           shard_size: int) -> dict:
+                           shard_size: int,
+                           proposal_policy: str = "legacy_random") -> dict:
     """Create or verify a publish-once immutable campaign definition.
 
     Changing runtime disk/time limits or extending the requested generation
@@ -33,6 +34,9 @@ def freeze_campaign_intent(root: Path, initial_input: Path, *, seed: int,
             or not 0 <= seed < 2**63 or first_generation < 1
             or not 1 <= proposal_count <= 128 or not 1 <= shard_size <= 128):
         raise ValueError("Invalid immutable campaign identity controls")
+    if type(proposal_policy) is not str or proposal_policy not in (
+            "legacy_random", "matched_guided_v1"):
+        raise ValueError("Unknown immutable campaign policy")
     path = root / "campaign_intent.json"
     if root.is_symlink() or not root.is_dir() or path.is_symlink():
         raise ValueError("Unsafe campaign intent path")
@@ -48,6 +52,8 @@ def freeze_campaign_intent(root: Path, initial_input: Path, *, seed: int,
         "training_only": True, "independent_oos_proven": False,
         "live_trading_authorized": False,
     }
+    if proposal_policy != "legacy_random":
+        intent["proposal_policy"] = proposal_policy
     if path.exists():
         previous, digest = _load_strict(path)
         if previous != intent or digest != sha256(_encoded(intent)).hexdigest():
