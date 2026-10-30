@@ -63,3 +63,42 @@ def test_bad_bid_ask_order_rejected(tmp_path):
     with zipfile.ZipFile(path) as archive:
         with pytest.raises(ValueError, match="BID/ASK"):
             load_year(archive, 2012)
+
+
+def test_positive_causal_m15_h1_signal_and_missing_minute_gate():
+    """One complete compressed breakout with real next open; missing data blocks."""
+    start = pd.Timestamp("2012-05-01 09:00:00", tz="UTC")
+    rows = []
+    for i in range(17):
+        if i < 8:
+            opening = 100 + i * .2
+            closing, high, low = opening + .2, opening + 1.2, opening - .8
+        elif i < 16:
+            opening = 101.6 + (i - 8) * .07
+            closing, high, low = opening + .07, opening + .28, opening - .12
+        else:
+            opening, closing, high, low = 102.38, 102.52, 102.53, 102.38
+        for minute in range(15):
+            price = opening + (closing - opening) * minute / 14
+            top = max(price, high if minute == 0 else price)
+            bottom = min(price, low if minute == 0 else price)
+            close = closing if minute == 14 else price
+            rows.append({
+                "ts": int((start + pd.Timedelta(minutes=i * 15 + minute)).timestamp()),
+                "o": price, "h": top, "l": bottom, "c": close,
+                "ao": price + .3, "ah": top + .3,
+                "al": bottom + .3, "ac": close + .3,
+            })
+    for minute in (255, 256, 257):
+        rows.append({
+            "ts": int((start + pd.Timedelta(minutes=minute)).timestamp()),
+            "o": 102.52, "h": 102.53, "l": 102.51, "c": 102.52,
+            "ao": 102.82, "ah": 102.83, "al": 102.81, "ac": 102.82,
+        })
+    df = pd.DataFrame(rows)
+    df.index = pd.to_datetime(df.ts, unit="s", utc=True)
+    triggers, eligible = signals(df, 8, .8, .35, (9, 13))
+    assert len(triggers) == len(eligible) == 1
+    assert triggers[0] == pd.Timestamp("2012-05-01 13:15:00", tz="UTC")
+    assert len(signals(df.drop(df.index[40]), 8, .8, .35, (9, 13))[0]) == 0
+    assert len(signals(df.drop(df.index[-1]), 8, .8, .35, (9, 13))[1]) == 0
