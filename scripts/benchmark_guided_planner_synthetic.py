@@ -11,7 +11,7 @@ import json
 from pathlib import Path
 import time
 
-from norisk_quant.research_evolution import evolve_training_generation
+from norisk_quant.research_evolution import evolve_training_generation, _formula
 from norisk_quant.research_candidate_memory import select_training_memory
 from scripts.materialize_arithmetic_generation import _load_strict
 
@@ -34,6 +34,7 @@ def benchmark(source_path: Path, *, generations: int = 100,
     active = source["candidates"]
     explored = set(source["explored_ids"])
     select_training_memory(active, years)
+    explored.update(_formula(c["formula"]).identity() for c in active)
     started = time.perf_counter()
     count = guided = 0
     for gen in range(1, generations + 1):
