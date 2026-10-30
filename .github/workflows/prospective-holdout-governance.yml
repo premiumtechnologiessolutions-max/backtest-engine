@@ -1,0 +1,43 @@
+name: NoRiskFX - frozen prospective holdout scientific gate
+on:
+  pull_request:
+    paths:
+      - 'src/norisk_quant/prospective_holdout_governance.py'
+      - 'tests/test_prospective_holdout_governance.py'
+      - '.github/workflows/prospective-holdout-governance.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  governance-contract:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install pinned research dependencies
+        run: python -m pip install -c constraints-ci.txt -e '.[dev]'
+      - name: Compile future evidence contract
+        run: python -m compileall -q src/norisk_quant/prospective_holdout_governance.py
+      - name: Prospective freeze and negative strategy registry tests
+        run: python -m pytest -q tests/test_prospective_holdout_governance.py tests/test_scientific_rejection_registry.py
+  full-canonical:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install pinned dependencies
+        run: python -m pip install -c constraints-ci.txt -e '.[dev]'
+      - name: Full canonical research regressions
+        run: python -m pytest -q
