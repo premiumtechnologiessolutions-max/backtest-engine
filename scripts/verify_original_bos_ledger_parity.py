@@ -9,6 +9,8 @@ from __future__ import annotations
 import argparse
 import io
 import json
+import math
+import numbers
 import os
 from pathlib import Path
 import tempfile
@@ -56,6 +58,28 @@ def validate_years(years: list[int]) -> None:
         raise ValueError("Archived H1 reference supports distinct years 2012–2019 only")
 
 
+def _canonical_discrete(series: pd.Series, field: str) -> np.ndarray:
+    """Require real integral ledger values; never silently truncate to int64.
+
+    Pandas `astype(int64)` accepts 1.9 as 1 and bool True as 1. A
+    13-field execution parity gate must reject both before comparison.
+    """
+    integers = []
+    for value in series.to_numpy():
+        if (isinstance(value, (bool, np.bool_))
+                or not isinstance(value, numbers.Real)
+                or not math.isfinite(float(value))
+                or abs(float(value)) > 2**53
+                or not float(value).is_integer()):
+            raise ValueError(f"Noncanonical discrete execution value in {field}")
+        integer = int(value)
+        if (field == "side" and integer not in (-1, 1)) or (
+                field == "gap_minutes" and integer < 0):
+            raise ValueError(f"Out-of-domain discrete execution value in {field}")
+        integers.append(integer)
+    return np.asarray(integers, dtype=np.int64)
+
+
 def compare_trade_fields(actual: pd.DataFrame, archived: pd.DataFrame) -> dict:
     if (not isinstance(actual, pd.DataFrame) or not isinstance(archived, pd.DataFrame)
             or actual.columns.has_duplicates or archived.columns.has_duplicates
@@ -82,8 +106,8 @@ def compare_trade_fields(actual: pd.DataFrame, archived: pd.DataFrame) -> dict:
                                   observed.astype(str).to_numpy()):
                 raise AssertionError(f"Execution reason drift in {source_name}")
         elif source_name in DISCRETE:
-            if not np.array_equal(executed.to_numpy(dtype=np.int64),
-                                  pd.to_numeric(observed, errors="raise").to_numpy(dtype=np.int64)):
+            if not np.array_equal(_canonical_discrete(executed, source_name),
+                                  _canonical_discrete(observed, source_name)):
                 raise AssertionError(f"Discrete trade drift in {source_name}")
         else:
             live = executed.to_numpy(dtype=np.float64)
