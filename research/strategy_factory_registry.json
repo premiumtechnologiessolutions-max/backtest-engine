@@ -1,6 +1,6 @@
 {
   "format_version": 1,
-  "updated_utc": "2026-10-30T03:30:00Z",
+  "updated_utc": "2026-10-30T05:23:27Z",
   "project": "No Risk FX XAUUSD quant research factory",
   "branch": "feat/quant-engine-foundation",
   "original_private_zip_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
@@ -1496,6 +1496,23 @@
       "verified_ci_run": 41001851794,
       "verified_ci_pytest_passed": 2914,
       "verified_ci_warnings": 1
+    },
+    {
+      "id": "NRF-ARITHMETIC-TRAINING-PERSISTED-M1-EQUITY-INDEPENDENT-GATE",
+      "status": "EXACT_EXECUTABLE_CODE_GITHUB_CI_PASSED_SYNTHETIC_ONLY_NOT_ORIGINAL_SOURCE_REPLAY",
+      "report": "docs/ARITHMETIC_TRAINING_INDEPENDENT_M1_EQUITY_GATE_2026-10-30.md",
+      "code": "scripts/run_arithmetic_dispatch_training.py",
+      "tests": "tests/test_run_arithmetic_dispatch_training.py",
+      "synthetic_regressions_added": 6,
+      "original_source_strategy_backtests_added": 0,
+      "original_source_monthly_net_usd_per_oz": "N/A",
+      "original_source_monthly_floating_drawdown_usd_per_oz": "N/A",
+      "approved_strategies": 0,
+      "verified_ci_commit": "a017a50e6b089a74d8d376d0b7cfeb901df21681",
+      "verified_ci_run": 41008069887,
+      "verified_ci_pytest_passed": 2926,
+      "verified_ci_warnings": 1,
+      "note": "Independently reconstructs observed M1 equity, realized/floating accounting, exit-minute booking and peak-to-trough drawdown from persisted canonical evidence; rejects identical Reference/Fast corruptions. No original-source replay, broker fill/tick validation, OOS or new strategy P/L."
     }
   ]
 }
