@@ -4,9 +4,9 @@
 
 ## Source, execution and reproducibility
 - Private original ZIP SHA256: `1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121`, locally verified; **no raw quote uploads**.
-- Exact committed executable: `scripts/research_fac027_london_asia.py`; Git blob SHA `d73b46bcb9c1b5e80d15db2e55712ee11e4a741d` matches the locally executed file byte-for-byte.
+- Exact committed executable: `scripts/research_fac027_london_asia.py`; Git blob SHA `a0e1112c2cfd1fbda2d469332c7c34b793ebe214` matches the locally executed file byte-for-byte.
 - 2012: 352,975 observed M1 bars, 190 complete 00:00–08:00 NY source sessions. 2013: 352,317 M1 bars, 139 complete source sessions. Missing minutes were not fabricated; session coverage is a significant limitation.
-- Two deterministic full local executions of **16 configurations × 2 years = 32 annual M1 BID-reference replays**, **384 monthly realized P/L values**; aggregate full local result JSON SHA256 `e6cfd5eb552dd1fb6f54755dbdee47b2aaa87759352dfd6cd5588ae4ac410d24`. Synthetic execution tests: **7/7 locally passed**. Separate canonical engine parity is **NOT yet established**.
+- Two deterministic full local executions of **16 configurations × 2 years = 32 annual M1 BID-reference replays**, **384 monthly realized P/L values**; aggregate full local result JSON SHA256 `e6cfd5eb552dd1fb6f54755dbdee47b2aaa87759352dfd6cd5588ae4ac410d24`. Synthetic execution tests: **8/8 locally passed**. Separate canonical engine parity is **NOT yet established**.
 - Actual observed next 08:01 NY M1 open or no trade, M1 stop-first, adverse open gap-through, 11:00 NY time exit at observed open, exactly **$0.40/oz ALL-IN roundtrip**, UTC exit-month booking, M1 observed close-equity drawdown. BID-reference is **not authenticated broker BID/ASK execution**. Full 12-month zero-trade inclusion; no OOS.
 - 16 independent per-setting annual replays are **not** a diversified portfolio. Additional diagnostic shared one-position, lexicographic-frozen-grid priority portfolio is run separately below. The shared priority rule is a deterministic diagnostic, **not a newly validated post-selection portfolio**.
 
