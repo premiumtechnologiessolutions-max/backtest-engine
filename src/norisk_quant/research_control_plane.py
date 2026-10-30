@@ -18,6 +18,7 @@ from hashlib import sha256
 from hmac import compare_digest
 import json
 import math
+import os
 from pathlib import Path
 import re
 import secrets
@@ -172,30 +173,41 @@ class ResearchQueue:
         self.path = Path(path)
         if self.path.is_symlink() or not self.path.parent.is_dir():
             raise ValueError("Private SQLite path must have a real existing parent")
+        if not self.path.exists():
+            # Avoid default umask creating a world-readable database on Unix.
+            flags = os.O_CREAT | os.O_EXCL | os.O_RDWR
+            try:
+                fd = os.open(self.path, flags, 0o600)
+                os.close(fd)
+            except FileExistsError:
+                # Concurrent process created it first; next path check applies.
+                pass
+        if self.path.is_symlink() or not self.path.is_file():
+            raise ValueError("Unsafe research database path")
         with self._transaction() as db:
-            db.executescript("""
-            CREATE TABLE IF NOT EXISTS research_jobs (
-                id TEXT PRIMARY KEY, payload TEXT NOT NULL,
-                source_agent TEXT NOT NULL, state TEXT NOT NULL,
-                attempts INTEGER NOT NULL DEFAULT 0,
-                owner_token_sha256 TEXT,
-                lease_deadline TEXT,
-                created_utc TEXT NOT NULL,
-                updated_utc TEXT NOT NULL,
-                disposition TEXT, reason_code TEXT, evidence_sha256 TEXT
-            );
-            CREATE TABLE IF NOT EXISTS research_events (
-                seq INTEGER PRIMARY KEY AUTOINCREMENT,
-                job_id TEXT NOT NULL REFERENCES research_jobs(id),
-                event_type TEXT NOT NULL,
-                attempt INTEGER NOT NULL,
-                occurred_utc TEXT NOT NULL
-            );
-            CREATE TABLE IF NOT EXISTS control (
-                key TEXT PRIMARY KEY, value TEXT NOT NULL
-            );
-            INSERT OR IGNORE INTO control(key,value) VALUES('paused','1');
-            """)
+            # sqlite3.executescript() implicitly COMMITs: that would break
+            # our BEGIN IMMEDIATE atomic initialization. Use execute().
+            for statement in (
+                """CREATE TABLE IF NOT EXISTS research_jobs (
+                    id TEXT PRIMARY KEY, payload TEXT NOT NULL,
+                    source_agent TEXT NOT NULL, state TEXT NOT NULL,
+                    attempts INTEGER NOT NULL DEFAULT 0,
+                    owner_token_sha256 TEXT, lease_deadline TEXT,
+                    created_utc TEXT NOT NULL, updated_utc TEXT NOT NULL,
+                    disposition TEXT, reason_code TEXT, evidence_sha256 TEXT
+                )""",
+                """CREATE TABLE IF NOT EXISTS research_events (
+                    seq INTEGER PRIMARY KEY AUTOINCREMENT,
+                    job_id TEXT NOT NULL REFERENCES research_jobs(id),
+                    event_type TEXT NOT NULL,
+                    attempt INTEGER NOT NULL, occurred_utc TEXT NOT NULL
+                )""",
+                """CREATE TABLE IF NOT EXISTS control (
+                    key TEXT PRIMARY KEY, value TEXT NOT NULL
+                )""",
+                "INSERT OR IGNORE INTO control(key,value) VALUES('paused','1')",
+            ):
+                db.execute(statement)
         # Intentionally starts PAUSED. Operator must explicitly resume.
 
     @contextmanager
