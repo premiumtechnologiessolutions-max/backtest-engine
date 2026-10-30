@@ -44,6 +44,14 @@ def job(tmp_path, monkeypatch):
         return {"status": "COMPLETE_TRAINING_ONLY_NOT_OOS"}
 
     monkeypatch.setattr(supervisor, "run_cycles", execute)
+    # Fixture fakes annual market replay: the independent actual lineage
+    # auditor is tested in test_research_campaign_attestation.py.
+    monkeypatch.setattr(
+        supervisor, "attest_cached_generation",
+        lambda original, folder, *, generation, seed, proposal_count: {
+            "next_input_sha256": supervisor._verified_feedback(
+                folder / "next_training_input.json")})
+
     return source, gold, root, calls
 
 
@@ -65,7 +73,7 @@ def test_complete_three_generations_and_idempotent_resume(job):
     second = launch(job)
     assert second["status"] == first["status"]
     assert not job[-1]
-    assert all(x["status"] == "REUSED_VERIFIED_FEEDBACK" for x in second["completed"])
+    assert all(x["status"] == "REUSED_FULLY_REAUDITED_FEEDBACK" for x in second["completed"])
 
 
 def test_disk_budget_pauses_without_running(job, monkeypatch):
@@ -128,3 +136,26 @@ def test_public_git_checkout_rejected_for_private_campaign(job):
     with pytest.raises(ValueError, match="Git checkout"):
         launch(job)
     assert calls == []
+
+
+def test_changed_seed_fails_before_reusing_old_annual_results(job):
+    launch(job, generations=1)
+    before = list(job[-1])
+    with pytest.raises(ValueError, match="Immutable campaign intent"):
+        launch(job, generations=1, seed=100)
+    assert job[-1] == before
+
+
+def test_changed_initial_training_content_rejected_before_resume(job):
+    launch(job, generations=1)
+    job[0].write_text('{"changed":true}')
+    with pytest.raises(ValueError, match="Immutable campaign intent"):
+        launch(job, generations=1)
+    assert len(job[-1]) == 1
+
+
+def test_changed_shard_size_requires_new_campaign_root(job):
+    launch(job, generations=1)
+    with pytest.raises(ValueError, match="Immutable campaign intent"):
+        launch(job, generations=1, shard_size=2)
+    assert len(job[-1]) == 1
