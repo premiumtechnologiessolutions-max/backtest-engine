@@ -1,7 +1,7 @@
 """Offline private XAUUSD M1 data + immutable agent-proposal preflight.
 
-Only direct original JSON/CSV Bid/Ask M1 sources are supported in this first
-lineage gate. Original multi-year ZIP/Parquet import lineage is a separate gate.
+Supports direct JSON/CSV, or replay of a bounded one/two-year window from
+an original Gold ZIP. Pre-imported Parquet lineage requires a separate gate.
 Never executes a strategy, connects MT5, prints quote values or private hashes.
 """
 from __future__ import annotations
@@ -11,7 +11,9 @@ import json
 import math
 from pathlib import Path
 
-from norisk_quant.research_source_loader import preflight_direct_gold_m1_file
+from norisk_quant.research_source_loader import (
+    preflight_direct_gold_m1_file, preflight_private_gold_zip_window,
+)
 from norisk_quant.research_source_preflight import inspect_local_checkout
 
 
@@ -53,10 +55,16 @@ def main(argv: list[str] | None = None) -> int:
         proposal = _private_json(args.proposal)
         manifest = _private_json(args.source_manifest)
         head = inspect_local_checkout(args.checkout)
-        result = preflight_direct_gold_m1_file(
-            proposal, manifest, original_m1_file=args.original_m1,
-            observed_engine_commit=head,
-        )
+        if args.original_m1.suffix.lower() == ".zip":
+            result = preflight_private_gold_zip_window(
+                proposal, manifest, original_gold_zip=args.original_m1,
+                observed_engine_commit=head,
+            )
+        else:
+            result = preflight_direct_gold_m1_file(
+                proposal, manifest, original_m1_file=args.original_m1,
+                observed_engine_commit=head,
+            )
     except (OSError, ValueError, KeyError, TypeError):
         # Refuse to echo private file paths, raw data or attacker-supplied text.
         parser.exit(2, "Private research source preflight rejected; no experiment executed.\n")
