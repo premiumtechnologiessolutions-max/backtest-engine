@@ -102,6 +102,10 @@ def test_duplicate_and_missing_source_entry_fail_closed():
 def test_forged_canonical_ledger_fails_closed(field, value):
     rows, trades = canonical()
     trades = trades.copy()
+    if field == "side":
+        # Preserve the deliberately invalid bool in an object column instead
+        # of relying on pandas' deprecated int64 <- bool coercion.
+        trades[field] = trades[field].astype(object)
     trades.at[0, field] = value
     with pytest.raises(ValueError):
         audit_bid_reference_entry_quotes(rows, trades)
