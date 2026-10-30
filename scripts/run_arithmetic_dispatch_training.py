@@ -30,6 +30,7 @@ REPORTS = ("trades.csv", "monthly.csv", "weekly.csv", "equity_m1.csv",
            "gap_catalogue.csv")
 SUMMARY_KEYS = (
     "trades", "net_pnl", "total_fees", "positive_months",
+    "start_utc", "end_utc",
     "months_observed", "months_with_m1_observations",
     "max_drawdown_observed_m1", "last_observed_equity",
     "last_observed_realized_pnl", "accounting_checks",
@@ -309,6 +310,15 @@ def _compare_outputs(reference: Path, fast: Path, *, identity: str, year: int) -
                 or summary["months_with_m1_observations"] != 12):
             raise ValueError("Annual training sample omits an observed calendar month")
         summaries.append(summary)
+    # Both invocations must share the entire execution contract apart from
+    # the deliberately selected engine. Comparing only selected fields could
+    # certify runs with divergent optional CLI settings.
+    left_params = dict(summaries[0]["run_parameters"])
+    right_params = dict(summaries[1]["run_parameters"])
+    left_params.pop("execution")
+    right_params.pop("execution")
+    if left_params != right_params:
+        raise ValueError("Reference/Fast run parameters differ")
     if summaries[0]["source_fingerprints"] != summaries[1]["source_fingerprints"]:
         raise ValueError("Reference/Fast source fingerprints differ")
     for key in SUMMARY_KEYS:
@@ -329,6 +339,10 @@ def _compare_outputs(reference: Path, fast: Path, *, identity: str, year: int) -
         except AssertionError as exc:
             raise ValueError(f"Reference/Fast {filename} mismatch") from exc
     trades = pd.read_csv(reference / "trades.csv")
+    # The 15-field ledger must belong to the frozen candidate itself, not
+    # another strategy with identical fills and copied summary metadata.
+    if len(trades) and (trades["strategy"] != f"arithmetic_{identity[:16]}").any():
+        raise ValueError("Trade strategy identity mismatch")
     summary = summaries[0]
     _verify_trade_accounting(trades)
     _verify_m1_equity(trades, pd.read_csv(reference / "equity_m1.csv"), summary)
