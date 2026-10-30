@@ -82,3 +82,23 @@ def test_reject_invalid_controls(kwargs):
 def test_reject_noncanonical_training_year_universe():
     with pytest.raises(ValueError):
         evolve_training_generation([evidence(Formula())],(2013,2012),seed=1,generation=0)
+
+
+def test_equivalent_integer_and_float_parameters_cannot_double_count_training():
+    # The Formula grammar permits 1 and 1.0, but these are one strategy.
+    integer = evidence(Formula(threshold=1, stop_usd=8, reward_risk=1))
+    floating = evidence(Formula(threshold=1.0, stop_usd=8.0, reward_risk=1.0))
+    assert integer["formula"] != floating["formula"]
+    with pytest.raises(ValueError, match="Duplicate evaluated formula"):
+        evolve_training_generation([integer, floating], YEARS,
+                                   seed=7, generation=0)
+
+
+def test_numeric_aliases_produce_identical_training_evolution_manifest():
+    integer = evidence(Formula(threshold=1, stop_usd=8, reward_risk=1))
+    floating = evidence(Formula(threshold=1.0, stop_usd=8.0, reward_risk=1.0))
+    a = evolve_training_generation([integer], YEARS,
+                                   seed=7, generation=0, proposal_count=5)
+    b = evolve_training_generation([floating], YEARS,
+                                   seed=7, generation=0, proposal_count=5)
+    assert a == b
