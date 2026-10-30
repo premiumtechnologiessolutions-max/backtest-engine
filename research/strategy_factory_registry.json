@@ -1,6 +1,6 @@
 {
   "format_version": 1,
-  "updated_utc": "2026-10-30T07:20:59.591Z",
+  "updated_utc": "2026-10-30T08:24:11.938Z",
   "project": "No Risk FX XAUUSD quant research factory",
   "branch": "feat/quant-engine-foundation",
   "original_private_zip_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
@@ -1564,6 +1564,34 @@
       "verified_ci_pytest_passed": 2957,
       "verified_ci_warnings": 1,
       "note": "SHA-verified original 2012/2013 M1 source structural pre-halt upper-bound only: 12+6 unique trigger times across 16 variants, 11/24 months with any trigger, 13/24 no candidate. Frozen 32 settings include two untested realized-loss halt levels; no fills, fees, shared capacity, canonical signal parity, OOS or P/L. Sample size insufficient for standalone 24/24 positive months; no reoptimization. CI synthetic tests passed."
+    },
+    {
+      "id": "NRF-FAC-026-VECTORIZED-FROZEN-EVALUATOR-SIGNAL-PARITY-GATE",
+      "status": "SYNTHETIC_GITHUB_CI_PASSED_LOCAL_RECONSTRUCTED_PRIVATE_SOURCE_PARITY_NOT_OFFICIAL_CHECKOUT",
+      "report": "docs/FAC026_VECTOR_FROZEN_EVALUATOR_PARITY_GATE_2026-10-30.md",
+      "code": "scripts/research_fac026_original_source_structural.py",
+      "tests": "tests/test_research_fac026_original_source_structural.py",
+      "source_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
+      "exposed_design_years": [
+        2012,
+        2013
+      ],
+      "correlated_frozen_specs": 32,
+      "independent_hypotheses_added": 0,
+      "original_source_strategy_backtests_added": 0,
+      "reconstructed_local_positive_variant_checks": 35,
+      "reconstructed_local_sampled_negative_checks": 3072,
+      "reconstructed_local_mismatches": 0,
+      "reconstructed_local_aggregate_sha256": "8c15a9ab4beba5023fadd3aa98205ba9774c3b5acccdf2d28fbe96695cda7adf",
+      "official_repository_private_source_parity_verified": false,
+      "source_monthly_net": "N/A",
+      "source_monthly_floating_drawdown": "N/A",
+      "approved_strategies": 0,
+      "verified_ci_code_commit": "8d876e90a42b4b38789f82b2d6d75a98cf23ceb1",
+      "verified_ci_run": 41026023390,
+      "verified_ci_pytest_passed": 2970,
+      "verified_ci_warnings": 1,
+      "note": "Independent local reconstructed frozen scanner/evaluator math on SHA-verified original private 2012/2013 M1 matched all 35 variant-level positives and 3,072 deterministic sampled negatives; NOT a replay of exact official checkout. GitHub synthetic CI 2,970 passed on executable code; exact-checkout private-source audit and exhaustive negatives still pending. No fills, portfolio, monthly P/L, or OOS."
     }
   ]
 }
