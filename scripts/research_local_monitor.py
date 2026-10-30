@@ -8,12 +8,22 @@ import argparse
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+import re
 from pathlib import Path
 from urllib.parse import urlsplit
 
 from scripts.materialize_arithmetic_generation import _load_strict
 
 MAX_STATUS_BYTES = 128 * 1024
+_VALID_STATES = frozenset({
+    "RUNNING_OBSERVED", "PAUSED_TIME_BUDGET_BETWEEN_GENERATIONS",
+    "PAUSED_DISK_BUDGET", "COMPLETE_TRAINING_ONLY_NOT_OOS",
+    "FAILED_REQUIRES_EVIDENCE_REVIEW",
+})
+_VALID_COMPLETED = frozenset({
+    "EXECUTED_AND_VERIFIED_FEEDBACK", "REUSED_FULLY_REAUDITED_FEEDBACK",
+})
+_HEX64 = re.compile(r"[0-9a-f]{64}\\Z".replace("\\\\", "\\"))
 
 
 def safe_status(root: Path, *, current: datetime | None = None) -> dict:
@@ -32,16 +42,29 @@ def safe_status(root: Path, *, current: datetime | None = None) -> dict:
             or data.get("independent_oos_proven") is not False
             or data.get("live_trading_authorized") is not False
             or type(data.get("status")) is not str
-            or type(data.get("completed")) is not list):
+            or data["status"] not in _VALID_STATES
+            or type(data.get("completed")) is not list
+            or type(data.get("first_generation")) is not int
+            or data["first_generation"] < 1
+            or type(data.get("requested_generations")) is not int
+            or not 1 <= data["requested_generations"] <= 200
+            or len(data["completed"]) > data["requested_generations"]):
         raise ValueError("Campaign status lacks safe training provenance")
     completed = []
     for row in data["completed"]:
-        if (type(row) is not dict or type(row.get("generation")) is not int
-                or type(row.get("status")) is not str
-                or type(row.get("input_sha256")) is not str
-                or len(row["input_sha256"]) != 64):
+        if (type(row) is not dict or set(row) !=
+                {"generation", "status", "input_sha256"}
+                or type(row["generation"]) is not int
+                or row["generation"] != data["first_generation"] + len(completed)
+                or type(row["status"]) is not str
+                or row["status"] not in _VALID_COMPLETED
+                or type(row["input_sha256"]) is not str
+                or _HEX64.fullmatch(row["input_sha256"]) is None):
             raise ValueError("Malformed campaign progress record")
         completed.append({"generation": row["generation"], "status": row["status"]})
+    if (data["status"] == "COMPLETE_TRAINING_ONLY_NOT_OOS"
+            and len(completed) != data["requested_generations"]):
+        raise ValueError("Incomplete campaign cannot claim completion")
     try:
         updated = datetime.fromisoformat(data["updated_utc"])
     except (KeyError, ValueError, TypeError) as exc:
