@@ -105,6 +105,21 @@ def _verify_trade_accounting(trades: pd.DataFrame) -> None:
                 raise ValueError("Adverse open exit improved beyond stop")
         elif row.exit_reason not in ("end_of_data", "time_exit"):
             raise ValueError("Unknown trade exit reason")
+        if any(stamp.second or stamp.microsecond or stamp.nanosecond
+               for stamp in stamps):
+            raise ValueError("Trade ledger contains non-M1-aligned timestamps")
+    # The canonical executor allows one position only and explicitly forbids
+    # a replacement on the minute another position exits. Reference/Fast
+    # agreement alone cannot detect identical overlapping/corrupted ledgers.
+    if len(trades) > 1:
+        entries = pd.to_datetime(trades["entry_at"], utc=True, errors="raise")
+        closes = pd.to_datetime(trades["closed_at"], utc=True, errors="raise")
+        if (not entries.is_monotonic_increasing
+                or not closes.is_monotonic_increasing):
+            raise ValueError("Trade ledger is not in execution chronology")
+        if any(next_entry <= prior_close
+               for next_entry, prior_close in zip(entries.iloc[1:], closes.iloc[:-1])):
+            raise ValueError("Trade ledger overlaps or re-enters on exit minute")
 
 
 def _verify_monthly_booking(trades: pd.DataFrame, monthly: pd.DataFrame,
