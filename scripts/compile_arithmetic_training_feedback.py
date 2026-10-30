@@ -16,6 +16,7 @@ import pandas as pd
 
 from norisk_quant.research_evolution import _formula
 from norisk_quant.research_training_integrity import training_summary
+from norisk_quant.research_candidate_memory import select_training_memory
 from scripts.materialize_arithmetic_generation import (
     _encoded, _load_strict, _publish_once, _verified_generation, materialize,
 )
@@ -205,8 +206,14 @@ def compile_feedback(training_input: Path, generation_manifest: Path,
         }
         training_summary(candidate["records"], years)
         next_candidates.append(candidate)
+    # Scale across generations WITHOUT widening the active parent pool.
+    # Every candidate is audited before selection and every rejected/evicted
+    # identity remains in explored_ids to prevent rediscovery. Preserve the
+    # legacy exact output for <=128 candidates and existing immutable replays.
+    memory = None
     if len(next_candidates) > 128:
-        raise ValueError("Candidate pool exceeds bounded evolution input limit (128)")
+        memory = select_training_memory(next_candidates, years, limit=128)
+        next_candidates = memory["active_candidates"]
     explored = sorted(set(source["explored_ids"]) | known)
     if len(explored) > 100_000:
         raise ValueError("Exploration history exceeds bounded evolution limit")
@@ -236,6 +243,16 @@ def compile_feedback(training_input: Path, generation_manifest: Path,
         "next_input_sha256": sha256(_encoded(next_input)).hexdigest(),
         "replay_shards": provenance,
     }
+    if memory is not None:
+        # Compact, audit-friendly selection decisions; NO raw market data.
+        evidence["active_memory_selection"] = {
+            "method": memory["selection_method"],
+            "universe_size": memory["universe_size"],
+            "active_size": memory["active_size"],
+            "evicted_count": memory["evicted_count"],
+            "evicted": memory["evicted"],
+            "independent_oos_proven": False,
+        }
     if any(p.is_symlink() for p in (output, evidence_path, *output.parents)):
         raise ValueError("Symlinked feedback output path is forbidden")
     output.parent.mkdir(parents=True, exist_ok=True)
