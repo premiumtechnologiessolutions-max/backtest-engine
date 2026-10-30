@@ -68,8 +68,11 @@ def _preflight_capacity(training_input: Path, proposal_count: int) -> None:
             "NRFX_ARITHMETIC_TRAINING_INPUT_V1"
             or type(source.get("candidates")) is not list):
         raise ValueError("Unexpected frozen training input before replay")
-    if len(source["candidates"]) + proposal_count > 128:
-        raise ValueError("Next-generation candidate pool would exceed 128")
+    # The feedback bridge keeps only the best 128 *active* parents when
+    # necessary. The immutable explored_ids history retains every tested
+    # identity, so an already-full pool must not block future generations.
+    if not 1 <= len(source["candidates"]) <= 128:
+        raise ValueError("Active training candidate pool must contain 1..128")
 
 
 def run_cycles(training_input: Path, source_zip: Path, output_root: Path, *,
