@@ -49,8 +49,13 @@ def drawdown(values: list[float]) -> float:
         if type(pnl) not in (float, int) or not math.isfinite(pnl):
             raise ValueError("Nonfinite monthly P/L")
         equity += pnl
+        if not math.isfinite(equity):
+            raise ValueError("Monthly cumulative equity overflow")
         peak = max(peak, equity)
-        worst = max(worst, peak - equity)
+        drop = peak - equity
+        if not math.isfinite(drop):
+            raise ValueError("Monthly peak-to-trough drawdown overflow")
+        worst = max(worst, drop)
     return round(worst, 8)
 
 
@@ -63,6 +68,16 @@ def metrics(months: list[str], pnl: dict, trades: dict) -> dict:
         raise ValueError("Invalid monthly P/L")
     if any(type(v) is not int or v < 0 for v in counts):
         raise ValueError("Invalid monthly trade count")
+    # Exit-booked monthly net cannot exist without a completed exit.
+    # A nonzero zero-trade month indicates an inconsistent source ledger.
+    if any(n == 0 and v != 0 for n, v in zip(counts, values)):
+        raise ValueError("Nonzero realized P/L in zero-trade month")
+    try:
+        net = math.fsum(values)
+        rolling_sums = [math.fsum(values[i:i + 3])
+                        for i in range(len(values) - 2)]
+    except OverflowError as exc:
+        raise ValueError("Monthly P/L aggregate overflow") from exc
     positives = sum(x > 0 for x in values)
     # Contiguous UTC month windows: descriptive net/month-end risk, never M1 floating DD.
     nonpositive_streak = longest_nonpositive = 0
@@ -70,9 +85,7 @@ def metrics(months: list[str], pnl: dict, trades: dict) -> dict:
         nonpositive_streak = nonpositive_streak + 1 if value <= 0 else 0
         longest_nonpositive = max(longest_nonpositive, nonpositive_streak)
     worst_index = min(range(len(values)), key=lambda i: (values[i], i))
-    rolling_three = (round(min(sum(values[i:i + 3])
-                           for i in range(len(values) - 2)), 8)
-                     if len(values) >= 3 else None)
+    rolling_three = round(min(rolling_sums), 8) if rolling_sums else None
     return {
         "months": len(months), "trades": sum(counts),
         "zero_trade_months": sum(n == 0 for n in counts),
@@ -81,7 +94,7 @@ def metrics(months: list[str], pnl: dict, trades: dict) -> dict:
         "longest_nonpositive_month_streak": longest_nonpositive,
         "positive_months": positives,
         "positive_month_fraction": round(positives / len(months), 8),
-        "net_pnl_usd_per_oz": round(sum(values), 8),
+        "net_pnl_usd_per_oz": round(net, 8),
         "worst_month_usd_per_oz": round(min(values), 8),
         "max_month_end_drawdown_usd_per_oz": drawdown(values),
     }
