@@ -1,6 +1,6 @@
 {
   "format_version": 1,
-  "updated_utc": "2026-10-30T01:16:00Z",
+  "updated_utc": "2026-10-30T03:25:00Z",
   "project": "No Risk FX XAUUSD quant research factory",
   "branch": "feat/quant-engine-foundation",
   "original_private_zip_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
@@ -1449,6 +1449,25 @@
       "clean_prospective_oos": false,
       "approved_strategies": 0,
       "note": "Frozen FAC025-ENTRY-A source-only BID-reference 72 correlated filter variants and a single one-slot priority portfolio. 2012/2013 structural counts exactly match prior independent original-source preflight; two local full replays byte-identical. All 72 variants negative combined net; unified 6/24 positive months and -$234.60233 after fixed $0.40/oz fee. No official canonical run/run_fast parity or broker receipts. Provisional runs excluded from historical certified totals. Do not retune."
+    },
+    {
+      "id": "NRF-FAC-025-SOURCE-CANONICAL-TRADE-M1-PARITY-BRIDGE",
+      "status": "EXACT_CODE_GITHUB_CI_PASSED_SYNTHETIC_ONLY_ORIGINAL_SOURCE_PARITY_NOT_RUN",
+      "report": "docs/FAC025_SOURCE_CANONICAL_PARITY_GATE_2026-10-30.md",
+      "code": "scripts/verify_fac025_source_proxy_parity.py",
+      "tests": "tests/test_verify_fac025_source_proxy_parity.py",
+      "synthetic_regressions_added": 13,
+      "frozen_correlated_specs": 72,
+      "original_source_parity_years_verified": 0,
+      "original_source_strategy_backtests_added": 0,
+      "original_source_monthly_net_usd_per_oz": "N/A",
+      "original_source_monthly_floating_drawdown_usd_per_oz": "N/A",
+      "approved_strategies": 0,
+      "verified_ci_commit": "d5ac3e059b90b6e4c39a9f0ca2cc56a4fbac7c94",
+      "verified_ci_run": 40997162177,
+      "verified_ci_pytest_passed": 2902,
+      "verified_ci_warnings": 1,
+      "note": "Synthetic source-selected one-slot vs canonical run/run_fast trade, fees, monthly P/L and every observed M1 close-equity mark. Full original private ZIP parity NOT executed, source fills remain BID-proxy and historically exposed. FAC025 remains rejected at 6/24 months and -$234.60233/oz; do not retune or inflate canonical totals."
     }
   ]
 }
