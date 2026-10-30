@@ -274,6 +274,15 @@ def _verify_m1_equity(trades: pd.DataFrame, marks: pd.DataFrame,
     if len(trades):
         closes = pd.to_datetime(trades["closed_at"], utc=True, errors="raise")
         entries = pd.to_datetime(trades["entry_at"], utc=True, errors="raise")
+        signals = pd.to_datetime(trades["signal_at"], utc=True, errors="raise")
+        # Arithmetic M1 signals are confirmed at the END of an observed
+        # source candle. Its open is confirmation minus one minute. The
+        # confirmation instant itself need not be an observed M1 open:
+        # the final candle before a quote gap can legitimately close at the
+        # first missing minute. Never accept a signal with no source candle.
+        signal_source_opens = signals - pd.Timedelta(minutes=1)
+        if not signal_source_opens.isin(timestamps).all():
+            raise ValueError("M1 equity missing observed signal source bar")
         # A canonical M1 fill requires an observed source bar at its entry
         # minute. Bounds-only checks accept fabricated fills inside quote gaps.
         if (not closes.isin(timestamps).all()
