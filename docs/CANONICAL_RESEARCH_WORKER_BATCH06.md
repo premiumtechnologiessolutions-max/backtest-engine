@@ -21,6 +21,16 @@ Date: 2026-10-30. Draft, private offline historical research worker.
   manifest with reason code historical_audit_pending. It cannot claim
   independently validated OOS, profitable months, broker fill accuracy,
   trading eligibility or live approval.
+- **Actual canonical execution currently POSIX-only.** Windows/NTFS does
+  NOT provide the audited chmod(0600)/POSIX-inode permission semantics used
+  by the existing batch output and lock tests. Windows supports the read-only
+  status/control/contract checks but execution fails closed until a
+  separately reviewed native NTFS ACL implementation and tests exist.
+- A closed calendar month may start or end during a market holiday/weekend.
+  The worker grants up to **72 hours of unobserved edge minutes** for
+  source identity validation, but never fills missing candles or labels
+  the gap as independently classified. A longer missing edge is rejected.
+  The original strict preflight default remains zero tolerance.
 - A heartbeat keeps the claim fenced while a large original Gold ZIP is
   preflighted and while the bounded canonical subprocess runs. If worker
   death causes lease expiry, a stale token cannot publish a result.
