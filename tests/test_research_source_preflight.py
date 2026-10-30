@@ -7,12 +7,15 @@ import hashlib
 import json
 from pathlib import Path
 import subprocess
+import zipfile
 
 import pandas as pd
 import pytest
 
-from norisk_quant.data import fingerprint_loaded_m1, read_source, sha256_file
-from norisk_quant.research_source_loader import preflight_direct_gold_m1_file
+from norisk_quant.data import fingerprint_loaded_m1, read_source, sha256_file, load_market
+from norisk_quant.research_source_loader import (
+    preflight_direct_gold_m1_file, preflight_private_gold_zip_window,
+)
 from norisk_quant.research_source_preflight import (
     inspect_local_checkout, preflight_gold_m1_source,
 )
@@ -294,3 +297,92 @@ def test_cli_rejects_broker_scope_and_malformed_nonfinite_json(tmp_path, capsys,
     output = capsys.readouterr()
     assert "hidden" not in output.err
     assert str(src) not in output.err
+
+
+def zip_fixtures(tmp_path, *, member="XAUUSD_2024.json"):
+    _, _, _, proposal = fixtures(tmp_path)
+    archive_path = tmp_path / "original_gold_2010_2026.zip"
+    with zipfile.ZipFile(archive_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr(member, json.dumps(data_rows()))
+    frame = load_market(archive_path, "2024-01-02", "2024-01-02")
+    manifest = register_original_gold_m1({
+        "origin": "user_supplied_gold_m1_bidask",
+        "source_file_sha256": sha256_file(archive_path),
+        "observed_slice_sha256": fingerprint_loaded_m1(frame),
+        "rows": len(frame),
+        "first_utc": frame.index[0].isoformat(),
+        "last_utc": frame.index[-1].isoformat(),
+    }).internal_manifest()
+    proposal["dataset_sha256"] = manifest["record"]["source_file_sha256"]
+    return archive_path, frame, manifest, proposal
+
+
+def test_bounded_original_zip_replay_proves_direct_source_to_loaded_quotes(tmp_path):
+    archive, frame, manifest, proposal = zip_fixtures(tmp_path)
+    record = preflight_private_gold_zip_window(
+        proposal, manifest, original_gold_zip=archive, observed_engine_commit=HEAD,
+    )
+    assert record.lineage_verified is True
+    assert record.source_sha256 == sha256_file(archive)
+    assert record.observed_m1_sha256 == fingerprint_loaded_m1(frame)
+    assert record.public_metadata()["approved_for_live"] is False
+    assert record.public_metadata()["gaps_audited"] is False
+    assert record.public_metadata()["profitability_verified"] is False
+
+
+def test_zip_one_ask_quote_change_invalidates_frozen_file_and_quote_lineage(tmp_path):
+    archive, frame, manifest, proposal = zip_fixtures(tmp_path)
+    rows = data_rows()
+    rows[0]["ac"] += 0.02
+    with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as zip:
+        zip.writestr("XAUUSD_2024.json", json.dumps(rows))
+    with pytest.raises(ValueError, match="bytes differ"):
+        preflight_private_gold_zip_window(
+            proposal, manifest, original_gold_zip=archive, observed_engine_commit=HEAD,
+        )
+
+
+def test_zip_missing_year_and_incorrect_year_not_silently_trusted(tmp_path):
+    archive, frame, manifest, proposal = zip_fixtures(tmp_path,member="XAUUSD_2023.json")
+    with pytest.raises(ValueError, match="lacks exactly one"):
+        preflight_private_gold_zip_window(
+            proposal, manifest, original_gold_zip=archive, observed_engine_commit=HEAD,
+        )
+
+
+def test_zip_more_than_two_years_must_be_split_into_bounded_campaigns(tmp_path):
+    archive, frame, manifest, proposal = zip_fixtures(tmp_path)
+    proposal["window_end_exclusive_utc"] = "2026-01-03T00:00:00Z"
+    with pytest.raises(ValueError, match="one/two years"):
+        preflight_private_gold_zip_window(
+            proposal, manifest, original_gold_zip=archive, observed_engine_commit=HEAD,
+        )
+
+
+def test_zip_corrupt_bytes_are_rejected_without_echoing_private_content(tmp_path):
+    archive, frame, manifest, proposal = zip_fixtures(tmp_path)
+    archive.write_bytes(b"original private bad zip")
+    with pytest.raises(ValueError, match="Damaged original Gold ZIP"):
+        preflight_private_gold_zip_window(
+            proposal, manifest, original_gold_zip=archive, observed_engine_commit=HEAD,
+        )
+
+
+def test_private_cli_supports_original_zip_window_without_raw_quote_output(tmp_path,capsys,monkeypatch):
+    from scripts import preflight_ai_research_source as cli
+    archive, _, manifest, proposal = zip_fixtures(tmp_path)
+    proposal_path = tmp_path/"proposal.json"
+    manifest_path = tmp_path/"manifest.json"
+    proposal_path.write_text(json.dumps(proposal),encoding="utf-8")
+    manifest_path.write_text(json.dumps(manifest),encoding="utf-8")
+    monkeypatch.setattr(cli,"inspect_local_checkout",lambda checkout: HEAD)
+    assert cli.main(["--proposal",str(proposal_path),
+                     "--source-manifest",str(manifest_path),
+                     "--original-m1",str(archive),"--checkout",str(tmp_path)]) == 0
+    output=json.loads(capsys.readouterr().out)
+    assert output["lineage_verified"] is True
+    assert output["source_authentication"] == "NOT_VERIFIED"
+    assert output["independent_oos"] is False
+    assert output["execution"] == "NONE"
+    assert "2000." not in str(output)
+    assert str(archive) not in str(output)
