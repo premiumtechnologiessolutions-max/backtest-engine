@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import tempfile
 from dataclasses import asdict
 from pathlib import Path
 
@@ -11,6 +13,48 @@ from .execution import Result
 from .accounting import validate_execution
 from .gaps import annotate_trade_gap_exposure, classify_index_gaps
 from .model import Settings
+
+
+def _atomic_private_write(path: Path, writer) -> None:
+    """Atomically replace a report using a fresh 0600 temporary file.
+
+    Even if the caller has a normal 022 umask, raw private trades/quotes
+    must never have a world-readable intermediate state. The temp file
+    is fsynced before replacement; re-runs cannot follow planted symlinks.
+    Existing hardlinks are also forbidden to prevent ambiguous originals.
+    """
+    path = Path(path)
+    if path.is_symlink() or (path.exists() and (not path.is_file() or path.stat().st_nlink != 1)):
+        raise ValueError("Unsafe report destination")
+    fd, staging = tempfile.mkstemp(prefix=".nrfx-report-", suffix=".tmp", dir=path.parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="") as handle:
+            writer(handle)
+            handle.flush()
+            os.fsync(handle.fileno())
+        if path.is_symlink() or (path.exists() and (not path.is_file() or path.stat().st_nlink != 1)):
+            raise ValueError("Unsafe report destination during publish")
+        os.replace(staging, path)
+        if os.name == "posix":
+            dir_fd = os.open(path.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+            try:
+                os.fsync(dir_fd)
+            finally:
+                os.close(dir_fd)
+    finally:
+        if os.path.exists(staging):
+            os.unlink(staging)
+
+
+def _private_csv(frame: pd.DataFrame, path: Path, *, index: bool) -> None:
+    _atomic_private_write(path, lambda handle: frame.to_csv(handle, index=index))
+
+
+def _private_json(value: dict, path: Path) -> None:
+    _atomic_private_write(
+        path,
+        lambda handle: handle.write(json.dumps(value, ensure_ascii=False, indent=2)),
+    )
 
 
 def _marked_periods(equity: pd.Series, rule: str) -> pd.DataFrame:
@@ -201,12 +245,10 @@ def report(result: Result, settings: Settings, out: str | Path, *, source: str =
     if "synthetic_end_of_data_trades" not in monthly:
         monthly["synthetic_end_of_data_trades"] = 0
         monthly["synthetic_end_of_data_net_pnl"] = 0.0
-    gaps.to_csv(out / "gap_catalogue.csv", index=False)
-    trades.to_csv(out / "trades.csv", index=False)
-    equity.to_csv(out / "equity_m1.csv")
-    monthly.to_csv(out / "monthly.csv")
-    weekly.to_csv(out / "weekly.csv")
-    (out / "summary.json").write_text(
-        json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
+    _private_csv(gaps, out / "gap_catalogue.csv", index=False)
+    _private_csv(trades, out / "trades.csv", index=False)
+    _private_csv(equity, out / "equity_m1.csv", index=True)
+    _private_csv(monthly, out / "monthly.csv", index=True)
+    _private_csv(weekly, out / "weekly.csv", index=True)
+    _private_json(summary, out / "summary.json")
     return summary
