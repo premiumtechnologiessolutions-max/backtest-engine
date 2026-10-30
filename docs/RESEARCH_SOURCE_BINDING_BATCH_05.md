@@ -25,10 +25,15 @@ commit identity, and refuses to execute anything.
   It STILL does not authenticate the upstream broker, license the data,
   classify trading-session gaps, ensure independent OOS, or prove P/L.
 
-The user's original multi-year Gold ZIP / imported Parquet partitions are
-not eligible for the direct-file lineage claim. Before original large-data
-research can execute, build an importer-specific archive SHA + partition
-manifest + observed slice fingerprint linkage, with private local replay.
+A bounded 1–2-year window can now be independently reloaded directly from
+the ORIGINAL Gold ZIP with the canonical load_market(zip, dates) reader.
+B05 checks selected annual JSON member size before decompression (750 MB
+per year, 1.5 GB across selected years) and slices exact UTC proposal bounds.
+A pre-frozen per-window manifest must match the original WHOLE-ZIP SHA and
+all selected observed BID/ASK M1 quotes. This proves bounded local source
+lineage, NOT full original 2010–2026 ingestion, continuous collection,
+Parquet importer lineage or provider/broker authenticity. Imported Parquet
+partition-to-ZIP mapping remains a separate gate.
 Do not claim B05 has certified the user's original 2010–2026 archive.
 
 ## Other gates
@@ -49,8 +54,8 @@ Do not claim B05 has certified the user's original 2010–2026 archive.
   scientific validity, cost/ledger parity, gap classification and execution
   approval remain BLOCKED.
 
-## Offline CLI, direct sources only
-    python scripts/preflight_ai_research_source.py --proposal PRIVATE_PROPOSAL_JSON --source-manifest PRIVATE_MANIFEST_JSON --original-m1 PRIVATE_ORIGINAL_M1_JSON_OR_CSV --checkout CLEAN_CANONICAL_GIT_ROOT
+## Offline CLI, direct JSON/CSV or bounded original ZIP windows
+    python scripts/preflight_ai_research_source.py --proposal PRIVATE_PROPOSAL_JSON --source-manifest PRIVATE_MANIFEST_JSON --original-m1 PRIVATE_ORIGINAL_M1_JSON_CSV_OR_ZIP --checkout CLEAN_CANONICAL_GIT_ROOT
 
 Outputs descriptive status ONLY (experiment ID, source manifest ID,
 range and non-execution flags), never original ticks, prices, SHA of source
