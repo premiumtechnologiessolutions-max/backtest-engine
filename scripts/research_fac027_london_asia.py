@@ -152,8 +152,13 @@ def simulate(data, config, *, days=None):
     monthly = defaultdict(float)
     months = [f"{data.index[0].year}-{m:02d}" for m in range(1, 13)]
     last_exit = pd.Timestamp.min.tz_localize("UTC")
+    choices = (config,) if (len(config) == 4 and all(type(x) in (int, float) for x in config)) else tuple(config)
     for rows in days:
-        trade = execute(rows, data, config)
+        trade = None
+        for candidate in choices:  # frozen GRID order; one actual slot, no P/L summing
+            trade = execute(rows, data, candidate)
+            if trade is not None:
+                break
         if trade is None:
             continue
         if trade["entry_at"] <= last_exit:
@@ -205,6 +210,11 @@ def run(source):
         results["results"].append({"config": config, "yearly": yearly,
             "positive_months_24": sum(x["positive_months"] for x in yearly.values()),
             "net_two_years": round(sum(x["net"] for x in yearly.values()), 6)})
+    # Deterministic priority arbitration across all correlated settings.
+    # Exploratory shared-capacity diagnostic, NOT independent OOS evidence.
+    results["shared_priority_portfolio"] = {
+        str(y): simulate(frames[y], GRID, days=day_sets[y]) for y in (2012, 2013)
+    }
     return results
 
 
