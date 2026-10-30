@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 from hashlib import sha256
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -66,6 +67,45 @@ def _strict_formula(path: Path, expected: dict) -> None:
         raise ValueError("Frozen dispatch formula identity mismatch")
 
 
+def _verify_trade_accounting(trades: pd.DataFrame) -> None:
+    """Independent per-row accounting and chronology, even if both engines agree."""
+    for row in trades.itertuples(index=False):
+        if (row.side not in (-1, 1) or int(row.side) != row.side
+                or row.gap_minutes < 0 or int(row.gap_minutes) != row.gap_minutes):
+            raise ValueError("Invalid trade direction or gap minutes")
+        numbers = (row.entry_price, row.exit_price, row.stop, row.target,
+                   row.ounces, row.gross_pnl, row.cost, row.net_pnl)
+        if not all(math.isfinite(float(value)) for value in numbers):
+            raise ValueError("Nonfinite trade execution field")
+        if (row.ounces <= 0 or min(row.entry_price, row.exit_price,
+                                   row.stop, row.target) <= 0):
+            raise ValueError("Invalid trade size or price")
+        if ((row.side == 1 and not row.stop < row.entry_price < row.target)
+                or (row.side == -1 and not row.target < row.entry_price < row.stop)):
+            raise ValueError("Invalid protective stop/target geometry")
+        gross = row.side * (row.exit_price - row.entry_price) * row.ounces
+        if (abs(row.cost - 0.40 * row.ounces) > 1e-9
+                or abs(row.gross_pnl - gross) > 1e-7
+                or abs(row.net_pnl - (gross - row.cost)) > 1e-7):
+            raise ValueError("Trade gross/net/fee arithmetic mismatch")
+        stamps = [pd.Timestamp(value) for value in
+                  (row.signal_at, row.entry_at, row.closed_at)]
+        if (any(pd.isna(stamp) or stamp.tzinfo is None for stamp in stamps)
+                or not stamps[0] <= stamps[1] <= stamps[2]):
+            raise ValueError("Trade timestamps are not ordered timezone-aware UTC")
+        if row.exit_reason in ("stop", "ambiguous_stop_first"):
+            if abs(row.exit_price - row.stop) > 1e-7:
+                raise ValueError("Trade stop exit differs from stop")
+        elif row.exit_reason in ("target", "open_target"):
+            if abs(row.exit_price - row.target) > 1e-7:
+                raise ValueError("Trade target exit differs from target")
+        elif row.exit_reason in ("open_stop", "gap_stop", "entry_open_beyond_stop"):
+            if row.side * (row.exit_price - row.stop) > 1e-7:
+                raise ValueError("Adverse open exit improved beyond stop")
+        elif row.exit_reason != "end_of_data":
+            raise ValueError("Unknown trade exit reason")
+
+
 def _compare_outputs(reference: Path, fast: Path, *, identity: str) -> dict:
     """Fail on any differing execution field, report bucket, or M1 equity mark."""
     summaries = []
@@ -107,6 +147,7 @@ def _compare_outputs(reference: Path, fast: Path, *, identity: str) -> dict:
             raise ValueError(f"Reference/Fast {filename} mismatch") from exc
     trades = pd.read_csv(reference / "trades.csv")
     summary = summaries[0]
+    _verify_trade_accounting(trades)
     if summary["trades"] != len(trades):
         raise ValueError("Trade count differs from persisted ledger")
     if len(trades):
