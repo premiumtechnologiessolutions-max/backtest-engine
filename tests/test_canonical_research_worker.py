@@ -5,6 +5,7 @@ from copy import deepcopy
 from datetime import datetime, timezone, timedelta
 from hashlib import sha256
 import json
+import os
 import zipfile
 from pathlib import Path
 
@@ -159,6 +160,7 @@ def test_no_auto_queue_execution_when_operator_paused(tmp_path):
     assert q.status(id_)["state"]=="queued"
 
 
+@pytest.mark.skipif(os.name != "posix", reason="Canonical private evidence execution requires POSIX mode controls")
 def test_successful_canonical_auditor_only_commits_artifact_pointer(tmp_path,monkeypatch):
     from norisk_quant import canonical_research_worker as worker
     from scripts import research_batch_orchestrator as batch
@@ -193,6 +195,7 @@ def test_successful_canonical_auditor_only_commits_artifact_pointer(tmp_path,mon
     assert second["status"]=="PAUSED_OR_EMPTY_OR_BUSY"
 
 
+@pytest.mark.skipif(os.name != "posix", reason="Canonical private evidence execution requires POSIX mode controls")
 def test_missing_ledger_artifact_cannot_mark_queue_completed(tmp_path,monkeypatch):
     from norisk_quant import canonical_research_worker as worker
     from scripts import research_batch_orchestrator as batch
@@ -209,6 +212,7 @@ def test_missing_ledger_artifact_cannot_mark_queue_completed(tmp_path,monkeypatc
     assert q.counts()["completed"]==0
 
 
+@pytest.mark.skipif(os.name != "posix", reason="Canonical private evidence execution requires POSIX mode controls")
 def test_failed_canonical_audit_does_not_retry_automatically(tmp_path,monkeypatch):
     from norisk_quant import canonical_research_worker as worker
     from scripts import research_batch_orchestrator as batch
@@ -329,3 +333,20 @@ def test_unbounded_calendar_edge_missing_observations_remain_rejected(tmp_path,m
     monkeypatch.setattr(worker,"inspect_local_checkout",lambda _:HEAD)
     with pytest.raises(ValueError,match="before the available"):
         preflight_queued_research(intent(p),source_manifest=meta,data_zip=source,checkout=tmp_path)
+
+
+@pytest.mark.skipif(os.name == "posix", reason="Windows-only NTFS evidence restriction")
+def test_windows_canonical_execution_fails_closed_before_invoking_runner(tmp_path,monkeypatch):
+    from norisk_quant import canonical_research_worker as worker
+    from scripts import research_batch_orchestrator as batch
+    q,p,src,out,job=setup(tmp_path)
+    proof={"experiment_id":job,"source_manifest_id":"c"*64,
+           "plan":frozen_plan_from_intent(intent(p),data_zip=src)}
+    monkeypatch.setattr(worker,"preflight_queued_research",lambda *a,**kw:proof)
+    def forbidden(*args,**kw):
+        raise AssertionError("Unsafe Windows canonical execution must never run")
+    monkeypatch.setattr(batch,"run_plan",forbidden)
+    with pytest.raises(ValueError,match="requires reviewed POSIX evidence permissions"):
+        execute_one_approved_job(q,source_manifest={},data_zip=src,checkout=tmp_path,output_root=out)
+    assert q.status(job)["state"]=="rejected"
+    assert q.counts()["completed"]==0
