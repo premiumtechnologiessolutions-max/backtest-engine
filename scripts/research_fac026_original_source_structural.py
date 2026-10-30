@@ -141,9 +141,17 @@ def parity_for_variant(df, n, compression, efficiency, session, *, raw=None,
                    and end not in positives
                    and session[0] <= (end + pd.Timedelta(minutes=1))
                    .tz_convert("America/New_York").hour < session[1]
-                   and context(end) is not None]
-        stride = max(1, len(choices) // negative_per_month)
-        negatives.update(choices[::stride][:negative_per_month])
+                   ]
+        # Inspect at most 3x the fixed budget, not every M15 bar's
+        # expensive context. Sampling is QA-only, never a trading filter.
+        stride = max(1, len(choices) // (negative_per_month * 3))
+        taken = 0
+        for end in choices[::stride]:
+            if context(end) is not None:
+                negatives.add(end)
+                taken += 1
+            if taken >= negative_per_month:
+                break
     positive_checks = negative_checks = 0
     for end in sorted(positives | negatives):
         bars = context(end)

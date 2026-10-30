@@ -106,7 +106,7 @@ def test_positive_causal_m15_h1_signal_and_missing_minute_gate():
 
 
 def test_flat_market_independent_negative_parity():
-    result = parity_for_variant(sample(600), 8, .8, .35, (8, 12),
+    result = parity_for_variant(sample(600), 8, .8, .35, (9, 13),
                                 negative_per_month=4)
     assert result["positive_checks"] == 0
     assert result["sampled_negative_checks"] > 0
