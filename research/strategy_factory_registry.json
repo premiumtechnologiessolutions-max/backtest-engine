@@ -1,6 +1,6 @@
 {
   "format_version": 1,
-  "updated_utc": "2026-10-30T05:23:27Z",
+  "updated_utc": "2026-10-30T06:19:00Z",
   "project": "No Risk FX XAUUSD quant research factory",
   "branch": "feat/quant-engine-foundation",
   "original_private_zip_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
@@ -1211,6 +1211,26 @@
         "original_source_strategy_backtests": 0,
         "shared_capacity_executed": false
       }
+    },
+    {
+      "id": "FAC026-COMPRESSION-H1",
+      "parent": "NRF-FAC-026",
+      "status": "PREREGISTERED_SYNTHETIC_CAUSAL_INTENT_EXACT_HEAD_CI_PASSED_NO_SOURCE_REPLAY",
+      "frozen_spec": "docs/FAC026_FROZEN_COMPRESSION_BREAKOUT_H1_2026-10-30.md",
+      "implementation": "scripts/research_fac026_compression_breakout.py",
+      "tests": "tests/test_research_fac026_compression_breakout.py",
+      "correlated_filter_settings": 32,
+      "independent_hypotheses": 1,
+      "original_source_backtests": 0,
+      "observed_monthly_pnl": 0,
+      "monthly_net_usd_per_oz": "N/A",
+      "verified_floating_m1_drawdown": "N/A",
+      "shared_capacity_executed": false,
+      "approved_strategies": 0,
+      "verified_ci_commit": "6ac909c48809a70beb996f6cd37805f48b0be6ed",
+      "verified_ci_run": 41013233492,
+      "verified_ci_pytest_passed": 2945,
+      "note": "Frozen M15 compression continuation breakout with three completed H1 efficiency bars, DST-aware session and preknown realized-loss halt. Synthetic causal tests only. No source M1 backtest, authenticated BID/ASK fills, shared-capacity replay or clean prospective OOS. Do not add correlated specs to completed factory totals."
     }
   ],
   "engineering_integrity_controls": [
