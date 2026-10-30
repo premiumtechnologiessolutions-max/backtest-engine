@@ -159,6 +159,23 @@ def _fake_cli(command, *, check, capture_output, text, tamper=False,
         equity = equity.drop(index=2)
     elif equity_corruption == "missing_entry_mark":
         equity = equity.drop(index=1)
+    elif equity_corruption == "phantom_flat_floating":
+        # At the already-closed 00:02 mark there is no open position.
+        # All persisted arithmetic, drawdown and summary fields still agree.
+        equity.loc[2, "floating_pnl"] = -0.1
+        equity.loc[2, "equity"] = -0.5
+        equity.loc[2, "drawdown"] = 0.5
+        summary["max_drawdown_observed_m1"] = 0.5
+        (target / "summary.json").write_text(json.dumps(summary))
+    elif equity_corruption == "phantom_pre_entry_floating":
+        # A fictitious positive mark before the first entry changes the
+        # observed peak and risk without changing any realized trade P/L.
+        equity.loc[0, "floating_pnl"] = 0.1
+        equity.loc[0, "equity"] = 0.1
+        equity.loc[1, "drawdown"] = 0.1
+        equity.loc[2:, "drawdown"] = 0.5
+        summary["max_drawdown_observed_m1"] = 0.5
+        (target / "summary.json").write_text(json.dumps(summary))
     elif equity_corruption == "wrong_summary_dd":
         summary["max_drawdown_observed_m1"] = 0.3
         (target / "summary.json").write_text(json.dumps(summary))
@@ -306,6 +323,7 @@ def test_identical_weekly_corruption_in_both_engines_is_rejected(
     "wrong_drawdown", "shift_realized", "duplicate_minute",
     "missing_exit_mark", "missing_entry_mark",
     "wrong_summary_dd", "wrong_last_equity",
+    "phantom_flat_floating", "phantom_pre_entry_floating",
 ])
 def test_identical_m1_equity_corruption_in_both_engines_is_rejected(
         prepared, monkeypatch, corruption):
