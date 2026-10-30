@@ -174,14 +174,6 @@ def compile_feedback(training_input: Path, generation_manifest: Path,
                 "synthetic_forced_closures": summary["forced_end_of_data_closures"],
                 "accounting": "PASSED",
             }
-            training_summary([{"year": year, "metrics": annual},
-                              {"year": 2100 if year != 2100 else 2099,
-                               "metrics": {**annual,
-                                   "months": {f"{2100 if year != 2100 else 2099}-{m:02d}": 0.0
-                                              for m in range(1, 13)},
-                                   "net_usd_per_oz": 0.0, "trades": 0, "fees_usd": 0.0,
-                                   "positive_months": 0}}],
-                             tuple(sorted((year, 2100 if year != 2100 else 2099))))
             records[identity][year] = annual
             shard["ordinals"].append(ordinal)
             shard["reports"].append({
@@ -244,6 +236,8 @@ def compile_feedback(training_input: Path, generation_manifest: Path,
         "next_input_sha256": sha256(_encoded(next_input)).hexdigest(),
         "replay_shards": provenance,
     }
+    if any(p.is_symlink() for p in (output, evidence_path, *output.parents)):
+        raise ValueError("Symlinked feedback output path is forbidden")
     output.parent.mkdir(parents=True, exist_ok=True)
     # Publish evidence first. An interrupted run cannot expose a standalone
     # next-generation input without its evidence sidecar.
