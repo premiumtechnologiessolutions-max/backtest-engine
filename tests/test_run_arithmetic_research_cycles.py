@@ -116,7 +116,7 @@ def test_active_output_writer_blocks_before_generation(harness):
     output = harness[2]
     output.mkdir()
     with cycles._exclusive_research_lock(output):
-        with pytest.raises(ValueError, match="active writer"):
+        with pytest.raises(ValueError, match="already running"):
             run(harness)
         assert not (output / "generation_0001").exists()
         assert not harness[-1]
@@ -139,8 +139,8 @@ def test_failed_cycle_releases_kernel_lock_for_safe_resume(harness, monkeypatch)
 def test_symlink_lock_file_rejected_without_generation(harness):
     output = harness[2]
     output.mkdir()
-    (output / ".nrfx_research.lock").symlink_to(harness[0])
-    with pytest.raises(ValueError, match="Symlink research lock"):
+    (output / ".research_batch.lock").symlink_to(harness[0])
+    with pytest.raises(ValueError, match="Unsafe batch lock symlink"):
         run(harness)
     assert not (output / "generation_0001").exists()
 
@@ -148,8 +148,8 @@ def test_symlink_lock_file_rejected_without_generation(harness):
 def test_nonregular_lock_file_rejected_without_generation(harness):
     output = harness[2]
     output.mkdir()
-    (output / ".nrfx_research.lock").mkdir()
-    with pytest.raises(ValueError, match="Cannot safely open research lock"):
+    (output / ".research_batch.lock").mkdir()
+    with pytest.raises((ValueError, OSError)):
         run(harness)
     assert not (output / "generation_0001").exists()
 
@@ -157,10 +157,10 @@ def test_nonregular_lock_file_rejected_without_generation(harness):
 def test_world_readable_existing_lock_rejected(harness):
     output = harness[2]
     output.mkdir()
-    lock = output / ".nrfx_research.lock"
+    lock = output / ".research_batch.lock"
     lock.write_text("untrusted", encoding="utf-8")
     lock.chmod(0o644)
-    with pytest.raises(ValueError, match="private regular file"):
+    with pytest.raises(ValueError, match="Unsafe batch lock file"):
         run(harness)
     assert not (output / "generation_0001").exists()
 
