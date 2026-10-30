@@ -53,7 +53,8 @@ def _private_csv(frame: pd.DataFrame, path: Path, *, index: bool) -> None:
 def _private_json(value: dict, path: Path) -> None:
     _atomic_private_write(
         path,
-        lambda handle: handle.write(json.dumps(value, ensure_ascii=False, indent=2)),
+        lambda handle: handle.write(json.dumps(
+            value, ensure_ascii=False, indent=2, allow_nan=False)),
     )
 
 
