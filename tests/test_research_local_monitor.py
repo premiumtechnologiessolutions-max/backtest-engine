@@ -20,6 +20,7 @@ def _status(root):
             "updated_utc": "2026-10-30T11:00:00+00:00",
             "training_only": True, "independent_oos_proven": False,
             "live_trading_authorized": False,
+            "first_generation": 1, "requested_generations": 3,
             "completed": [{"generation": 1,
                           "status": "EXECUTED_AND_VERIFIED_FEEDBACK",
                           "input_sha256": "a" * 64}]}
@@ -48,6 +49,39 @@ def test_reject_tampered_status_or_symlink(tmp_path):
     path.symlink_to(tmp_path / "hidden")
     with pytest.raises(ValueError, match="symlink"):
         safe_status(tmp_path)
+
+
+def test_reject_inflated_or_unverified_generation_progress(tmp_path):
+    _status(tmp_path)
+    path = tmp_path / "campaign_status.json"
+    original = json.loads(path.read_text())
+    tampered = []
+    for key, value in (
+        ("status", "LIVE_TRADING_APPROVED"),
+        ("status", "COMPLETE_TRAINING_ONLY_NOT_OOS"),
+        ("requested_generations", 0),
+        ("first_generation", True),
+    ):
+        row = json.loads(json.dumps(original))
+        row[key] = value
+        tampered.append(row)
+    for generation, status, digest in (
+        (2, "EXECUTED_AND_VERIFIED_FEEDBACK", "a" * 64),
+        (1, "UNVERIFIED", "a" * 64),
+        (1, "EXECUTED_AND_VERIFIED_FEEDBACK", "z" * 64),
+    ):
+        row = json.loads(json.dumps(original))
+        row["completed"][0] = {"generation": generation, "status": status,
+                               "input_sha256": digest}
+        tampered.append(row)
+    duplicate = json.loads(json.dumps(original))
+    duplicate["completed"].append(dict(duplicate["completed"][0]))
+    tampered.append(duplicate)
+    for row in tampered:
+        path.write_text(json.dumps(row))
+        with pytest.raises(ValueError):
+            safe_status(tmp_path, current=datetime(
+                2026, 10, 30, 11, 11, tzinfo=timezone.utc))
 
 
 def test_reject_future_or_non_utc_status_freshness(tmp_path):
