@@ -158,12 +158,15 @@ def audit_equity(run: Path, archive: Path, source_sha: str,
             or any(not re.fullmatch(r"[0-9]{4}-(?:0[1-9]|1[0-2])", x) for x in labels)):
         raise ValueError("Invalid canonical monthly ordering")
     totals = {label: {"count": 0, "last": None, "max_dd": 0.0,
-                      "gap_events": 0} for label in labels}
+                      "month_local_max_dd": 0.0, "gap_events": 0} for label in labels}
     previous = None
     first_stamp = None
     peak = 0.0
     max_dd = 0.0
     last_realized = None
+    month_local_peak = 0.0
+    month_local_label = None
+    prior_observed_equity = None
     count = 0
     for row in _csv(run / "equity_m1.csv", set(FIELDS)):
         stamp = _timestamp(row["at"])
@@ -189,6 +192,16 @@ def audit_equity(run: Path, archive: Path, source_sha: str,
         dd = max(0.0, peak - equity)
         if not _same(dd, reported_dd):
             raise ValueError("M1 peak drawdown arithmetic mismatch")
+        # Each UTC month starts from the last OBSERVED preceding equity mark.
+        # The first month anchors at zero; no missing minute is interpolated.
+        if month != month_local_label:
+            month_local_label = month
+            month_local_peak = (0.0 if prior_observed_equity is None
+                                else prior_observed_equity)
+        month_local_peak = max(month_local_peak, equity)
+        current["month_local_max_dd"] = max(
+            current["month_local_max_dd"], month_local_peak - equity)
+        prior_observed_equity = equity
         current["count"] += 1
         current["last"] = equity
         current["max_dd"] = max(current["max_dd"], dd)
@@ -218,6 +231,7 @@ def audit_equity(run: Path, archive: Path, source_sha: str,
             "month_utc": month,
             "observed_m1_samples": item["count"],
             "max_observed_m1_global_peak_drawdown_usd_per_oz": round(item["max_dd"], 8),
+            "month_local_max_observed_m1_close_drawdown_usd_per_oz": round(item["month_local_max_dd"], 8),
             "last_observed_equity_usd_per_oz": round(item["last"], 8),
             "observed_gap_events_from_prior_mark": item["gap_events"],
         })
@@ -231,6 +245,8 @@ def audit_equity(run: Path, archive: Path, source_sha: str,
         "evidence_sha256": dict(expected_hashes),
         "observed_m1_samples": count,
         "max_observed_m1_global_peak_drawdown_usd_per_oz": round(max_dd, 8),
+        "max_observed_m1_month_local_drawdown_usd_per_oz": round(
+            max(item["month_local_max_dd"] for item in totals.values()), 8),
         "monthly": output,
         "missing_minutes_filled": 0,
         "shared_capacity_verified": False,

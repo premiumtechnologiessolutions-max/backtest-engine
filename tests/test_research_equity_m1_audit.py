@@ -199,3 +199,46 @@ def test_large_but_finite_json_exponent_is_accepted(tmp_path):
     path.write_text(original[:-1] + ', "unused": {"value": 1e308}}')
     hashes["summary.json"] = audit._hash(path)
     assert audit.audit_equity(run, archive, SOURCE, ENGINE, hashes)["observed_m1_samples"] == 5
+
+
+def test_month_local_drawdown_resets_from_prior_observed_close(tmp_path):
+    run, archive, hashes = fixture(tmp_path)
+    result = audit.audit_equity(run, archive, SOURCE, ENGINE, hashes)
+    assert [m["max_observed_m1_global_peak_drawdown_usd_per_oz"]
+            for m in result["monthly"]] == [3, 1]
+    assert [m["month_local_max_observed_m1_close_drawdown_usd_per_oz"]
+            for m in result["monthly"]] == [3, 0]
+    assert result["max_observed_m1_month_local_drawdown_usd_per_oz"] == 3
+
+
+def test_month_local_drawdown_uses_intra_month_observed_peak(tmp_path):
+    run, archive, hashes = fixture(tmp_path)
+    path = run / "equity_m1.csv"
+    original = path.read_text()
+    assert "2024-02-01 00:00:00+00:00,2,-1,1,1" in original
+    path.write_text(original.replace(
+        "2024-02-01 00:00:00+00:00,2,-1,1,1",
+        "2024-02-01 00:00:00+00:00,2,0,2,0"))
+    hashes["equity_m1.csv"] = audit._hash(path)
+    result = audit.audit_equity(run, archive, SOURCE, ENGINE, hashes)
+    assert [m["month_local_max_observed_m1_close_drawdown_usd_per_oz"]
+            for m in result["monthly"]] == [3, 1]
+
+
+def test_month_local_gap_anchors_last_observed_not_fabricated_minute(tmp_path):
+    run, archive, hashes = fixture(tmp_path)
+    path = run / "equity_m1.csv"
+    original = path.read_text()
+    assert "2024-02-01 00:00:00+00:00,2,-1,1,1\n" in original
+    path.write_text(original.replace("2024-02-01 00:00:00+00:00,2,-1,1,1\n", ""))
+    hashes["equity_m1.csv"] = audit._hash(path)
+    monthly = run / "monthly.csv"
+    text = monthly.read_text()
+    assert "2024-02,2,1,0" in text
+    monthly.write_text(text.replace("2024-02,2,1,0", "2024-02,1,1,0"))
+    hashes["monthly.csv"] = audit._hash(monthly)
+    result = audit.audit_equity(run, archive, SOURCE, ENGINE, hashes)
+    assert result["observed_m1_samples"] == 4
+    assert result["monthly"][1]["observed_gap_events_from_prior_mark"] == 1
+    assert result["monthly"][1]["month_local_max_observed_m1_close_drawdown_usd_per_oz"] == 0
+    assert result["missing_minutes_filled"] == 0

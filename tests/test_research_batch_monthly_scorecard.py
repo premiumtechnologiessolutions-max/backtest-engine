@@ -215,12 +215,15 @@ def frozen_pins(plan, record):
 def fake_equity_result():
     return {
         "max_observed_m1_global_peak_drawdown_usd_per_oz": 4.5,
+        "max_observed_m1_month_local_drawdown_usd_per_oz": 3.5,
         "monthly": [
             {"month_utc": "2024-01", "observed_m1_samples": 123,
              "max_observed_m1_global_peak_drawdown_usd_per_oz": 2.5,
+             "month_local_max_observed_m1_close_drawdown_usd_per_oz": 1.5,
              "observed_gap_events_from_prior_mark": 3},
             {"month_utc": "2024-02", "observed_m1_samples": 111,
              "max_observed_m1_global_peak_drawdown_usd_per_oz": 4.5,
+             "month_local_max_observed_m1_close_drawdown_usd_per_oz": 3.5,
              "observed_gap_events_from_prior_mark": 1},
         ],
     }
@@ -239,6 +242,9 @@ def test_hash_pinned_m1_months_join_only_after_independent_audit(tmp_path, monke
     assert len(calls) == 1
     assert calls[0][4] == pins["jobs"]["synthetic-ema"]
     assert job["observed_m1_floating_drawdown_usd_per_oz"] == 4.5
+    assert job["max_observed_m1_month_local_drawdown_usd_per_oz"] == 3.5
+    assert [m["month_local_max_observed_m1_close_drawdown_usd_per_oz"]
+            for m in job["monthly"]] == [1.5, 3.5]
     assert [m["max_observed_m1_global_peak_drawdown_usd_per_oz"]
             for m in job["monthly"]] == [2.5, 4.5]
     assert [m["observed_m1_gap_events_from_prior_mark"]
@@ -254,6 +260,9 @@ def test_missing_pins_remain_explicit_na_per_month(tmp_path, monkeypatch):
     report = score.scorecard(plan, out)
     assert report["hash_pinned_m1_jobs"] == 0
     assert report["unverified_floating_m1_jobs"] == 1
+    assert report["jobs"][0]["max_observed_m1_month_local_drawdown_usd_per_oz"] is None
+    assert all(month["month_local_max_observed_m1_close_drawdown_usd_per_oz"] is None
+               for month in report["jobs"][0]["monthly"])
     assert all(month["max_observed_m1_global_peak_drawdown_usd_per_oz"] is None
                for month in report["jobs"][0]["monthly"])
     assert "equity_m1_sha256" not in report["jobs"][0]["evidence_sha256"]

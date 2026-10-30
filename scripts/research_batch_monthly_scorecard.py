@@ -206,7 +206,9 @@ def scorecard(plan: dict, output: Path, *, equity_pins: dict | None = None) -> d
         if not downside["requested_calendar_month_coverage_complete"]:
             raise ValueError("Canonical monthly ledger missing requested UTC calendar months")
         floating_dd = None
+        month_local_dd = None
         for month in months:
+            month["month_local_max_observed_m1_close_drawdown_usd_per_oz"] = None
             month["max_observed_m1_global_peak_drawdown_usd_per_oz"] = None
             month["observed_m1_gap_events_from_prior_mark"] = None
         if name in pinned:
@@ -224,10 +226,14 @@ def scorecard(plan: dict, output: Path, *, equity_pins: dict | None = None) -> d
                     raise ValueError("Pinned M1 month or sample count mismatch")
                 month["max_observed_m1_global_peak_drawdown_usd_per_oz"] = (
                     observed["max_observed_m1_global_peak_drawdown_usd_per_oz"])
+                month["month_local_max_observed_m1_close_drawdown_usd_per_oz"] = (
+                    observed["month_local_max_observed_m1_close_drawdown_usd_per_oz"])
                 month["observed_m1_gap_events_from_prior_mark"] = (
                     observed["observed_gap_events_from_prior_mark"])
             floating_dd = verified_equity[
                 "max_observed_m1_global_peak_drawdown_usd_per_oz"]
+            month_local_dd = verified_equity[
+                "max_observed_m1_month_local_drawdown_usd_per_oz"]
         worst = min(months, key=lambda m: (m["net_usd_per_oz"], m["month_utc"]))
         results.append({
             "id": name, "status": "HISTORICAL_EXPOSED_STANDALONE_NOT_APPROVED",
@@ -243,6 +249,7 @@ def scorecard(plan: dict, output: Path, *, equity_pins: dict | None = None) -> d
             "net_usd_per_oz": verified["net_pnl"],
             "all_in_fees_usd_per_oz": verified["total_cost"],
             "observed_m1_floating_drawdown_usd_per_oz": floating_dd,
+            "max_observed_m1_month_local_drawdown_usd_per_oz": month_local_dd,
             "shared_capacity_verified": False, "clean_prospective_oos": False,
             "monthly": months,
             "evidence_sha256": {

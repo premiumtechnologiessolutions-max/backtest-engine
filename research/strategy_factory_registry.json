@@ -1,6 +1,6 @@
 {
   "format_version": 1,
-  "updated_utc": "2026-10-29T20:14:05Z",
+  "updated_utc": "2026-10-30T00:15:53Z",
   "project": "No Risk FX XAUUSD quant research factory",
   "branch": "feat/quant-engine-foundation",
   "original_private_zip_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
@@ -1375,6 +1375,19 @@
       "verified_ci_run": 40972280575,
       "verified_ci_pytest_passed": 2797,
       "verified_ci_warnings": 1
+    },
+    {
+      "id": "NRF-M1-MONTH-LOCAL-PINNED-EQUITY-SCORECARD",
+      "status": "SYNTHETIC_REGRESSIONS_PENDING_EXACT_HEAD_CI_NOT_SOURCE_REPLAY",
+      "report": "docs/M1_MONTH_LOCAL_PINNED_EQUITY_SCORECARD_2026-10-30.md",
+      "code": "scripts/research_equity_m1_audit.py",
+      "scorecard": "scripts/research_batch_monthly_scorecard.py",
+      "synthetic_regressions_added": 3,
+      "original_source_strategy_backtests_added": 0,
+      "original_source_monthly_net_usd_per_oz": "N/A",
+      "original_source_monthly_floating_drawdown_usd_per_oz": "N/A",
+      "approved_strategies": 0,
+      "note": "Compute each observed UTC month's peak-to-trough M1 equity from independently hash-pinned canonical marks, anchored to last observed previous-month equity; distinguish from global running-peak DD. Missing pins remain N/A. No synthetic missing minutes, no extra fees, no OOS or shared-capacity claim."
     }
   ]
 }
