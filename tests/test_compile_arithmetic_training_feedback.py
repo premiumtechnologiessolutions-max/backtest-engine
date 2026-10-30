@@ -208,3 +208,59 @@ def test_symlinked_report_rejected_before_comparison(evidence):
     report.symlink_to(source)
     with pytest.raises(ValueError, match="symlinked"):
         bridge.compile_feedback(source, generation, dispatch, shards, output)
+
+
+def test_complete_replay_compacts_129_evaluated_training_candidates(evidence):
+    """Real generation and feedback with mocked synthetic report comparison.
+
+    Previously this valid, fully audited generation would hit the 128
+    candidate limit AFTER running all replays. It now retains 128 scored
+    active parents and all 129 explored identities.
+    """
+    from dataclasses import asdict
+    import shutil
+
+    source, generation, dispatch_dir, shards, output, _ = evidence
+    data = json.loads(source.read_text())
+    base = data["candidates"][0]
+    for i in range(126):
+        candidate = copy.deepcopy(base)
+        candidate["formula"] = asdict(Formula(lookback=50 + i))
+        data["candidates"].append(candidate)
+    assert len(data["candidates"]) == 127
+    source.write_text(json.dumps(data), encoding="utf-8")
+    generation.unlink()
+    shutil.rmtree(dispatch_dir)
+    run(source, generation, seed=17, generation=1, proposal_count=2)
+    dispatch = materialize(source, generation, dispatch_dir)
+
+    for shard in shards:
+        index_file = shard / "training_replay_index.json"
+        index = json.loads(index_file.read_text())
+        index["training_input_sha256"] = bridge._sha(source)
+        index["generation_manifest_sha256"] = dispatch["generation_manifest_sha256"]
+        for row, expected in zip(index["results"], dispatch["formulas"]):
+            old_dir = shard / row["relative_dir"]
+            new_dir = shard / f'{expected["ordinal"]:03d}_{expected["identity"][:16]}'
+            old_dir.rename(new_dir)
+            row["identity"] = expected["identity"]
+            row["relative_dir"] = new_dir.name
+        index_file.write_text(json.dumps(index), encoding="utf-8")
+
+    completed = bridge.compile_feedback(source, generation, dispatch_dir,
+                                         shards, output)
+    assert completed["next_candidate_count"] == 128
+    next_input = json.loads(output.read_text())
+    assert len(next_input["candidates"]) == 128
+    assert len(next_input["explored_ids"]) == 129
+    proof = json.loads((output.parent /
+                        (output.name + ".evidence.json")).read_text())
+    memory = proof["active_memory_selection"]
+    assert memory["universe_size"] == 129
+    assert memory["active_size"] == 128
+    assert memory["evicted_count"] == 1
+    assert len(memory["evicted"]) == 1
+    assert memory["independent_oos_proven"] is False
+    # Immutable replay produces the same result on repeated invocation.
+    assert bridge.compile_feedback(source, generation, dispatch_dir,
+                                    shards[::-1], output) == completed
