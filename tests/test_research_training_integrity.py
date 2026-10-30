@@ -94,3 +94,22 @@ def test_overflowed_combined_year_results_are_rejected():
         row["metrics"]["positive_months"] = 1
     with pytest.raises(ValueError):
         training_summary(rows, (2012, 2013))
+
+
+def test_finite_months_can_still_overflow_month_end_drawdown():
+    """Each annual net and every month is finite; cross-year drawdown is not."""
+    rows = [record(2012, 0.), record(2013, 0.)]
+    for row in rows:
+        year = row["year"]
+        months = {f"{year}-{m:02d}": 0. for m in range(1, 13)}
+        if year == 2012:
+            months[f"{year}-01"] = 1e308
+            months[f"{year}-02"] = -1e308
+        else:
+            months[f"{year}-01"] = -1e308
+            months[f"{year}-02"] = 1e308
+        row["metrics"]["months"] = months
+        row["metrics"]["net_usd_per_oz"] = 0.
+        row["metrics"]["positive_months"] = 1
+    with pytest.raises(ValueError, match="drawdown overflowed"):
+        training_summary(rows, (2012, 2013))
