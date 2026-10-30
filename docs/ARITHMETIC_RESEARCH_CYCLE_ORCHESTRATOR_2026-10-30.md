@@ -90,3 +90,29 @@ release/resume, symlink, nonregular file and insecure permissions. No private
 Gold source replay, monthly P/L, drawdown, or independent OOS is established
 by these concurrency tests. This implementation requires a POSIX platform
 (Linux GitHub Actions and local Linux runner).
+
+## Follow-up safeguards — current branch
+
+- The multi-generation runner now uses the repository's existing
+  `exclusive_batch_lock` (POSIX and Windows implementations) around the
+  **entire** generation/shard/feedback cycle. A second writer to the same
+  private output directory is rejected; interrupted runs release the
+  kernel lock and can resume only immutable matching evidence.
+- Before each costly generation, the canonical training input must have
+  the expected schema and the prior evaluated candidate count plus the
+  requested new formula count must not exceed **128**. This avoids spending
+  compute on a generation which cannot be reconciled into the bounded
+  next-generation candidate pool.
+- Research output inside a Git working tree is forbidden, including
+  directories nested under a parent with a `.git` file or directory.
+  This reduces the risk of accidentally adding private price/trade
+  ledgers to the **currently public** GitHub repository.
+- `.github/workflows/quant-lab-grammar.yml` now includes
+  `tests/test_run_arithmetic_research_cycles.py` in its PR regression
+  job. The overall engine CI and original-source replay must still be
+  verified separately on the exact final head. A workflow passing on a
+  previous commit is not an acceptance result for a later commit.
+
+**Limitations remain unchanged:** no original Gold ZIP in GitHub,
+no fresh independent OOS, no tick/broker-fill certification, no proven
+profitable strategy and no live-trading authorization.
