@@ -199,9 +199,11 @@ def proposal_from_aiquantlab_hypothesis(record: dict, context: dict) -> dict:
             raise ValueError(f"Invalid {key} entry")
     _iso(record["created_at"], "AI Quant Lab hypothesis creation time")
     source_code_sha = _sha(context["aiquantlab_commit"], "AI Quant Lab source commit", HEX40)
-    strategy_name = f"aql_{record['strategy_name']}_{source_code_sha[:12]}"
-    if len(strategy_name) > 64:
-        raise ValueError("AI Quant Lab strategy identity too long")
+    # Bind full source-commit SHA + full original strategy name without
+    # truncating those identity inputs: labels themselves are not executable.
+    strategy_key = ("AIQUANTLAB_STRATEGY_V4\0" + record["strategy_name"]
+                    + "\0" + source_code_sha).encode("ascii")
+    strategy_name = "aql_" + sha256(strategy_key).hexdigest()[:40]
     proposal = {
         "schema": SCHEMA, "producer": EXTERNAL_SOURCE,
         "agent": "nova", "campaign_id": record["campaign_id"],
