@@ -83,6 +83,23 @@ def test_discrete_execution_fields_must_not_be_truncated_or_coerced(
         compare_trade_fields(actual, saved)
 
 
+@pytest.mark.parametrize("field", ["signal_time", "entry_time", "exit_time"])
+def test_archived_fractional_epoch_seconds_are_never_truncated(field):
+    actual, saved = sample()
+    saved[field] = saved[field].astype(float)
+    saved.at[0, field] += 0.5
+    with pytest.raises(ValueError, match="Noncanonical discrete execution"):
+        compare_trade_fields(actual, saved)
+
+
+@pytest.mark.parametrize("field", ["signal_at", "entry_at", "closed_at"])
+def test_actual_subsecond_execution_times_cannot_match_integer_archive(field):
+    actual, saved = sample()
+    actual.at[0, field] += pd.Timedelta(milliseconds=500)
+    with pytest.raises(AssertionError, match="Subsecond timestamp drift"):
+        compare_trade_fields(actual, saved)
+
+
 def test_small_floating_error_respects_fixed_numeric_tolerance():
     actual, saved = sample()
     saved.loc[0, "entry"] += TOLERANCE / 20
