@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 import pytest
 from norisk_quant.math_discovery import Formula
-from run_arithmetic_evolution import run
+from scripts.run_arithmetic_evolution import run
 
 
 def payload():
