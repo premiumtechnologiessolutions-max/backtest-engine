@@ -281,9 +281,22 @@ def _verify_m1_equity(trades: pd.DataFrame, marks: pd.DataFrame,
                 or (entries < timestamps.iloc[0]).any()
                 or (closes > timestamps.iloc[-1]).any()):
             raise ValueError("M1 equity missing observed trade close or entry coverage")
+        # At each observed minute close, a position is open only after its
+        # entry minute and strictly before its exit minute. The executor
+        # books exits before recording that minute's equity mark. Rebuild
+        # flat exposure from fills so matching engines cannot invent
+        # floating P/L (and thereby distort drawdown) while no trade exists.
+        active = (pd.DatetimeIndex(entries).searchsorted(timestamps, side="right")
+                  - pd.DatetimeIndex(closes).searchsorted(timestamps, side="right"))
+        if (active < 0).any() or (active > 1).any():
+            raise ValueError("M1 equity trade occupancy violates one-position execution")
+        if (abs(marks["floating_pnl"].to_numpy(dtype=float)[active == 0]) > 1e-7).any():
+            raise ValueError("M1 equity has nonzero floating P/L while flat")
         booked = trades.groupby(closes)["net_pnl"].sum().reindex(
             pd.DatetimeIndex(timestamps), fill_value=0.0)
     else:
+        if marks["floating_pnl"].abs().gt(1e-7).any():
+            raise ValueError("M1 equity has floating P/L without any trade")
         booked = pd.Series(0.0, index=pd.DatetimeIndex(timestamps))
     expected_realized = booked.cumsum().to_numpy(dtype=float)
     if any(abs(float(actual) - float(expected)) > 1e-7
