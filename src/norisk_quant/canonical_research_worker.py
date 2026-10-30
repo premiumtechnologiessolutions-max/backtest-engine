@@ -120,6 +120,7 @@ def preflight_queued_research(
     evidence = preflight_private_gold_zip_window(
         proposal, source_manifest,
         original_gold_zip=data_zip, observed_engine_commit=observed_head,
+        boundary_tolerance_minutes=4320,  # holiday/weekend market edges, <=72h
     )
     if not evidence.lineage_verified or evidence.experiment_id != intent["canonical_experiment_id"]:
         raise ValueError("Original ZIP direct lineage preflight did not verify")
