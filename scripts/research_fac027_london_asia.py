@@ -119,7 +119,11 @@ def execute(day_rows, data, config):
         opening = float(bar.o)
         local_bar = data.index[i].tz_convert(NY)
         if local_bar.hour >= 11:
-            price = opening; reason = "time"
+            # Favorable time-exit gap cannot claim more than frozen TP.
+            if side * (opening - target) >= 0:
+                price, reason = target, "target_at_time_open"
+            else:
+                price, reason = opening, "time"
         elif side == 1:
             if opening <= stop: price, reason = opening, "adverse_gap_stop"
             elif opening >= target: price, reason = target, "target"
