@@ -1,6 +1,6 @@
 {
   "format_version": 1,
-  "updated_utc": "2026-10-30T10:18:06.290Z",
+  "updated_utc": "2026-10-30T11:25:40Z",
   "project": "No Risk FX XAUUSD quant research factory",
   "branch": "feat/quant-engine-foundation",
   "original_private_zip_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
@@ -1626,6 +1626,55 @@
       "verified_ci_pytest_passed": 2986,
       "verified_ci_warnings": 1,
       "note": "FAC026 M15/H1 exact UTC minute-grid completeness now rejects duplicated replacement minutes, subminute shifted epochs, index/epoch mismatch, non-UTC indices and missing last constituent minute. Full code CI passed on 6f7b846. No original Gold ZIP replay, no strategy fills, monthly P/L, floating drawdown or prospective OOS. Frozen 32 correlated settings and historical rejection unchanged."
+    },
+    {
+      "id": "NRF-FAC-027-ORIGINAL-SOURCE-FROZEN-ONE-SLOT-REJECTION",
+      "status": "ORIGINAL_SHA_VERIFIED_BID_REFERENCE_2012_2013_REJECTED_GITHUB_CI_SUCCESS_NOT_CANONICAL_OOS",
+      "preregistration_commit": "11fb7808fe61090c9ab380d3f8f8726b218066a8",
+      "report": "docs/FAC027_SOURCE_M1_FROZEN_GRID_REJECTION_2026-10-30.md",
+      "code": "scripts/research_fac027_london_asia.py",
+      "tests": "tests/test_research_fac027_london_asia.py",
+      "source_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
+      "exact_local_github_code_blob_sha": "a0e1112c2cfd1fbda2d469332c7c34b793ebe214",
+      "original_source_exposed_years": [
+        2012,
+        2013
+      ],
+      "correlated_frozen_specs": 16,
+      "independent_hypotheses_added": 1,
+      "provisional_annual_m1_backtests_excluded_from_factory_totals": 32,
+      "provisional_monthly_pl_points_excluded_from_factory_totals": 384,
+      "all_configs_two_year_net_negative": true,
+      "best_positive_months_out_of_24": 13,
+      "best_positive_months_candidate_two_year_net_usd_oz": -42.55,
+      "least_negative_two_year_net_usd_oz": -26.914,
+      "shared_one_slot_priority_trades": 171,
+      "shared_one_slot_positive_months": 9,
+      "shared_one_slot_total_net_usd_oz": -64.59,
+      "shared_one_slot_total_fee_usd_oz": 68.4,
+      "shared_one_slot_worst_month_usd_oz": -20.544,
+      "shared_one_slot_annual_observed_m1_drawdown_2012_usd_oz": 81.228,
+      "shared_one_slot_annual_observed_m1_drawdown_2013_usd_oz": 16.414,
+      "original_source_annual_m1_bars": [
+        352975,
+        352317
+      ],
+      "complete_source_session_days": [
+        190,
+        139
+      ],
+      "local_deterministic_full_runs": 2,
+      "local_aggregate_result_json_sha256": "e6cfd5eb552dd1fb6f54755dbdee47b2aaa87759352dfd6cd5588ae4ac410d24",
+      "synthetic_local_tests_passed": 8,
+      "verified_ci_code_commit": "485f4cc6838b3048b39eeb2534153cea1f7360c0",
+      "verified_ci_run": 41047899061,
+      "verified_ci_pytest_passed": 2997,
+      "verified_ci_warnings": 1,
+      "verified_quant_lab_run": 41047905664,
+      "canonical_parity_verified": false,
+      "clean_oos_verified": false,
+      "approved_strategies": 0,
+      "note": "One preregistered London/Asia session-continuation hypothesis, 16 correlated configurations, 32 source-SHA verified annual BID-reference M1 replays and 384 exit-month P/L points; all two-year totals negative. Shared priority arbitration uses one position, not summed standalone profits. Local executable exactly matches GitHub blob, twice deterministic. CI synthetic tests successful. Provisional research excluded from historical canonical factory totals pending canonical parity; no broker fills, prospective OOS or raw quotes uploaded."
     }
   ]
 }
