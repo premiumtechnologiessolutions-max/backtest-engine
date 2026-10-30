@@ -23,6 +23,7 @@ from norisk_quant.math_discovery import Formula
 from scripts.materialize_arithmetic_generation import materialize, _load_strict
 
 SCHEMA = "NRFX_ARITHMETIC_TRAINING_REPLAY_V1"
+SOURCE_SHA = "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121"
 SHA = re.compile(r"[0-9a-f]{64}\Z")
 REPORTS = ("trades.csv", "monthly.csv", "weekly.csv", "equity_m1.csv",
            "gap_catalogue.csv")
@@ -140,6 +141,8 @@ def execute(training_input: Path, generation_manifest: Path,
             or not 1 <= limit <= 128 or type(source_sha256) is not str
             or SHA.fullmatch(source_sha256) is None):
         raise ValueError("Invalid bounded frozen training replay controls")
+    if source_sha256 != SOURCE_SHA:
+        raise ValueError("Only the preregistered original Gold ZIP SHA is permitted")
     _safe_destination(destination)
     if not data.is_file() or data.suffix.lower() != ".zip":
         raise ValueError("A local original source ZIP is required")
