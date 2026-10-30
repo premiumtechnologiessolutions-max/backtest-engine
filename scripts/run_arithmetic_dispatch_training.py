@@ -211,6 +211,67 @@ def _verify_weekly_booking(trades: pd.DataFrame, weekly: pd.DataFrame,
                 raise ValueError(f"Weekly ledger exit-booking mismatch: {week} {field}")
 
 
+
+def _verify_m1_equity(trades: pd.DataFrame, marks: pd.DataFrame,
+                      summary: dict) -> None:
+    """Rebuild observed minute-close equity risk and exit-booked realized P/L.
+
+    Reference/Fast parity alone cannot detect identical corruption in both
+    outputs. Never interpolate missing minutes or infer intrabar drawdown.
+    """
+    required = ("at", "realized_pnl", "floating_pnl", "equity", "drawdown")
+    if marks.columns.has_duplicates or not set(required).issubset(marks.columns):
+        raise ValueError("M1 equity missing required observed columns")
+    if marks.empty:
+        raise ValueError("M1 equity contains no observed minutes")
+    try:
+        timestamps = pd.to_datetime(marks["at"], utc=True, errors="raise")
+        raw_times = [pd.Timestamp(value) for value in marks["at"]]
+        bounds = [pd.Timestamp(summary[name]) for name in ("start_utc", "end_utc")]
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError("M1 equity invalid UTC observation timestamps") from exc
+    if (any(pd.isna(t) or t.tzinfo is None for t in raw_times + bounds)
+            or timestamps.has_duplicates or not timestamps.is_monotonic_increasing
+            or any(t.second or t.microsecond or t.nanosecond for t in timestamps)
+            or timestamps.iloc[0] != bounds[0].tz_convert("UTC")
+            or timestamps.iloc[-1] != bounds[1].tz_convert("UTC")):
+        raise ValueError("M1 equity unordered, duplicated or mismatched UTC coverage")
+    for field in required[1:]:
+        values = marks[field]
+        if (not pd.api.types.is_numeric_dtype(values)
+                or not all(math.isfinite(float(value)) for value in values)):
+            raise ValueError(f"M1 equity invalid numeric field: {field}")
+    if ((marks["equity"] - marks["realized_pnl"]
+         - marks["floating_pnl"]).abs() > 1e-7).any():
+        raise ValueError("M1 equity realized/floating reconciliation mismatch")
+    expected_dd = (marks["equity"].cummax().clip(lower=0)
+                   - marks["equity"]).clip(lower=0)
+    if (marks["drawdown"] - expected_dd).abs().gt(1e-7).any():
+        raise ValueError("M1 equity observed drawdown differs from reconstructed peaks")
+    if (abs(float(summary["max_drawdown_observed_m1"]) - float(expected_dd.max())) > 1e-7
+            or abs(float(summary["last_observed_equity"]) - float(marks["equity"].iloc[-1])) > 1e-7
+            or abs(float(summary["last_observed_realized_pnl"])
+                   - float(marks["realized_pnl"].iloc[-1])) > 1e-7):
+        raise ValueError("M1 equity summary disagrees with observed marks")
+    if int(timestamps.dt.strftime("%Y-%m").nunique()) != 12:
+        raise ValueError("M1 equity missing observed training month")
+    if len(trades):
+        closes = pd.to_datetime(trades["closed_at"], utc=True, errors="raise")
+        entries = pd.to_datetime(trades["entry_at"], utc=True, errors="raise")
+        if (not closes.isin(timestamps).all()
+                or (entries < timestamps.iloc[0]).any()
+                or (closes > timestamps.iloc[-1]).any()):
+            raise ValueError("M1 equity missing observed trade close or entry coverage")
+        booked = trades.groupby(closes)["net_pnl"].sum().reindex(
+            pd.DatetimeIndex(timestamps), fill_value=0.0)
+    else:
+        booked = pd.Series(0.0, index=pd.DatetimeIndex(timestamps))
+    expected_realized = booked.cumsum().to_numpy(dtype=float)
+    if any(abs(float(actual) - float(expected)) > 1e-7
+           for actual, expected in zip(marks["realized_pnl"], expected_realized)):
+        raise ValueError("M1 equity realized timeline disagrees with trade exits")
+
+
 def _compare_outputs(reference: Path, fast: Path, *, identity: str, year: int) -> dict:
     """Fail on any differing execution field, report bucket, or M1 equity mark."""
     summaries = []
@@ -253,6 +314,7 @@ def _compare_outputs(reference: Path, fast: Path, *, identity: str, year: int) -
     trades = pd.read_csv(reference / "trades.csv")
     summary = summaries[0]
     _verify_trade_accounting(trades)
+    _verify_m1_equity(trades, pd.read_csv(reference / "equity_m1.csv"), summary)
     _verify_monthly_booking(trades, pd.read_csv(reference / "monthly.csv"),
                             summary, year=year)
     _verify_weekly_booking(trades, pd.read_csv(reference / "weekly.csv"),
