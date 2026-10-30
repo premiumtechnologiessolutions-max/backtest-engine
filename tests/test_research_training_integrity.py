@@ -113,3 +113,14 @@ def test_finite_months_can_still_overflow_month_end_drawdown():
         row["metrics"]["positive_months"] = 1
     with pytest.raises(ValueError, match="drawdown overflowed"):
         training_summary(rows, (2012, 2013))
+
+
+def test_zero_trade_year_cannot_claim_realized_profit_or_loss():
+    rows = [record(2012, 0., 0), record(2013, 0., 0)]
+    # Monthly sum, annual net, fee, and positive-month count all agree.
+    # Nevertheless, a realized ledger cannot earn money with no trades.
+    rows[0]["metrics"]["months"]["2012-01"] = 5.
+    rows[0]["metrics"]["net_usd_per_oz"] = 5.
+    rows[0]["metrics"]["positive_months"] = 1
+    with pytest.raises(ValueError, match="without any completed trades"):
+        training_summary(rows, (2012, 2013))
