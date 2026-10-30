@@ -13,6 +13,7 @@ from pathlib import Path
 
 from norisk_quant.research_control_plane import ResearchQueue
 from norisk_quant.canonical_research_worker import execute_one_approved_job
+from norisk_quant.scientific_rejection_registry import ScientificDecisionJournal
 from scripts.preflight_ai_research_source import _private_json
 
 
@@ -27,6 +28,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--original-gold-zip", type=Path)
     parser.add_argument("--checkout", type=Path)
     parser.add_argument("--private-output", type=Path)
+    parser.add_argument("--scientific-journal", type=Path)
     args = parser.parse_args(argv)
 
     try:
@@ -38,13 +40,17 @@ def main(argv: list[str] | None = None) -> int:
         elif args.execute:
             if not all((
                 args.source_manifest, args.original_gold_zip,
-                args.checkout, args.private_output,
+                args.checkout, args.private_output, args.scientific_journal,
             )):
-                raise ValueError("Private original source, immutable manifest, exact checkout and output required")
+                raise ValueError("Existing private scientific journal, original source and output required")
+            if not args.scientific_journal.is_file() or args.scientific_journal.is_symlink():
+                raise ValueError("Required scientific decision journal is missing")
+            journal = ScientificDecisionJournal(args.scientific_journal)
             evidence = _private_json(args.source_manifest)
             result = execute_one_approved_job(
                 queue, source_manifest=evidence, data_zip=args.original_gold_zip,
                 checkout=args.checkout, output_root=args.private_output,
+                scientific_journal=journal,
             )
         else:
             # Keep status output compact and non-sensitive: no job payload.

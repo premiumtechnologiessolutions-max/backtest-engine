@@ -178,6 +178,7 @@ def execute_one_approved_job(
     queue: ResearchQueue, *,
     source_manifest: dict, data_zip: str | Path,
     checkout: str | Path, output_root: str | Path,
+    scientific_journal=None,
 ) -> dict:
     """Process at most one operator-enabled queued job; no automatic daemon.
 
@@ -195,6 +196,15 @@ def execute_one_approved_job(
         # preflight. Start fencing heartbeat BEFORE reading any source bytes.
         with _keep_lease_alive(queue, lease):
             intent = queue.leased_research_intent(lease, now=datetime.now(timezone.utc))
+            science_chain_before = None
+            if scientific_journal is not None:
+                # Prevent an already rejected hypothesis from consuming
+                # the private original archive or expensive runner.
+                frozen = frozen_plan_from_intent(intent, data_zip=data_zip)
+                verdict = scientific_journal.candidate_gate(frozen)
+                if verdict["decision"] == "BLOCK_IDENTICAL_PREVIOUSLY_REJECTED":
+                    raise ValueError("Previously rejected identical strategy cannot execute again")
+                science_chain_before = verdict["history_chain_head"]
             checked = preflight_queued_research(
                 intent, source_manifest=source_manifest, data_zip=data_zip,
                 checkout=checkout,
@@ -235,6 +245,13 @@ def execute_one_approved_job(
             source_manifest_id=checked["source_manifest_id"],
         )
         evidence_sha = attestation.manifest_sha256
+        if scientific_journal is not None:
+            # If a negative study was recorded during the long runner
+            # invocation, fail instead of accepting a stale eligibility gate.
+            recent = scientific_journal.candidate_gate(checked["plan"])
+            if (recent["decision"] == "BLOCK_IDENTICAL_PREVIOUSLY_REJECTED"
+                    or recent["history_chain_head"] != science_chain_before):
+                raise ValueError("Scientific decision changed during historical execution")
         accepted = queue.finish(
             lease, now=datetime.now(timezone.utc),
             result={
