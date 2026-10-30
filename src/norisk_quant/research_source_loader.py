@@ -45,6 +45,7 @@ def preflight_private_gold_zip_window(
     proposal: dict, source_manifest: dict, *,
     original_gold_zip: str | Path,
     observed_engine_commit: str,
+    boundary_tolerance_minutes: int = 0,
 ) -> SourcePreflight:
     """Replay up to two whole source years from the SAME original ZIP archive.
 
@@ -91,5 +92,6 @@ def preflight_private_gold_zip_window(
     checked = preflight_gold_m1_source(
         proposal, source_manifest, original_source_file=path,
         normalized_m1=observed, observed_engine_commit=observed_engine_commit,
+        boundary_tolerance_minutes=boundary_tolerance_minutes,
     )
     return replace(checked, lineage_verified=True)

@@ -467,6 +467,45 @@ class ResearchQueue:
                         lease.attempt, at)
             return True
 
+    def leased_research_intent(self, lease: Lease, *, now: datetime) -> dict:
+        """Private worker-only, fenced access to the immutable queued intent.
+
+        Unlike status(), the unredacted payload must NEVER be returned by an
+        unauthenticated Terminal HTTP/UI route. The lease bearer token is
+        required and rejected after pause, expiry, completion or reclaim.
+        """
+        at = _clock(now)
+        with self._transaction() as db:
+            if db.execute("SELECT value FROM control WHERE key='paused'").fetchone()["value"] == "1":
+                raise ValueError("Research queue paused")
+            row = self._check_lease(db, lease, at)
+            if row is None:
+                raise ValueError("Stale or forged worker lease")
+            payload = json.loads(row["payload"])
+            if type(payload) is not dict or payload.get("canonical_experiment_id") != lease.job_id:
+                raise ValueError("Stored research intent integrity mismatch")
+            # Revalidate the persisted 64-hex digest before granting access.
+            # Agent and campaign IDs are deliberately not part of canonical
+            # identity; reconstruct using a valid fixed role.
+            raw = {
+                "schema": SCHEMA, "producer": EXTERNAL_SOURCE,
+                "agent": row["source_agent"], "campaign_id": "verified_worker",
+                "asset": "XAUUSD", "dataset_sha256": payload["dataset_sha256"],
+                "engine_commit": payload["engine_commit"],
+                "strategy_id": payload["strategy_id"],
+                "parameters": payload["parameters"], "timeframe": payload["timeframe"],
+                "window_start_utc": payload["window_start_utc"],
+                "window_end_exclusive_utc": payload["window_end_exclusive_utc"],
+                "quantity_ounces": payload["quantity_ounces"],
+                "fee_all_in_per_ounce": payload["fee_all_in_per_ounce"],
+                "execution_mode": payload["execution_mode"],
+                "exposure_context": payload["exposure_context"],
+            }
+            expected_id, _, _ = proposal_identity(raw)
+            if expected_id != lease.job_id:
+                raise ValueError("Stored research intent fingerprint mismatch")
+            return payload
+
     def status(self, job_id: str) -> dict:
         _sha(job_id, "job")
         with self._transaction() as db:

@@ -124,6 +124,7 @@ def preflight_gold_m1_source(
     original_source_file: str | Path,
     normalized_m1: pd.DataFrame,
     observed_engine_commit: str,
+    boundary_tolerance_minutes: int = 0,
 ) -> SourcePreflight:
     """Check exact source bytes and Bid/Ask frame, then stage non-executable proof.
 
@@ -169,9 +170,19 @@ def preflight_gold_m1_source(
 
     start = _canonical_utc(proposal["window_start_utc"])
     end = _canonical_utc(proposal["window_end_exclusive_utc"])
-    if start < verified_m1.index[0].to_pydatetime():
+    # A calendar month can start/end during a weekend or holiday. Do not
+    # fabricate bars or certify a gap as a closure. Bounded tolerance applies
+    # ONLY to the unobserved *outer edges* of the requested UTC interval.
+    # Default 0 maintains the strict B05 public preflight contract.
+    if (type(boundary_tolerance_minutes) is not int
+            or not 0 <= boundary_tolerance_minutes <= 4320):
+        raise ValueError("Invalid bounded calendar-edge tolerance")
+    first = verified_m1.index[0].to_pydatetime()
+    last_end = verified_m1.index[-1].to_pydatetime() + timedelta(minutes=1)
+    tolerance = timedelta(minutes=boundary_tolerance_minutes)
+    if start < first and first - start > tolerance:
         raise ValueError("Requested historical start is before the available M1 source")
-    if end > verified_m1.index[-1].to_pydatetime() + timedelta(minutes=1):
+    if end > last_end and end - last_end > tolerance:
         raise ValueError("Requested historical end uses unobserved future M1 data")
     if not ((verified_m1.index >= pd.Timestamp(start))
             & (verified_m1.index < pd.Timestamp(end))).any():
