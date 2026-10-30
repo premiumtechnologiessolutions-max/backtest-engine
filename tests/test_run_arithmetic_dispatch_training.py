@@ -9,7 +9,7 @@ import pytest
 
 from norisk_quant.math_discovery import Formula
 from scripts.run_arithmetic_evolution import run
-from scripts.run_arithmetic_dispatch_training import execute
+from scripts.run_arithmetic_dispatch_training import execute, _verify_m1_equity
 
 
 def _training():
@@ -413,3 +413,25 @@ def test_replay_cannot_certify_wrong_strategy_or_divergent_run_contract(
                 limit=1)
     assert not out.exists()
     assert not list(out.parent.glob(".nrfx_arithmetic_training_*"))
+
+
+def test_no_trade_training_marks_cannot_invent_floating_profit():
+    """Zero fills mean zero floating P/L, even when the equity math agrees."""
+    observed = pd.date_range("2012-01-01", periods=12, freq="MS", tz="UTC")
+    marks = pd.DataFrame({
+        "at": observed.astype(str),
+        "realized_pnl": [0.0] * 12,
+        "floating_pnl": [0.1] + [0.0] * 11,
+        "equity": [0.1] + [0.0] * 11,
+        "drawdown": [0.0] + [0.1] * 11,
+    })
+    summary = {
+        "start_utc": observed[0].isoformat(),
+        "end_utc": observed[-1].isoformat(),
+        "max_drawdown_observed_m1": 0.1,
+        "last_observed_equity": 0.0,
+        "last_observed_realized_pnl": 0.0,
+    }
+    with pytest.raises(ValueError, match="floating P/L without any trade"):
+        _verify_m1_equity(pd.DataFrame(columns=["closed_at", "entry_at", "net_pnl"]),
+                          marks, summary)
