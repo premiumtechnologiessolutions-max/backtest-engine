@@ -165,13 +165,13 @@ def test_world_readable_existing_lock_rejected(harness):
     assert not (output / "generation_0001").exists()
 
 
-def test_candidate_budget_preflight_rejects_without_running_market_data(harness):
+def test_candidate_budget_preflight_rejects_invalid_active_pool(harness):
     source, gold, root, calls = harness
     source.write_text(json.dumps({
         "schema": "NRFX_ARITHMETIC_TRAINING_INPUT_V1",
-        "candidates": [{}] * 127,
+        "candidates": [{}] * 129,
     }), encoding="utf-8")
-    with pytest.raises(ValueError, match="candidate pool"):
+    with pytest.raises(ValueError, match="Active training candidate"):
         run(harness, proposal_count=2)
     assert not (root / "generation_0001").exists()
     assert calls == []
@@ -199,13 +199,13 @@ def test_candidate_budget_checked_again_before_second_generation(harness, monkey
     def full_feedback(inp, manifest, directory, shards, next_input):
         result = real_feedback(inp, manifest, directory, shards, next_input)
         source = json.loads(next_input.read_text())
-        source["candidates"] = [{}] * 128
+        source["candidates"] = [{}] * 129
         next_input.write_text(json.dumps(source), encoding="utf-8")
         seen.append(next_input)
         return result
 
     monkeypatch.setattr(cycles, "compile_feedback", full_feedback)
-    with pytest.raises(ValueError, match="candidate pool"):
+    with pytest.raises(ValueError, match="Active training candidate"):
         run(harness, generations=2)
     assert len(seen) == 1
     assert not (harness[2] / "generation_0002").exists()
