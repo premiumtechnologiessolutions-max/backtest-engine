@@ -6,7 +6,18 @@ from dataclasses import replace
 from datetime import timedelta
 
 from scripts.liquidity_sweep_signal import detect_liquidity_sweeps
-from tests.test_liquidity_sweep_signal import fixture, T
+from datetime import datetime, timezone
+from scripts.liquidity_sweep_signal import M1Bar
+
+T = datetime(2026, 1, 5, tzinfo=timezone.utc)
+
+def fixture():
+    bars = [M1Bar(T + timedelta(minutes=i), 100, 100.1, 99.9, 100, 100.02)
+            for i in range(1440)]
+    bars += [M1Bar(T + timedelta(days=1, minutes=i), 100, 100.1, 99.9, 100, 100.02)
+             for i in range(7)]
+    bars[1440] = replace(bars[1440], bid_high=100.5)
+    return bars
 
 
 def test_risk_over_twenty_is_rejected():
