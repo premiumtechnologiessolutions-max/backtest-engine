@@ -16,6 +16,7 @@ from datetime import datetime, timedelta, timezone
 from hashlib import sha256
 import json
 import os
+import stat
 from pathlib import Path
 import re
 import threading
@@ -201,15 +202,21 @@ def execute_one_approved_job(
             root = Path(output_root)
             if not root.is_absolute() or root.is_symlink() or not root.is_dir():
                 raise ValueError("Canonical output must be an existing private absolute directory")
+            # Native NTFS ACLs are not equivalent to Unix chmod(0600/0700).
+            # Restrict actual historical runner to POSIX owner-only files.
+            if os.name != "posix":
+                raise ValueError("Canonical research execution requires reviewed POSIX evidence permissions")
+            if root.stat().st_uid != os.getuid() or stat.S_IMODE(root.stat().st_mode) & 0o077:
+                raise ValueError("Private output root must be owner-only 0700")
+            source_stat = Path(data_zip).stat()
+            if source_stat.st_uid != os.getuid() or stat.S_IMODE(source_stat.st_mode) & 0o077:
+                raise ValueError("Original Gold ZIP must be owner-only 0600")
+            queue_stat = queue.path.stat()
+            if queue_stat.st_uid != os.getuid() or stat.S_IMODE(queue_stat.st_mode) & 0o077:
+                raise ValueError("Research queue database must be owner-only 0600")
             folder = root / lease.job_id
             if folder.is_symlink():
                 raise ValueError("Unsafe canonical research output symlink")
-            # The canonical orchestrator's private evidence lock/manifest
-            # mode checks are POSIX-specific. Native NTFS ACL assurance is
-            # not yet independently audited: refuse Windows executions
-            # rather than claim that chmod emulates protected directories.
-            if os.name != "posix":
-                raise ValueError("Canonical research execution requires reviewed POSIX evidence permissions")
             # The canonical orchestrator checks source SHA, exact Git HEAD,
             # frozen plan, trades/month/week, and independent accounting.
             result = batch.run_plan(
