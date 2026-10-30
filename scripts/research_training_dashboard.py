@@ -13,6 +13,7 @@ from pathlib import Path
 import tempfile
 
 from norisk_quant.research_candidate_memory import select_training_memory
+from norisk_quant.research_failure_hypotheses import analyze_matched_training_pairs
 from scripts.materialize_arithmetic_generation import _load_strict
 from scripts.run_arithmetic_dispatch_training import SOURCE_SHA
 
@@ -56,6 +57,8 @@ def read_evidence(root: Path) -> list[dict]:
             raise ValueError("Frozen research evidence mismatch")
         ranked = select_training_memory(
             source["candidates"], tuple(source["years"]), limit=128)
+        matched = analyze_matched_training_pairs(
+            source["candidates"], tuple(source["years"]), limit=20)
         generations.append({
             "generation": folder.name, "status": "TRAINING_FEEDBACK_VERIFIED_NOT_OOS",
             "items": ranked["selected"], "candidate_count": ranked["active_size"],
@@ -63,17 +66,29 @@ def read_evidence(root: Path) -> list[dict]:
             "formula_year_pairs": proof["complete_formula_year_pairs"],
             "input_sha256": digest,
             "source_sha256": SOURCE_SHA,
+            "hypotheses": matched["contrasts"],
+            "matched_parameter_pairs": matched["total_single_parameter_pairs"],
         })
     return generations
 
 
 def render_html(generations: list[dict]) -> str:
-    panels, rows = [], []
+    panels, rows, hypothesis_rows = [], [], []
     for generation in generations:
         name = escape(generation["generation"])
         count = generation.get("candidate_count", "—")
         panels.append(f'<div class="card"><small>{name}</small><h2>{count}</h2>'
                       f'<p>{escape(generation["status"])}</p></div>')
+        for hypothesis in generation.get("hypotheses", []):
+            hypothesis_rows.append("<tr>" + "".join((
+                f"<td>{name}</td>",
+                f'<td>{escape(hypothesis["changed_field"])}</td>',
+                f'<td>{escape(str(hypothesis["from_value"]))}</td>',
+                f'<td>{escape(str(hypothesis["to_value"]))}</td>',
+                f'<td>{hypothesis["training_net_delta_usd_per_oz"]:+.2f}</td>',
+                f'<td>{hypothesis["months_improved"]}/{hypothesis["total_months"]}</td>',
+                f'<td>{escape(hypothesis["next_action"])}</td>',
+            )) + "</tr>")
         for item in generation["items"]:
             net = item["net_usd_per_oz"]
             reasons = ", ".join(item["failure_reasons"])
@@ -104,6 +119,10 @@ td,th{padding:13px;text-align:left;border-bottom:1px solid #2f4159}th{position:s
 <input id="search" type="search" placeholder="Filter strategies and failure reasons" aria-label="Filter">
 <div class="scroll"><table id="runs"><thead><tr><th>Generation</th><th>Formula ID</th><th>Train score</th><th>Net USD/oz</th><th>Positive months</th><th>Month-end drawdown</th><th>Research diagnostics</th></tr></thead>
 <tbody>""" + "".join(rows) + """</tbody></table></div>
+<h2 style="font-size:22px">One-parameter research contrasts</h2>
+<p>Post-hoc TRAINING associations, not causal effects, independent OOS or live trading signals. Changed one formula field at a time.</p>
+<div class="scroll"><table id="matched"><thead><tr><th>Generation</th><th>Parameter</th><th>Old</th><th>New</th><th>Net delta USD/oz</th><th>Improved months</th><th>Next research action</th></tr></thead>
+<tbody>""" + "".join(hypothesis_rows) + """</tbody></table></div>
 <p>Read-only, private, static HTML. Immutable feedback SHA checked; no raw quotes or independent holdout.</p>
 <script>document.getElementById('search').addEventListener('input',e=>{const q=e.target.value.toLowerCase();for(const r of document.querySelectorAll('#runs tbody tr'))r.hidden=!r.textContent.toLowerCase().includes(q)})</script>
 </main></body></html>""")
@@ -129,6 +148,8 @@ def build_dashboard(root: Path, output: Path) -> dict:
             "verified_generations": sum(g["status"].startswith("TRAINING_FEEDBACK")
                                         for g in generations),
             "comparison_rows": sum(len(g["items"]) for g in generations),
+            "matched_parameter_pairs": sum(g.get("matched_parameter_pairs", 0)
+                                           for g in generations),
             "sha256": sha256(data).hexdigest(),
             "independent_oos_proven": False}
 
