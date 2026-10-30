@@ -128,7 +128,7 @@ def test_single_byte_of_frozen_report_is_detected(actual,name):
     file=run_dir(actual)/name
     with file.open("ab") as handle:
         handle.write(b" ")
-    with pytest.raises(ValueError,match="evidence|disagree|modified|month|Malformed|Trailing|invalid|numeric"):
+    with pytest.raises(ValueError,match="evidence|disagree|modified|month|Malformed|Trailing|invalid|numeric|Ragged ledger"):
         recheck(actual)
 
 
