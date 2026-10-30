@@ -151,6 +151,79 @@ def proposal_identity(raw: dict) -> tuple[str, str, str]:
     return work_id, json.dumps(payload, sort_keys=True, separators=(",", ":"), allow_nan=False), raw["agent"]
 
 
+AIQUANTLAB_HYPOTHESIS_KEYS = frozenset({
+    "hypothesis_id", "campaign_id", "proposed_by", "strategy_name", "parameters",
+    "statement", "economic_rationale", "falsification_criteria",
+    "compatible_regimes", "parameters_locked_before_test", "created_at",
+})
+AIQUANTLAB_CONTEXT_KEYS = frozenset({
+    "asset", "dataset_sha256", "engine_commit", "aiquantlab_commit",
+    "timeframe", "window_start_utc", "window_end_exclusive_utc",
+    "quantity_ounces", "fee_all_in_per_ounce", "execution_mode",
+    "exposure_context",
+})
+
+
+def proposal_from_aiquantlab_hypothesis(record: dict, context: dict) -> dict:
+    """Map AI Quant Lab V4 *HypothesisRecord* JSON to a research proposal.
+
+    This adapter does NOT translate AQL strategy logic to canonical Gold code.
+    It namespaces AQL strategy name AND pins AQL source commit into the
+    canonical candidate ID; a later audited strategy runner must explicitly
+    implement that meaning before backtesting can occur. The AI commentary
+    is discarded; only versioned numeric experiment intent can cross.
+    """
+    if type(record) is not dict or set(record) != AIQUANTLAB_HYPOTHESIS_KEYS:
+        raise ValueError("Expected exact AI Quant Lab V4 HypothesisRecord fields")
+    if type(context) is not dict or set(context) != AIQUANTLAB_CONTEXT_KEYS:
+        raise ValueError("Missing immutable canonical research context")
+    _slug(record["hypothesis_id"], "hypothesis")
+    _slug(record["campaign_id"], "campaign")
+    _slug(record["strategy_name"], "AI Quant Lab strategy")
+    if record["proposed_by"] != "nova":
+        raise ValueError("Only Nova HypothesisRecord is supported; Forge uses evolution proposal contract")
+    if record["parameters_locked_before_test"] is not True:
+        raise ValueError("AI Quant Lab hypothesis parameters must be locked before trial")
+    if not isinstance(record["statement"], str) or not 20 <= len(record["statement"]) <= 1000:
+        raise ValueError("Invalid qualitative hypothesis statement")
+    if not isinstance(record["economic_rationale"], str) or not 20 <= len(record["economic_rationale"]) <= 2000:
+        raise ValueError("Invalid qualitative rationale")
+    for key, minimum, maximum in (
+        ("falsification_criteria", 3, 6),
+        ("compatible_regimes", 1, 4),
+    ):
+        items = record[key]
+        if type(items) not in (list, tuple) or not minimum <= len(items) <= maximum:
+            raise ValueError(f"Invalid {key} AI hypothesis contract")
+        if any(type(item) is not str or not 2 <= len(item) <= 300 for item in items):
+            raise ValueError(f"Invalid {key} entry")
+    _iso(record["created_at"], "AI Quant Lab hypothesis creation time")
+    source_code_sha = _sha(context["aiquantlab_commit"], "AI Quant Lab source commit", HEX40)
+    strategy_name = f"aql_{record['strategy_name']}_{source_code_sha[:12]}"
+    if len(strategy_name) > 64:
+        raise ValueError("AI Quant Lab strategy identity too long")
+    proposal = {
+        "schema": SCHEMA, "producer": EXTERNAL_SOURCE,
+        "agent": "nova", "campaign_id": record["campaign_id"],
+        "asset": context["asset"],
+        "dataset_sha256": context["dataset_sha256"],
+        "engine_commit": context["engine_commit"],
+        "strategy_id": strategy_name,
+        "parameters": _params(record["parameters"]),
+        "timeframe": context["timeframe"],
+        "window_start_utc": context["window_start_utc"],
+        "window_end_exclusive_utc": context["window_end_exclusive_utc"],
+        "quantity_ounces": context["quantity_ounces"],
+        "fee_all_in_per_ounce": context["fee_all_in_per_ounce"],
+        "execution_mode": context["execution_mode"],
+        "exposure_context": context["exposure_context"],
+    }
+    # Independent validation, including fixed fee and historical exposure,
+    # is applied through the identical canonical proposal gate.
+    proposal_identity(proposal)
+    return proposal
+
+
 @dataclass(frozen=True)
 class Lease:
     job_id: str
