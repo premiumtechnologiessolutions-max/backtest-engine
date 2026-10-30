@@ -1,0 +1,30 @@
+name: NoRiskFX Unified Platform - Terminal Data Hub end-to-end
+on:
+  pull_request:
+    paths:
+      - 'src/norisk_quant/integrations/**'
+      - 'src/norisk_quant/source_registry.py'
+      - 'scripts/verify_unified_source_intake.py'
+      - 'tests/test_unified_source_bridge.py'
+      - '.github/workflows/unified-source-e2e.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  real-code-contract-not-real-broker-validation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install canonical quant engine
+        run: python -m pip install -c constraints-ci.txt -e '.[dev]'
+      - name: Test all three integrated source boundaries
+        run: |
+          python -m compileall -q src/norisk_quant/integrations src/norisk_quant/source_registry.py scripts/verify_unified_source_intake.py
+          python -m pytest -q tests/test_terminal_ticks_integration.py tests/test_unified_data_hub.py tests/test_unified_source_bridge.py tests/test_data_timestamp_unit_contract.py
+      - name: Full canonical research engine regression
+        run: python -m pytest -q
