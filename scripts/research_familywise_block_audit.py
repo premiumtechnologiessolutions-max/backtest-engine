@@ -48,8 +48,8 @@ def paired_block_max_test(matrix: np.ndarray, job_ids: list[str], *,
             or any(type(j) is not str or not j for j in job_ids)
             or len(set(job_ids)) != candidates):
         raise ValueError("Candidate IDs must be unique and complete")
-    if type(block_length) is not int or not 1 <= block_length <= months:
-        raise ValueError("Invalid circular block length")
+    if type(block_length) is not int or not 1 <= block_length <= months // 3:
+        raise ValueError("Invalid circular block length: require at least three sampled blocks")
     if type(replicates) is not int or not 999 <= replicates <= 20000:
         raise ValueError("Replicates must be an integer between 999 and 20000")
     if type(seed) is not int or not 0 <= seed < 2**63:
