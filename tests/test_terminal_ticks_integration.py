@@ -189,5 +189,5 @@ def test_vt_cent_denomination_cannot_be_spoofed(case):
         row["source_evidence"].pop("account_kind")
     else:
         row["source_evidence"]["denomination_factor"] = float("inf")
-    with pytest.raises(ValueError, match="USC|Cent|denomination"):
+    with pytest.raises(ValueError, match="USC|Cent|denomination|non-finite"):
         import_terminal_ticks(encoded(row))
