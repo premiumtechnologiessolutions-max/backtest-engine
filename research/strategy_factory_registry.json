@@ -1,6 +1,6 @@
 {
   "format_version": 1,
-  "updated_utc": "2026-10-30T13:24:00Z",
+  "updated_utc": "2026-10-30T14:14:33Z",
   "project": "No Risk FX XAUUSD quant research factory",
   "branch": "feat/quant-engine-foundation",
   "original_private_zip_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
@@ -1716,6 +1716,29 @@
       "original_source_monthly_floating_drawdown_usd_per_oz": "N/A",
       "approved_strategies": 0,
       "note": "Strict publish-once prospective freeze date syntax, frozen chronological training-year integrity, default 30-calendar-day embargo after the final training year's Dec 31, and formula identity deduplication. Synthetic CI passed on exact code-containing commit; no original ZIP backtest, untouched prospective observations, canonical trade replay or live trading. No change to factory backtest totals. This registry update requires its own head CI."
+    },
+    {
+      "id": "NRF-CANDIDATE-SCREEN-MONTHLY-DOWNSIDE-2026-10-30",
+      "status": "SYNTHETIC_FULL_ENGINE_CI_PASSED_DESCRIPTIVE_TRAINING_ONLY_NOT_OOS",
+      "code": "scripts/research_candidate_screen.py",
+      "tests": "tests/test_research_candidate_screen.py",
+      "report": "docs/RESEARCH_CANDIDATE_MONTHLY_DOWNSIDE_DIAGNOSTICS_2026-10-30.md",
+      "verified_ci_code_commit": "4903647bc04b2520dbc88f48d11ee22a031ccb2d",
+      "verified_ci_run": 41070003998,
+      "verified_ci_pytest_passed": 3143,
+      "verified_quant_lab_run": 41070003405,
+      "metrics_added": [
+        "worst_month_utc",
+        "worst_rolling_3m_net_usd_per_oz",
+        "zero_trade_months",
+        "longest_nonpositive_month_streak"
+      ],
+      "original_source_strategy_backtests_added": 0,
+      "original_source_monthly_net_usd_per_oz": "N/A",
+      "original_source_monthly_floating_drawdown_usd_per_oz": "N/A",
+      "independent_hypotheses_added": 0,
+      "approved_strategies": 0,
+      "note": "Audited historical candidate screen now exposes worst net month, worst contiguous 3-month net, zero-trade months and longest nonpositive streak. No new Gold ZIP replay; full 3143-test CI and scoped Quant Lab passed on code commit. Descriptive month-end risk only, NOT M1 floating DD, clean OOS, multiple-testing correction or live authorization. Registry commit requires its own exact-head CI."
     }
   ]
 }
