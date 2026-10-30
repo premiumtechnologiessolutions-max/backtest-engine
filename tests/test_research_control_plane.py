@@ -63,6 +63,17 @@ def test_aiquantlab_intent_is_exact_canonical_experiment_identity():
     assert agent == "nova"
 
 
+def test_equivalent_explicit_utc_forms_cannot_create_duplicate_experiments(tmp_path):
+    first = hypothesis()
+    second = hypothesis(agent="forge", campaign="second-campaign")
+    second["window_start_utc"] = "2025-01-01T00:00:00.000000+00:00"
+    second["window_end_exclusive_utc"] = "2025-07-01T00:00:00+00:00"
+    assert proposal_identity(first)[0] == proposal_identity(second)[0]
+    q = queue(tmp_path)
+    assert q.submit(first, now=t()) == q.submit(second, now=t(1))
+    assert q.counts()["queued"] == 1
+
+
 def test_agents_cannot_multiply_same_experiment_by_campaign_or_agent(tmp_path):
     q = queue(tmp_path)
     first = q.submit(hypothesis(), now=t())
