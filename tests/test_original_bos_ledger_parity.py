@@ -57,6 +57,32 @@ def test_each_execution_field_cannot_drift_silently(field, replacement):
         compare_trade_fields(actual, saved)
 
 
+@pytest.mark.parametrize(("which", "field", "bad"), [
+    ("actual", "side", 1.5),
+    ("archived", "side", 1.5),
+    ("actual", "side", True),
+    ("archived", "side", True),
+    ("actual", "side", 0),
+    ("archived", "side", 2),
+    ("actual", "gap_minutes", 0.9),
+    ("archived", "gap_minutes", 0.9),
+    ("actual", "gap_minutes", True),
+    ("archived", "gap_minutes", -1),
+    ("actual", "gap_minutes", float("nan")),
+])
+def test_discrete_execution_fields_must_not_be_truncated_or_coerced(
+        which, field, bad):
+    actual, saved = sample()
+    target = actual if which == "actual" else saved
+    column = field
+    # Deliberately preserve malformed values instead of allowing pandas
+    # to cast booleans into the existing int64 column.
+    target[column] = target[column].astype(object)
+    target.at[0, column] = bad
+    with pytest.raises(ValueError, match="discrete execution value"):
+        compare_trade_fields(actual, saved)
+
+
 def test_small_floating_error_respects_fixed_numeric_tolerance():
     actual, saved = sample()
     saved.loc[0, "entry"] += TOLERANCE / 20
