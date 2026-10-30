@@ -501,8 +501,8 @@ def test_aiquantlab_v4_nova_record_maps_to_a_pinned_unverified_gold_proposal(tmp
     assert proposal["producer"] == EXTERNAL_SOURCE
     assert proposal["agent"] == "nova"
     from hashlib import sha256
-    pinned = sha256(("AIQUANTLAB_STRATEGY_V4\\0kalman_adaptive_trend"
-                     "\\0" + "c" * 40).encode("ascii")).hexdigest()[:40]
+    pinned = sha256(("AIQUANTLAB_STRATEGY_V4\0kalman_adaptive_trend"
+                     "\0" + "c" * 40).encode("ascii")).hexdigest()[:40]
     assert proposal["strategy_id"] == "aql_" + pinned
     assert "rationale" not in str(proposal)
     assert "statement" not in str(proposal)
