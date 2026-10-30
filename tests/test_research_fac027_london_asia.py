@@ -71,3 +71,11 @@ def test_shared_capacity_priority_does_not_sum_correlated_variants():
     assert shared["net"] == solo["net"] == -0.4
     assert len(shared["monthly"]) == 12
     assert len(shared["monthly_observed_m1_drawdown"]) == 12
+
+
+def test_time_exit_favorable_gap_is_capped_at_target():
+    df, row = sample_day()
+    df.iloc[-1, df.columns.get_loc("o")] = 105.
+    result = fac.execute(row, df, (0.05, 0.3, 0.8, 1.0))
+    assert result["reason"] == "target_at_time_open"
+    assert result["net"] == pytest.approx(0.6)
