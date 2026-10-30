@@ -55,8 +55,6 @@ def freeze_training_selection(input_file: Path, *, start_date: str,
             or years != sorted(set(years))):
         raise ValueError("Frozen training years must be unique, sorted integers")
     last_training_date = date(years[-1], 12, 31)
-    if (start - last_training_date).days < embargo_days:
-        raise ValueError("Prospective validation violates training-data embargo")
     if (type(source) is not dict or source.get("schema") !=
             "NRFX_ARITHMETIC_TRAINING_INPUT_V1"
             or type(source.get("years")) is not list
@@ -71,6 +69,8 @@ def freeze_training_selection(input_file: Path, *, start_date: str,
             or proof.get("live_trading_authorized") is not False
             or max(source["years"]) >= start.year):
         raise ValueError("Original-source verified training-only evidence required")
+    if (start - last_training_date).days < embargo_days:
+        raise ValueError("Prospective validation violates training-data embargo")
     years = tuple(source["years"])
     eligible = []
     seen_identities = set()
