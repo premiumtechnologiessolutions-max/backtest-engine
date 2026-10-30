@@ -1,0 +1,46 @@
+name: NoRiskFX - research source integrity preflight
+on:
+  pull_request:
+    paths:
+      - 'src/norisk_quant/source_registry.py'
+      - 'src/norisk_quant/research_source_*.py'
+      - 'tests/test_unified_data_hub.py'
+      - 'tests/test_research_source_preflight.py'
+      - 'scripts/preflight_ai_research_source.py'
+      - '.github/workflows/research-source-binding.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  source-preflight:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install canonical pinned dependencies
+        run: python -m pip install -c constraints-ci.txt -e '.[dev]'
+      - name: Compile integrity modules
+        run: python -m compileall -q src/norisk_quant/source_registry.py src/norisk_quant/research_source_preflight.py src/norisk_quant/research_source_loader.py scripts/preflight_ai_research_source.py
+      - name: Data Hub, research queue, original M1 and privacy contracts
+        run: python -m pytest -q tests/test_unified_data_hub.py tests/test_research_source_preflight.py tests/test_research_control_plane.py tests/test_data_fingerprint.py
+  canonical-full-suite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install canonical pinned dependencies
+        run: python -m pip install -c constraints-ci.txt -e '.[dev]'
+      - name: Full scientific engine regression
+        run: python -m pytest -q
