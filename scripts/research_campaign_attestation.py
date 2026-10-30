@@ -96,16 +96,14 @@ def attest_cached_generation(original_input: Path, folder: Path, *,
     # never trusted merely because a compressed digest exists.
     if cold_storage.is_file():
         restore_equity_storage(folder)
-    try:
-        result = compile_feedback(original_input, manifest, dispatch_dir,
-                                  shards, next_input)
-        if result["status"] != "COMPLETE_EXPOSED_TRAINING_FEEDBACK_NOT_OOS":
-            raise ValueError("Cached generation failed annual re-audit")
-    finally:
-        if cold_storage.is_file():
-            # Re-compress only after all original bytes have been restored
-            # with SHA validation. This preserves the compact cold state.
-            freeze_equity_storage(folder, prune_raw=True)
+    result = compile_feedback(original_input, manifest, dispatch_dir,
+                              shards, next_input)
+    if result["status"] != "COMPLETE_EXPOSED_TRAINING_FEEDBACK_NOT_OOS":
+        raise ValueError("Cached generation failed annual re-audit")
+    if cold_storage.is_file():
+        # Never discard raw forensic evidence after a failed re-audit.
+        # Only return to compact cold state on complete acceptance.
+        freeze_equity_storage(folder, prune_raw=True)
     return {
         "training_input_sha256": original_sha,
         "next_input_sha256": result["next_input_sha256"],
