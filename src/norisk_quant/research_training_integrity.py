@@ -67,6 +67,11 @@ def training_summary(records: list[dict], years: tuple[int, ...], *,
                 or positive != sum(value > 0 for value in values)
                 or record.get("accounting") != "PASSED"):
             raise ValueError("Annual counts or accounting reconciliation invalid")
+        # This is a REALIZED-PnL ledger: no completed trades means no
+        # realized monthly PnL. A positive no-trade year must not become
+        # training evidence even when its fees and annual totals reconcile.
+        if trades == 0 and any(value != 0 for value in values):
+            raise ValueError("Nonzero realized PnL without any completed trades")
         actual_net = _finite(record.get("net_usd_per_oz"), "net_usd_per_oz")
         actual_fees = _finite(record.get("fees_usd"), "fees_usd")
         if (not math.isclose(sum(values), actual_net, rel_tol=0, abs_tol=1e-5)
