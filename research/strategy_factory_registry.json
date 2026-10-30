@@ -1409,6 +1409,46 @@
       "verified_ci_pytest_passed": 2870,
       "verified_ci_warnings": 1,
       "note": "Both offline terminals now show global-peak and month-local observed M1 close-equity DD only with independently pinned equity evidence. Defensive monthly/job cross-checks reject missing, nonfinite, boolean, inconsistent or unpinned local risk. Private source SHA checked locally, but no new strategy replay, shared-capacity source P/L or clean OOS."
+    },
+    {
+      "id": "NRF-FAC-025-ORIGINAL-SOURCE-2012-2013-ONE-SLOT-PROVISIONAL",
+      "status": "HISTORICAL_EXPOSED_SOURCE_BID_PROXY_REJECT_CANONICAL_PARITY_PENDING",
+      "report": "docs/FAC025_SOURCE_M1_SHARED_PORTFOLIO_REJECTION_2026-10-30.md",
+      "preregistration": "docs/FAC025_SOURCE_M1_ONE_SLOT_PREDECLARATION_2026-10-30.md",
+      "code": "scripts/research_fac025_source_one_slot.py",
+      "tests": "tests/test_research_fac025_source_one_slot.py",
+      "private_source_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
+      "historical_exposed_years": [
+        2012,
+        2013
+      ],
+      "independent_hypotheses_added": 0,
+      "correlated_frozen_filter_specs": 72,
+      "provisional_bid_proxy_standalone_annual_replays_not_added_to_canonical_totals": 144,
+      "provisional_unified_one_slot_annual_replays": 2,
+      "source_observed_m1_bars": 705292,
+      "unified_shared_capacity_positions": 1,
+      "unified_portfolio_trades": 618,
+      "unified_positive_months": 6,
+      "unified_months_observed": 24,
+      "unified_net_usd_per_oz": -234.60233,
+      "unified_fees_usd_per_oz": 247.2,
+      "unified_worst_month_utc": "2012-12",
+      "unified_worst_month_net_usd_per_oz": -27.359518,
+      "annual_global_observed_m1_close_drawdown_usd_per_oz": {
+        "2012": 124.391458,
+        "2013": 117.150136
+      },
+      "annual_max_month_local_observed_m1_close_drawdown_usd_per_oz": {
+        "2012": 30.174518,
+        "2013": 27.023582
+      },
+      "deterministic_aggregate_json_sha256": "b9eb3fa3bf0319609c9b14f36274a9f0c79ce0901e06cc62123e0852989de02c",
+      "original_source_canonical_parity_verified": false,
+      "paired_bidask_executable_fill_verified": false,
+      "clean_prospective_oos": false,
+      "approved_strategies": 0,
+      "note": "Frozen FAC025-ENTRY-A source-only BID-reference 72 correlated filter variants and a single one-slot priority portfolio. 2012/2013 structural counts exactly match prior independent original-source preflight; two local full replays byte-identical. All 72 variants negative combined net; unified 6/24 positive months and -$234.60233 after fixed $0.40/oz fee. No official canonical run/run_fast parity or broker receipts. Provisional runs excluded from historical certified totals. Do not retune."
     }
   ]
 }
