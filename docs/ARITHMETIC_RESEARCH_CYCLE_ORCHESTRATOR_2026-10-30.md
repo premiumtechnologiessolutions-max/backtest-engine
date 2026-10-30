@@ -72,3 +72,21 @@ independent untouched prospective OOS, or live execution.
 
 All previous negative BOS/H1 and quote-reopen gap strategies remain
 rejected. No profitable strategy or monthly-return guarantee is implied.
+
+## Exclusive private research-root writer gate
+
+The orchestration entry point now acquires a **nonblocking POSIX advisory
+flock** on `.nrfx_research.lock` before generation, dispatch, replay or
+feedback. A concurrent process targeting the same output root fails closed
+rather than racing immutable shard creation. The lock is a private (0600),
+single-link regular file opened with `O_NOFOLLOW`; symlinked, nonregular or
+world-readable lock files are rejected. Kernel locks are released on normal
+return, Python exceptions and process termination. The lock inode is never
+unlinked, avoiding the split-lock race. It is not a cross-machine/distributed
+lock and does not serialize independent output roots.
+
+Five synthetic regression tests cover an active writer, crash-like exception
+release/resume, symlink, nonregular file and insecure permissions. No private
+Gold source replay, monthly P/L, drawdown, or independent OOS is established
+by these concurrency tests. This implementation requires a POSIX platform
+(Linux GitHub Actions and local Linux runner).

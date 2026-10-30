@@ -8,6 +8,10 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 import json
+import os
+import stat
+import fcntl
+from contextlib import contextmanager
 
 from scripts.run_arithmetic_evolution import run as generate
 from scripts.materialize_arithmetic_generation import materialize, _load_strict
@@ -34,6 +38,39 @@ def _real_directory(path: Path) -> Path:
         if parent.is_symlink():
             raise ValueError("Symlink research output ancestor forbidden")
     return path
+
+
+
+@contextmanager
+def _exclusive_research_lock(root: Path):
+    """One nonblocking POSIX writer per private output root; no stale PID locks.
+
+    The lock inode persists, but kernel flock is released even after crashes.
+    Never unlink it: unlinking a live lock would permit a second writer.
+    """
+    lock = root / ".nrfx_research.lock"
+    if lock.is_symlink():
+        raise ValueError("Symlink research lock forbidden")
+    try:
+        fd = os.open(lock, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC,
+                     0o600)
+    except OSError as exc:
+        raise ValueError("Cannot safely open research lock") from exc
+    try:
+        info = os.fstat(fd)
+        if (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1
+                or info.st_mode & 0o077):
+            raise ValueError("Research lock must be a private regular file")
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as exc:
+            raise ValueError("Research output root already has an active writer") from exc
+        try:
+            yield
+        finally:
+            fcntl.flock(fd, fcntl.LOCK_UN)
+    finally:
+        os.close(fd)
 
 
 def _prior_shard(directory: Path, dispatch: dict, year: int, start: int,
@@ -75,42 +112,43 @@ def run_cycles(training_input: Path, source_zip: Path, output_root: Path, *,
             or root.is_relative_to(source_zip.resolve())):
         raise ValueError("Research outputs must be separate from frozen inputs")
     output_root.mkdir(parents=True, exist_ok=True)
-    initial_input = training_input
-    completed = []
-    for offset in range(generations):
-        generation = first_generation + offset
-        folder = _real_directory(output_root / f"generation_{generation:04d}")
-        folder.mkdir(parents=True, exist_ok=True)
-        manifest_path = folder / "generation.json"
-        dispatch_dir = folder / "dispatch"
-        next_input = folder / "next_training_input.json"
-        generate(initial_input, manifest_path, seed=seed + offset,
-                 generation=generation, proposal_count=proposal_count)
-        dispatch = materialize(initial_input, manifest_path, dispatch_dir)
-        shards = []
-        for year in dispatch["training_years"]:
-            for start in range(1, dispatch["formula_count"] + 1, shard_size):
-                limit = min(shard_size, dispatch["formula_count"] - start + 1)
-                dest = folder / f"replay_{year}_from_{start:03d}_count_{limit:03d}"
-                if dest.exists() or dest.is_symlink():
-                    _prior_shard(dest, dispatch, year, start, limit)
-                else:
-                    replay(initial_input, manifest_path, dispatch_dir,
-                           source_zip, SOURCE_SHA, year, dest,
-                           start_ordinal=start, limit=limit)
-                shards.append(dest)
-        feedback = compile_feedback(initial_input, manifest_path,
-                                    dispatch_dir, shards, next_input)
-        if feedback["status"] != "COMPLETE_EXPOSED_TRAINING_FEEDBACK_NOT_OOS":
-            raise ValueError("Annual feedback was not fully reconciled")
-        completed.append({"generation": generation, "formula_count":
-                          dispatch["formula_count"], "training_years":
-                          dispatch["training_years"], "replay_shards": len(shards),
-                          "next_input_sha256": feedback["next_input_sha256"]})
-        initial_input = next_input
-    return {"status": "COMPLETE_TRAINING_ONLY_NOT_OOS", "generations": completed,
-            "last_training_input": str(initial_input),
-            "independent_oos_proven": False, "live_trading_authorized": False}
+    with _exclusive_research_lock(output_root):
+        initial_input = training_input
+        completed = []
+        for offset in range(generations):
+            generation = first_generation + offset
+            folder = _real_directory(output_root / f"generation_{generation:04d}")
+            folder.mkdir(parents=True, exist_ok=True)
+            manifest_path = folder / "generation.json"
+            dispatch_dir = folder / "dispatch"
+            next_input = folder / "next_training_input.json"
+            generate(initial_input, manifest_path, seed=seed + offset,
+                     generation=generation, proposal_count=proposal_count)
+            dispatch = materialize(initial_input, manifest_path, dispatch_dir)
+            shards = []
+            for year in dispatch["training_years"]:
+                for start in range(1, dispatch["formula_count"] + 1, shard_size):
+                    limit = min(shard_size, dispatch["formula_count"] - start + 1)
+                    dest = folder / f"replay_{year}_from_{start:03d}_count_{limit:03d}"
+                    if dest.exists() or dest.is_symlink():
+                        _prior_shard(dest, dispatch, year, start, limit)
+                    else:
+                        replay(initial_input, manifest_path, dispatch_dir,
+                               source_zip, SOURCE_SHA, year, dest,
+                               start_ordinal=start, limit=limit)
+                    shards.append(dest)
+            feedback = compile_feedback(initial_input, manifest_path,
+                                        dispatch_dir, shards, next_input)
+            if feedback["status"] != "COMPLETE_EXPOSED_TRAINING_FEEDBACK_NOT_OOS":
+                raise ValueError("Annual feedback was not fully reconciled")
+            completed.append({"generation": generation, "formula_count":
+                              dispatch["formula_count"], "training_years":
+                              dispatch["training_years"], "replay_shards": len(shards),
+                              "next_input_sha256": feedback["next_input_sha256"]})
+            initial_input = next_input
+        return {"status": "COMPLETE_TRAINING_ONLY_NOT_OOS", "generations": completed,
+                "last_training_input": str(initial_input),
+                "independent_oos_proven": False, "live_trading_authorized": False}
 
 
 def main(argv=None) -> int:

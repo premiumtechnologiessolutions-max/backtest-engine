@@ -110,3 +110,56 @@ def test_symlink_output_refused_before_write(harness):
     harness[2].symlink_to(harness[0].parent, target_is_directory=True)
     with pytest.raises(ValueError, match="directory"):
         run(harness)
+
+
+def test_active_output_writer_blocks_before_generation(harness):
+    output = harness[2]
+    output.mkdir()
+    with cycles._exclusive_research_lock(output):
+        with pytest.raises(ValueError, match="active writer"):
+            run(harness)
+        assert not (output / "generation_0001").exists()
+        assert not harness[-1]
+    assert run(harness)["status"] == "COMPLETE_TRAINING_ONLY_NOT_OOS"
+
+
+def test_failed_cycle_releases_kernel_lock_for_safe_resume(harness, monkeypatch):
+    original = cycles.generate
+
+    def interrupted(*args, **kwargs):
+        raise RuntimeError("simulated interrupted generation")
+
+    monkeypatch.setattr(cycles, "generate", interrupted)
+    with pytest.raises(RuntimeError, match="interrupted"):
+        run(harness)
+    monkeypatch.setattr(cycles, "generate", original)
+    assert run(harness)["status"] == "COMPLETE_TRAINING_ONLY_NOT_OOS"
+
+
+def test_symlink_lock_file_rejected_without_generation(harness):
+    output = harness[2]
+    output.mkdir()
+    (output / ".nrfx_research.lock").symlink_to(harness[0])
+    with pytest.raises(ValueError, match="Symlink research lock"):
+        run(harness)
+    assert not (output / "generation_0001").exists()
+
+
+def test_nonregular_lock_file_rejected_without_generation(harness):
+    output = harness[2]
+    output.mkdir()
+    (output / ".nrfx_research.lock").mkdir()
+    with pytest.raises(ValueError, match="Cannot safely open research lock"):
+        run(harness)
+    assert not (output / "generation_0001").exists()
+
+
+def test_world_readable_existing_lock_rejected(harness):
+    output = harness[2]
+    output.mkdir()
+    lock = output / ".nrfx_research.lock"
+    lock.write_text("untrusted", encoding="utf-8")
+    lock.chmod(0o644)
+    with pytest.raises(ValueError, match="private regular file"):
+        run(harness)
+    assert not (output / "generation_0001").exists()
