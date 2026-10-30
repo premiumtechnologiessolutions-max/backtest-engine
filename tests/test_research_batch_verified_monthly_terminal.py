@@ -16,10 +16,12 @@ def verified_report(*, pinned: bool = False) -> dict:
         {"month_utc": "2024-01", "net_usd_per_oz": 5.25, "trades": 2,
          "all_in_fees_usd_per_oz": 0.8, "observed_m1_samples": 120,
          "max_observed_m1_global_peak_drawdown_usd_per_oz": 1.25 if pinned else None,
+         "month_local_max_observed_m1_close_drawdown_usd_per_oz": 1.0 if pinned else None,
          "observed_m1_gap_events_from_prior_mark": 2 if pinned else None},
         {"month_utc": "2024-02", "net_usd_per_oz": -7.0, "trades": 1,
          "all_in_fees_usd_per_oz": 0.4, "observed_m1_samples": 115,
          "max_observed_m1_global_peak_drawdown_usd_per_oz": 8.0 if pinned else None,
+         "month_local_max_observed_m1_close_drawdown_usd_per_oz": 6.5 if pinned else None,
          "observed_m1_gap_events_from_prior_mark": 0 if pinned else None},
     ]
     data = {
@@ -51,6 +53,7 @@ def verified_report(*, pinned: bool = False) -> dict:
             "worst_month_utc": "2024-02", "worst_month_net_usd_per_oz": -7.0,
             "net_usd_per_oz": -1.75, "all_in_fees_usd_per_oz": 1.2,
             "observed_m1_floating_drawdown_usd_per_oz": 8.0 if pinned else None,
+            "max_observed_m1_month_local_drawdown_usd_per_oz": 6.5 if pinned else None,
             "shared_capacity_verified": False, "clean_prospective_oos": False,
             "monthly": months,
         }],
@@ -79,7 +82,8 @@ def test_verified_monthly_net_fees_worst_and_na_are_rendered():
 
 def test_pinned_m1_drawdown_and_gaps_are_observed_not_inferred():
     html = terminal.render_verified_monthly_html(verified_report(pinned=True))
-    assert "8.00" in html and "1.25" in html
+    assert "8.00" in html and "1.25" in html and "6.50" in html
+    assert "M1 month-local close DD" in html
     assert "M1 gaps" in html and "M1 marks" in html
     assert "1 M1 risk pinned" in html
 
@@ -232,3 +236,38 @@ def test_rejects_omitted_utc_month_even_when_totals_are_rebalanced():
                worst_month_utc="2024-01", worst_month_net_usd_per_oz=5.25)
     with pytest.raises(ValueError, match="coverage"):
         terminal.render_verified_monthly_html(report)
+
+
+
+@pytest.mark.parametrize("tamper", [
+    lambda r: r["jobs"][0]["monthly"][0].pop(
+        "month_local_max_observed_m1_close_drawdown_usd_per_oz"),
+    lambda r: r["jobs"][0]["monthly"][0].update(
+        month_local_max_observed_m1_close_drawdown_usd_per_oz=True),
+    lambda r: r["jobs"][0]["monthly"][1].update(
+        month_local_max_observed_m1_close_drawdown_usd_per_oz=8.01),
+    lambda r: r["jobs"][0].update(max_observed_m1_month_local_drawdown_usd_per_oz=6.4),
+    lambda r: r["jobs"][0].update(max_observed_m1_month_local_drawdown_usd_per_oz=float("nan")),
+])
+def test_pinned_month_local_forgery_is_rejected(tamper):
+    evidence = verified_report(pinned=True)
+    tamper(evidence)
+    with pytest.raises(ValueError):
+        terminal.render_verified_monthly_html(evidence)
+
+
+def test_unpinned_month_local_risk_is_never_accepted():
+    evidence = verified_report()
+    evidence["jobs"][0]["monthly"][0][
+        "month_local_max_observed_m1_close_drawdown_usd_per_oz"] = 1.0
+    with pytest.raises(ValueError):
+        terminal.render_verified_monthly_html(evidence)
+
+
+def test_unified_month_local_panel_reconciles_pinned_evidence():
+    from scripts.research_terminal_verified_monthly_section import render_verified_monthly_section
+    html = render_verified_monthly_section(verified_report(pinned=True))
+    assert "Month-local observed M1 close DD" in html
+    assert "M1 month-local close DD" in html
+    assert "+6.50" in html
+    assert "M1 global-peak DD" in html

@@ -49,6 +49,9 @@ def render_verified_monthly_section(report: dict) -> str:
             '<p class="sub">Worst month: <b>' + _e(job["worst_month_utc"])
             + ' · ' + _money(job["worst_month_net_usd_per_oz"])
             + '</b> · Observed M1 floating DD: <b>' + risk + '</b></p>'
+            '<p class="sub">Month-local observed M1 close DD: <b>'
+            + _money(job.get("max_observed_m1_month_local_drawdown_usd_per_oz"))
+            + '</b></p>'
             '<p class="sub">Nonpositive-month streak: <b>'
             + str(job["longest_nonpositive_observed_month_streak"])
             + '</b> · Worst 3 complete months: <b>' + _money(worst_three)
@@ -66,6 +69,8 @@ def render_verified_monthly_section(report: dict) -> str:
                 + '</td><td class="number">' + f'{month["all_in_fees_usd_per_oz"]:,.2f}'
                 + '</td><td class="number">' + str(month["observed_m1_samples"])
                 + '</td><td class="number">' + dd + '</td><td class="number">'
+                + _money(month.get("month_local_max_observed_m1_close_drawdown_usd_per_oz"))
+                + '</td><td class="number">'
                 + (str(gaps) if gaps is not None else "N/A") + '</td></tr>'
             )
     options = "".join('<option value="' + _e(job["id"]) + '">'
@@ -94,10 +99,12 @@ def render_verified_monthly_section(report: dict) -> str:
         '<thead><tr><th scope="col">Job</th><th scope="col">UTC month</th>'
         '<th scope="col">Net USD/oz</th><th scope="col">Trades</th>'
         '<th scope="col">Fees USD/oz</th><th scope="col">M1 marks</th>'
-        '<th scope="col">Observed floating DD</th><th scope="col">M1 gaps</th>'
+        '<th scope="col">M1 global-peak DD</th><th scope="col">M1 month-local close DD</th><th scope="col">M1 gaps</th>'
         '</tr></thead><tbody id="verifiedMonthRows">' + "".join(rows)
         + '</tbody></table></div>'
         '<p class="sub">Frozen plan SHA256: <code>' + _e(report["plan_sha256"])
         + '</code>. M1 drawdown and gaps are N/A without independently '
-        'pinned canonical equity evidence. No missing minutes fabricated.</p>'
+        'pinned canonical equity evidence. Month-local DD resets at UTC boundaries '
+        'from the last observed equity mark; neither metric infers intrabar risk. '
+        'No missing minutes fabricated.</p>'
     )

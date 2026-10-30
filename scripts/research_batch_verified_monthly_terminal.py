@@ -124,10 +124,14 @@ def _check(report: dict) -> list[dict]:
                 raise ValueError("Unobserved M1 month cannot be certified")
             dd = month.get("max_observed_m1_global_peak_drawdown_usd_per_oz")
             gaps = month.get("observed_m1_gap_events_from_prior_mark")
-            if (dd is None) != (gaps is None):
+            local_dd = month.get("month_local_max_observed_m1_close_drawdown_usd_per_oz")
+            if not ((dd is None) == (gaps is None) == (local_dd is None)):
                 raise ValueError("Incomplete pinned monthly floating-risk evidence")
             if dd is not None:
-                _number(dd, "floating drawdown", nonnegative=True)
+                global_value = _number(dd, "global-peak M1 drawdown", nonnegative=True)
+                local_value = _number(local_dd, "month-local M1 close drawdown", nonnegative=True)
+                if local_value > global_value + 1e-6:
+                    raise ValueError("Month-local M1 drawdown exceeds global peak drawdown")
                 _count(gaps, "M1 gaps")
                 pinned_months += 1
             count_positive += pnl > 0
@@ -149,14 +153,20 @@ def _check(report: dict) -> list[dict]:
         if any(job.get(key) != value for key, value in expected_risk.items()):
             raise ValueError("Monthly downside risk differs from verified UTC ledger")
         dd = job.get("observed_m1_floating_drawdown_usd_per_oz")
+        local_dd = job.get("max_observed_m1_month_local_drawdown_usd_per_oz")
         if pinned_months:
-            _number(dd, "job floating drawdown", nonnegative=True)
+            global_value = _number(dd, "job floating drawdown", nonnegative=True)
+            local_value = _number(local_dd, "job month-local M1 close drawdown", nonnegative=True)
             if not math.isclose(
-                    dd, max(m["max_observed_m1_global_peak_drawdown_usd_per_oz"] for m in months),
+                    global_value, max(m["max_observed_m1_global_peak_drawdown_usd_per_oz"] for m in months),
                     abs_tol=1e-5, rel_tol=0):
                 raise ValueError("Pinned global-peak floating drawdown is not the monthly maximum")
+            if (not math.isclose(local_value, max(
+                    m["month_local_max_observed_m1_close_drawdown_usd_per_oz"] for m in months),
+                    abs_tol=1e-5, rel_tol=0) or local_value > global_value + 1e-6):
+                raise ValueError("Pinned month-local M1 drawdown is not the monthly maximum")
             pinned_actual += 1
-        elif dd is not None:
+        elif dd is not None or local_dd is not None:
             raise ValueError("Unpinned floating drawdown must be N/A")
     if pinned_actual != pinned:
         raise ValueError("Pinned job count mismatch")
@@ -186,7 +196,9 @@ def render_verified_monthly_html(report: dict) -> str:
             '<span>Positive months: <b>' + str(job["positive_months"]) + '/'
             + str(job["months_observed"]) + '</b></span>'
             '<span>Worst: <b>' + worst + ' · ' + _money(job["worst_month_net_usd_per_oz"]) + '</b></span>'
-            '<span>Observed M1 DD: <b>' + _money(dd) + '</b></span>'
+            '<span>Observed M1 global-peak DD: <b>' + _money(dd) + '</b></span>'
+            '<span>Observed M1 month-local close DD: <b>'
+            + _money(job.get("max_observed_m1_month_local_drawdown_usd_per_oz")) + '</b></span>'
             '<span><span data-en="Nonpositive-month streak" data-ar="أطول سلسلة أشهر غير رابحة">Nonpositive-month streak</span>: <b>'
             + str(job["longest_nonpositive_observed_month_streak"]) + '</b></span>'
             '<span><span data-en="Worst 3 complete UTC months" data-ar="أسوأ ثلاثة أشهر UTC مكتملة">Worst 3 complete UTC months</span>: <b>'
@@ -205,6 +217,8 @@ def render_verified_monthly_html(report: dict) -> str:
                 + f'{month["all_in_fees_usd_per_oz"]:,.2f}' + '</td><td class="num">'
                 + str(month["observed_m1_samples"]) + '</td><td class="num">'
                 + _money(month["max_observed_m1_global_peak_drawdown_usd_per_oz"])
+                + '</td><td class="num">'
+                + _money(month.get("month_local_max_observed_m1_close_drawdown_usd_per_oz"))
                 + '</td><td class="num">'
                 + (str(month["observed_m1_gap_events_from_prior_mark"])
                    if month["observed_m1_gap_events_from_prior_mark"] is not None else "N/A")
@@ -259,7 +273,7 @@ data-ar="ليست نتائج مستقبلية مستقلة ولا محفظة ب�
 <div class="tablewrap"><table><caption>Re-audited monthly results, not future returns</caption><thead><tr>
 <th scope="col">Job</th><th scope="col">UTC month</th><th scope="col">Net USD/oz</th>
 <th scope="col">Trades</th><th scope="col">Fees USD/oz</th><th scope="col">M1 marks</th>
-<th scope="col">Observed floating DD</th><th scope="col">M1 gaps</th>
+<th scope="col">M1 global-peak DD</th><th scope="col">M1 month-local close DD</th><th scope="col">M1 gaps</th>
 </tr></thead><tbody id="monthlyRows">{table_rows}</tbody></table></div>
 <footer>Plan SHA256: <code>{digest}</code><br>Source and canonical ledger verified locally on the exact checkout.
 No raw BID/ASK, network, broker access or trading commands in this HTML.</footer></main>
