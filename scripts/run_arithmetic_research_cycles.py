@@ -77,12 +77,16 @@ def _preflight_capacity(training_input: Path, proposal_count: int) -> None:
 
 def run_cycles(training_input: Path, source_zip: Path, output_root: Path, *,
                seed: int, first_generation: int, generations: int,
-               proposal_count: int, shard_size: int = 8) -> dict:
+               proposal_count: int, shard_size: int = 8,
+               proposal_policy: str = "legacy_random") -> dict:
     """Generate -> dispatch -> reference+fast training -> audit -> feedback.
 
     Each stage is immutable and resumable; a complete next input is only
     published by the canonical feedback verifier after all shards pass.
     """
+    if (type(proposal_policy) is not str or proposal_policy not in
+            ("legacy_random", "matched_guided_v1")):
+        raise ValueError("Unknown proposal policy")
     if (any(type(v) is not int for v in
             (seed, first_generation, generations, proposal_count, shard_size))
             or first_generation < 1 or not 1 <= generations <= 10
@@ -111,8 +115,12 @@ def run_cycles(training_input: Path, source_zip: Path, output_root: Path, *,
             manifest_path = folder / "generation.json"
             dispatch_dir = folder / "dispatch"
             next_input = folder / "next_training_input.json"
-            generate(initial_input, manifest_path, seed=seed + offset,
-                     generation=generation, proposal_count=proposal_count)
+            generation_options = {"seed": seed + offset,
+                                  "generation": generation,
+                                  "proposal_count": proposal_count}
+            if proposal_policy != "legacy_random":
+                generation_options["proposal_policy"] = proposal_policy
+            generate(initial_input, manifest_path, **generation_options)
             dispatch = materialize(initial_input, manifest_path, dispatch_dir)
             shards = []
             for year in dispatch["training_years"]:
@@ -150,11 +158,14 @@ def main(argv=None) -> int:
     parser.add_argument("--generations", type=int, default=1)
     parser.add_argument("--count", type=int, default=12)
     parser.add_argument("--shard-size", type=int, default=8)
+    parser.add_argument("--proposal-policy", choices=("legacy_random", "matched_guided_v1"),
+                        default="legacy_random")
     args = parser.parse_args(argv)
     result = run_cycles(args.training_input, args.gold_zip, args.out,
                         seed=args.seed, first_generation=args.first_generation,
                         generations=args.generations, proposal_count=args.count,
-                        shard_size=args.shard_size)
+                        shard_size=args.shard_size,
+                        proposal_policy=args.proposal_policy)
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0
 
