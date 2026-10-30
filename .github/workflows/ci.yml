@@ -1,12 +1,12 @@
 name: Engine quality gates
 
-# The repository is now public; standard GitHub-hosted Actions runners
-# are free for public repositories. Keep triggers scoped to the research
-# branch until the full tests and independent replay are accepted.
+# Full repository verification runs on Draft PR updates as well as explicit
+# dispatch. No raw quotes, private ZIPs, broker credentials or live trading.
+# Do not mistake synthetic CI for original-source parity or independent OOS.
 on:
-  push:
+  pull_request:
     branches:
-      - feat/quant-engine-foundation
+      - main
   workflow_dispatch:
 
 permissions:
