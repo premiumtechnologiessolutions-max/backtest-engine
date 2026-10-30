@@ -48,7 +48,7 @@ def load_year(archive, year):
             and (df.al <= df[["ao", "ac"]].min(axis=1)).all()
             and (df[["ao", "ac"]].max(axis=1) <= df.ah).all()):
         raise ValueError("Invalid original quote OHLC")
-    observed_utc = pd.to_datetime(df.ts, unit="s", utc=True)
+    observed_utc = pd.DatetimeIndex(pd.to_datetime(df.ts, unit="s", utc=True))
     # A correctly named ZIP member is not evidence that it contains the
     # requested year or all twelve calendar months. This is a necessary
     # preflight only; missing trading minutes/closures remain separately gated.
