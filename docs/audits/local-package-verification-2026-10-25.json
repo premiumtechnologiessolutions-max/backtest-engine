@@ -1,0 +1,119 @@
+{
+  "status": "PASSED",
+  "engine_code_commit": "0d057c0f549f0afc7c6cabf2f1ff909c81eeb0f7",
+  "engine_source_installed_wheel_and_built_wheel_identical": true,
+  "engine_module_sha256": {
+    "__init__.py": "0aa3c37c86ce6c8f95f97863d3d9981dafc74893fa4fa4a1cc487fa20c6dff54",
+    "accounting.py": "870bfde273754fd711015efb17bb1edd288f5bb0f8414d5090a40923379b8008",
+    "bos_fib.py": "023d331580801443cc9c837f40df63704facfa5e5821e44df57ab3684c1d85ed",
+    "cli.py": "2d4280d6807787e7251daef289a320eb07ffbed5bdd276b027523ba0d0bcb60e",
+    "data.py": "45adba779469d20567d019e77162700de91aba010dd9cf65ed4c50a78b912cf1",
+    "execution.py": "5899a2ab0f6ee73857f26ec5bcc766c12540073987875eeac491010294f681b7",
+    "fast_engine.py": "cb2b19a757aaac80a159b67c4c393d8d14b07384813c602adcbc6e5d2fcbd6ee",
+    "fvg.py": "1d718ec487042ba891c06aa88da053925c909c76e947e2b29571a53aa5cd10fc",
+    "gaps.py": "f23f951d64a8a71687ade901eb576ff32fa062e9137dc707119cb104f861f1ce",
+    "h1_regime.py": "f42b58df298c10a2f947730b0620eda950cd3de062cc3afe060b9dbcd102f4e9",
+    "limit_engine.py": "8bb507e67c1e13aea94a6d687b94cba6638a81700d843fe7478da8de08107f90",
+    "model.py": "f6cf43ee6a464115c21923029fae8ffd325cb18e574f61eaf24f03cb9f4d373d",
+    "portfolio.py": "3f96e7a1568a2106a7006813a09175040bdd75331c77819af35aa70f9376e53e",
+    "portfolio_limits.py": "7b5c824b0aa1ebf6101e5a3e92eb64f025ddc9c170ae4b652a73a2b98189b7e0",
+    "portfolio_unified.py": "e61233795b5306f68b4bfad3f2f3f445290edd09cbd761848e806ad18fc89c1a",
+    "qs01.py": "5ca7f3e249b57b1bb53742c4e671b7bb52053267236d7252c2c29c708dbce809",
+    "quote_stress.py": "aa18bd307c679a628d8b8e1cadb0f2e39e5d1666ff965bafeca68af67b9b8cca",
+    "registry.py": "69691ec54bb3679c6f783f26bc42aadd8cb4c32dd8cb59921e4138d5f605462f",
+    "report.py": "602e63941d91a6261b30185dbfe15008fd40d67fa660dc220cab1ca159ec41f2",
+    "strategies_native.py": "555ccb2ec9c5d1cd343dc4aee3ffbd47a4e4199a825a9d8c422f599035c7e70d",
+    "strategy.py": "24115910e803d7d2456e1bf51e7cbb9ce3e3f2f7689f87e1530bd236ca31b405",
+    "ticks.py": "08ef9b497ee3bbc686ccf843198d61b38dd2679edbee66de1ee65311cdd0e55b",
+    "walkforward.py": "5de936c835e823cf01432a92abcf18c6a8098e00867fc9e3f997ff220573b226"
+  },
+  "python": "3.12.14",
+  "platform": "Windows-10-10.0.19045-SP0",
+  "dependencies": {
+    "Pygments": "2.21.0",
+    "build": "1.3.0",
+    "colorama": "0.4.6",
+    "iniconfig": "2.3.1",
+    "noriskfx-quant-engine": "0.1.0",
+    "numpy": "2.3.5",
+    "packaging": "26.3",
+    "pandas": "2.2.3",
+    "pip": "25.0.1",
+    "pluggy": "1.7.0",
+    "pyarrow": "18.1.0",
+    "pyproject_hooks": "1.3.3",
+    "pytest": "8.4.2",
+    "python-dateutil": "2.9.0.post0",
+    "pytz": "2025.2",
+    "setuptools": "80.9.0",
+    "six": "1.17.0",
+    "tzdata": "2025.2",
+    "wheel": "0.45.1"
+  },
+  "tests": {
+    "source": {
+      "tests": "263",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "5.752",
+      "junit_sha256": "935edd449b8ee0763f41b4a5bf88ba2127e638f3caeca5e50987e36f4a2539c8"
+    },
+    "wheel": {
+      "tests": "263",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "5.594",
+      "junit_sha256": "9e3749e8fb84ab1edc4d9d4cab43db583763b0af131f6991a10ef1bb5825c1b2"
+    },
+    "sdist": {
+      "tests": "263",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "6.042",
+      "junit_sha256": "bbfed0da513a1bbe7b12dc36b1c2abb206c8664afe026afb1a0b08df5a2a6351"
+    }
+  },
+  "packages": {
+    "package-consolidated/noriskfx_quant_engine-0.1.0-py3-none-any.whl": {
+      "sha256": "d9dc988d59c26b65ebea957871bdad6c356e3d353c87609555b994b648f80d0d",
+      "bytes": 72730
+    },
+    "package-consolidated/noriskfx_quant_engine-0.1.0.tar.gz": {
+      "sha256": "d468ba57f7768361e7bfa0c745c025c153098cf76dcf5c88745f14fe3b2d6abd",
+      "bytes": 158401
+    }
+  },
+  "pip_check": "No broken requirements found",
+  "cli_help": [
+    "root",
+    "backtest",
+    "audit-gaps"
+  ],
+  "warnings": "7 existing pandas regex-capture warnings from ticks.py; no test failures.",
+  "sdist_tests": "Extracted source distribution scripts/tests plus installed wheel core; no repository source path.",
+  "ci": "No GitHub Actions success claimed; manual-only quota blocker retained.",
+  "final_metadata_verification": {
+    "pandas_minimum": "2.2",
+    "requirements": [
+      "pandas<3,>=2.2",
+      "numpy<3,>=1.26",
+      "pyarrow>=14",
+      "pytest>=8; extra == \"dev\""
+    ],
+    "pip_check": "PASSED"
+  },
+  "prior_qs01_design_checkpoint": "c816881b74d0fd457b6f203af12e1a2d8baa49a0",
+  "integration_note": "Concurrent QS01 CLI/API work unified through audited generator; constructor alias normalizes to tested canonical holding option. No QS01 historical rerun.",
+  "real_m1_gate_commit": "069d58fe6556a74d55840fcd8484561b09d22274",
+  "execution_functions_unchanged_since_real_m1_gate": {
+    "execution.py:run": true,
+    "fast_engine.py:run_fast": true,
+    "portfolio_unified.py:run_unified_portfolio": true,
+    "limit_engine.py:run_limits": true,
+    "quote_stress.py:quote_stress_signals": true,
+    "quote_stress.py:quote_stress_features": true
+  }
+}

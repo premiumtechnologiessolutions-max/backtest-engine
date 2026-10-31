@@ -1,0 +1,120 @@
+{
+  "research_id": "NRF-FAC-017",
+  "verification_date_utc": "2026-10-27",
+  "official_repository_head": "94f9115c9ef367d83989f5cd6ebce3d8c364b821",
+  "github_actions_run": 40462258228,
+  "github_actions_tests_passed": 932,
+  "source_artifact_id": 12715291292,
+  "source_script_git_blob_sha": "630092717d81c5ccf1d49bb39c4e379ca35a84ca",
+  "preregistration_commit": "e88adcea2f00927e15d93e37d11e8f95e7680911",
+  "private_original_zip_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
+  "raw_quotes_uploaded_to_public_repo": false,
+  "years": [
+    2012,
+    2013
+  ],
+  "distinct_correlated_parameter_specs": 18432,
+  "annual_executions": 36864,
+  "active_annual_replays": 34624,
+  "zero_trade_annual_replays": 2240,
+  "zero_trade_specs_both_years": 512,
+  "monthly_values_including_zero": 442368,
+  "active_monthly_values": 415488,
+  "unique_entry_streams_by_year": [
+    254,
+    260
+  ],
+  "highest_positive_months_out_of_24": 20,
+  "configs_with_18plus_positive_months": 5,
+  "configs_with_24_positive_months": 0,
+  "configs_passing_preregistered_joint_gate": 0,
+  "configs_positive_net_both_years": 1080,
+  "exact_full_grid_reproduced_annual_rows": 36864,
+  "exact_full_grid_reproduced_monthly_cells": 442368,
+  "exact_full_grid_max_numeric_difference": 0,
+  "official_run_fast_parity_samples": 8,
+  "independent_execution_run_vs_run_fast_full_year_samples": 4,
+  "independent_full_year_verified_trades": 866,
+  "independent_full_year_verified_m1_equity_marks": 1410584,
+  "distinct_m1_minutes_across_verified_years": 705292,
+  "trade_15_fields_and_all_m1_equity_exact": true,
+  "monthly_fee_floating_dd_reconciliation": true,
+  "csv_sha256_by_year": {
+    "2012": "47d2fdcc2acc2aae048bb60ae742b84b42c1cb11828697f435c7f417e2b0815c",
+    "2013": "bbf7f6805e7b40381f48fd67aedfac30493ee5399156699b5c09fd28eb5cf882"
+  },
+  "best_positive_months_id": "VSE17_N32_Q2.50_R0.55_ACTIVE_ALL_SL2.25_TP0.50",
+  "best_positive_months_by_year": [
+    9,
+    11
+  ],
+  "best_positive_months_net_by_year_usd_oz": [
+    -4.74875,
+    7.38875
+  ],
+  "best_positive_months_total_net_usd_oz": 2.64,
+  "best_positive_months_trades_by_year": [
+    22,
+    19
+  ],
+  "best_positive_months_total_fees_usd_oz": 16.4,
+  "best_positive_months_worst_month_usd_oz": -5.76625,
+  "best_positive_months_max_annual_floating_dd_usd_oz": 11.13625,
+  "frozen_min_fills_per_year": 100,
+  "decision": "REJECT",
+  "audit_samples": [
+    {
+      "year": 2012,
+      "id": "VSE17_N32_Q2.50_R0.55_ACTIVE_ALL_SL2.25_TP0.50",
+      "trades": 22,
+      "marks": 352975,
+      "positive_months": 9,
+      "net_usd_oz": -4.74875,
+      "worst_month_usd_oz": -5.76625,
+      "max_floating_dd_usd_oz": 11.13625,
+      "all_15_trade_fields_equal": true,
+      "all_m1_equity_fields_equal": true,
+      "monthly_fees_and_dd_equal": true
+    },
+    {
+      "year": 2012,
+      "id": "VSE17_N32_Q1.25_R0.25_ACTIVE_ALL_SL0.50_TP0.50",
+      "trades": 432,
+      "marks": 352975,
+      "positive_months": 0,
+      "net_usd_oz": -156.325,
+      "worst_month_usd_oz": -24.4,
+      "max_floating_dd_usd_oz": 160.2525,
+      "all_15_trade_fields_equal": true,
+      "all_m1_equity_fields_equal": true,
+      "monthly_fees_and_dd_equal": true
+    },
+    {
+      "year": 2013,
+      "id": "VSE17_N32_Q2.50_R0.55_ACTIVE_ALL_SL2.25_TP0.50",
+      "trades": 19,
+      "marks": 352317,
+      "positive_months": 11,
+      "net_usd_oz": 7.38875,
+      "worst_month_usd_oz": 0,
+      "max_floating_dd_usd_oz": 6.66875,
+      "all_15_trade_fields_equal": true,
+      "all_m1_equity_fields_equal": true,
+      "monthly_fees_and_dd_equal": true
+    },
+    {
+      "year": 2013,
+      "id": "VSE17_N32_Q1.25_R0.25_ACTIVE_ALL_SL0.50_TP0.50",
+      "trades": 393,
+      "marks": 352317,
+      "positive_months": 0,
+      "net_usd_oz": -173.2525,
+      "worst_month_usd_oz": -30.2875,
+      "max_floating_dd_usd_oz": 175.6825,
+      "all_15_trade_fields_equal": true,
+      "all_m1_equity_fields_equal": true,
+      "monthly_fees_and_dd_equal": true
+    }
+  ],
+  "caution": "All 2012/2013 years historically exposed, grid correlated, no independent prospective OOS or broker tick execution. Annual resets, not a continuous portfolio."
+}

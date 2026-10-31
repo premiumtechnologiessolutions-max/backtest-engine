@@ -1,0 +1,66 @@
+{
+  "research_id": "NRF-FAC-016",
+  "frozen_commit": "721387e06a81cfd47e0e33d5b31815a3dd6b0e96",
+  "status": "REJECTED_HISTORICALLY_EXPOSED_OFFICIAL_GITHUB_SOURCE_FULL_GRID_REPRODUCED_CANONICAL_AND_SLOW_PARITY_VERIFIED",
+  "original_zip_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
+  "years": [
+    2012,
+    2013
+  ],
+  "correlated_parameter_specs": 18000,
+  "executed_annual_replays": 36000,
+  "active_annual_replays": 31300,
+  "zero_trade_annual_replays": 4700,
+  "active_monthly_pnl_values": 375600,
+  "monthly_pnl_values_including_zero_trade": 432000,
+  "zero_trade_specs_both_years": 500,
+  "active_specs_both_years": 13800,
+  "unique_signal_streams_by_year": [
+    169,
+    131
+  ],
+  "positive_annual_net_specs_by_year": [
+    6108,
+    3352
+  ],
+  "positive_annual_net_both_years": 1027,
+  "configs_ge_18_of_24": 0,
+  "max_positive_months_out_of_24": 17,
+  "configs_24_of_24": 0,
+  "configs_passing_frozen_joint_gate": 0,
+  "configs_min_80_fills_both_years": 1210,
+  "canonical_run_fast_parity_samples": 8,
+  "independent_slow_reference_full_years": 2,
+  "independent_slow_reference_trades": 185,
+  "independent_slow_reference_m1_equity_marks": 705292,
+  "independent_slow_reference_exact_all_trade_fields_and_marks": true,
+  "original_source_loaded_m1_fingerprints": {
+    "2012": "21dbb5fda18680523a478eba20a4824c1566d7a267345464ca15e5ab8ca79398",
+    "2013": "5c465ea65c86e297f0a28603fcde57e6e1e3c478b646ec0402de2bb850be629e"
+  },
+  "top_posthoc_id": "FIB16_H2_H41_F0.620_T1.50_ALL_SL2.00_TP2.50",
+  "top_posthoc_positive_months_by_year": [
+    8,
+    9
+  ],
+  "top_posthoc_net_usd_oz_by_year": [
+    60.2975,
+    40.2325
+  ],
+  "top_posthoc_fees_usd_oz": 74,
+  "top_posthoc_worst_month_usd_oz": -35.5475,
+  "top_posthoc_max_annual_floating_m1_dd_usd_oz": 48.06,
+  "local_runner_provenance": "Initial manual transcription followed by exact full-grid reproduction using official GitHub CI source artifact; all 36,000 annual and 432,000 monthly rows match with zero numeric delta.",
+  "source_quotes_uploaded": false,
+  "github_actions_for_result_commit": "PASSED_795_ON_87fa2cb",
+  "report": "docs/FAC016_36000_ANNUAL_H1_H4_FIB_CONFLUENCE_REJECTED_2026-10-27.md",
+  "official_github_source_commit": "0320aaa7af34cd5f1c04a45a426d23a713eabed8",
+  "official_github_source_artifact_id": 12702503558,
+  "official_github_runner_blob_sha": "1521af1629c6c10fada5a9728201dfae5b5f168b",
+  "official_full_grid_replayed_annual": 36000,
+  "official_full_grid_replayed_monthly": 432000,
+  "official_full_grid_max_numeric_delta": 0,
+  "verified_ci_results_registry_commit": "87fa2cb154da36e810d462e20b862a2f96159514",
+  "verified_ci_run": 40437957678,
+  "verified_ci_tests": 795
+}

@@ -1,0 +1,5 @@
+# Prospective multiple-testing correction — synthetic implementation (2026-10-30)
+
+New optional pure-Python utility `scripts/prospective_multiple_testing.py` implements deterministic Holm–Bonferroni family-wise error correction. It requires a **complete pre-registered family of independent hypothesis identifiers**, valid confirmatory p-values, and explicit alpha. It rejects empty, missing, nonfinite, boolean and out-of-range values. Correlated grid parameters do **not** constitute independent hypotheses. Post-hoc p-values calculated from exposed 2012–2016 strategy selection are **not eligible** for confirmatory claims.
+
+**Status:** code + synthetic unit tests only; no original Gold ZIP execution, no new monthly P/L, no floating M1 drawdown, no canonical parity, no untouched prospective OOS, and no certified strategy. No market prices or account information in this change. Before integration with a real prospective evaluator, freeze the entire trial family, p-value methodology, holdout, embargo, exclusion criteria and audit provenance. Never treat this adjustment as proof of trading edge.

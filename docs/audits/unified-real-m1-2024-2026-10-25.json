@@ -1,0 +1,114 @@
+{
+  "status": "PASSED",
+  "purpose": "EXECUTION_PARITY_NOT_PROFIT_RESEARCH",
+  "code_revision": "069d58fe6556a74d55840fcd8484561b09d22274",
+  "code_tree_dirty": false,
+  "source": {
+    "annual_json_sha256": "78d02159d9eb41a4a6122eed42b696e3b9b93c159a68b312ee2bb854e749fd32",
+    "loaded_m1_bidask_sha256": "7cf1d13a63cb6fb1a986e8d921db27c9abf936e63e62d9b8f270efb027c4c45c",
+    "original_zip_identity": "not_available_not_verified"
+  },
+  "quality": {
+    "rows": 355893,
+    "start_utc": "2024-01-01T23:00:00+00:00",
+    "end_utc": "2024-12-31T21:58:00+00:00",
+    "duplicate_timestamps": 0,
+    "non_60s_intervals": 306,
+    "gaps_over_10min": 260,
+    "missing_observed_minutes": 169646,
+    "bid_ohlc_anomalies": 0,
+    "ask_ohlc_anomalies": 0,
+    "ask_below_bid_open": 0,
+    "ask_below_bid_close": 0,
+    "note": "Gaps include legitimate market closures; this is NOT proof of corrupt data."
+  },
+  "reference_fast": {
+    "signals": 606,
+    "reference_audit": {
+      "accounting_checks": "PASSED",
+      "trades": 171,
+      "total_cost": 68.39999999999999,
+      "net_pnl": 141.4300000000001,
+      "forced_end_of_data_closures": 1,
+      "forced_end_of_data_pnl": 14.430000000000382,
+      "note": "Accounting validation does not verify missing tick paths or broker fills."
+    },
+    "fast_audit": {
+      "accounting_checks": "PASSED",
+      "trades": 171,
+      "total_cost": 68.39999999999999,
+      "net_pnl": 141.4300000000001,
+      "forced_end_of_data_closures": 1,
+      "forced_end_of_data_pnl": 14.430000000000382,
+      "note": "Accounting validation does not verify missing tick paths or broker fills."
+    },
+    "all_trade_fields": "PASSED",
+    "all_observed_m1_equity": "PASSED",
+    "signal_counters": "PASSED"
+  },
+  "unified": {
+    "settings": {
+      "ounces_by_strategy": {
+        "fixture_market": 0.5,
+        "fixture_limit": 1.25
+      },
+      "max_open_positions": 2,
+      "max_total_ounces": 1.75,
+      "max_entry_delay_minutes": 1,
+      "close_at_end": true,
+      "all_in_cost_per_ounce": 0.4,
+      "max_holding_minutes": null
+    },
+    "fixtures_market": 356,
+    "fixtures_limit": 356,
+    "audit": {
+      "status": "PASSED",
+      "trades": 682,
+      "net_pnl_closed": -210.76750000000004,
+      "max_observed_open_positions": 2,
+      "max_observed_open_ounces": 1.75,
+      "floating_price_reconciliation": "Arithmetic/exposure checked; independent floating-price verification requires source M1 closes and any remaining open-position ledger.",
+      "cost_model": "FIXED_ALL_IN_0.40_PER_OUNCE_PER_ROUNDTRIP"
+    },
+    "independent_trade_and_equity_parity": "PASSED",
+    "independent_per_position_floating_reconciliation": "PASSED",
+    "weekly_monthly_reconciliation": "PASSED",
+    "summary": {
+      "status": "PASSED",
+      "trades": 682,
+      "net_pnl_closed": -210.76750000000004,
+      "max_observed_open_positions": 2,
+      "max_observed_open_ounces": 1.75,
+      "floating_price_reconciliation": "Arithmetic/exposure checked; independent floating-price verification requires source M1 closes and any remaining open-position ledger.",
+      "cost_model": "FIXED_ALL_IN_0.40_PER_OUNCE_PER_ROUNDTRIP",
+      "fixed_all_in_usd_per_ounce": 0.4,
+      "max_open_positions_allowed": 2,
+      "max_total_ounces_allowed": 1.75,
+      "max_observed_m1_close_drawdown": 211.3199999999992,
+      "pending_at_end": 0,
+      "expired_signals": 30,
+      "capacity_rejected": 0,
+      "duplicate_strategy_rejected": 0,
+      "open_positions_before_optional_end_close": 0,
+      "period_coverage_note": "Period-end values use the last observed M1 close in the period. An empty period and the allocated equity change on resumption remain unknown; change_since_last_observed_period is a cross-gap difference.",
+      "caveat": "Synthetic M1 OHLC with stop-first; not broker ticks or a broker margin model. Open equity unobserved during gaps; month-end is observed only.",
+      "uncertain_entry_tp_deferred": 9,
+      "execution_policy": "Opening Market and marketable Limit instructions have confirmation/strategy/input priority; later Limit touches use remaining frozen capacity. Stop-first, adverse gap-through, Limit entry-bar TP deferred, inclusive expiry at observed minute opens, no same-M1 slot recycling."
+    }
+  },
+  "constrained": {
+    "audit": {
+      "status": "PASSED",
+      "trades": 397,
+      "net_pnl_closed": -100.85499999999996,
+      "max_observed_open_positions": 1,
+      "max_observed_open_ounces": 1.25,
+      "floating_price_reconciliation": "Arithmetic/exposure checked; independent floating-price verification requires source M1 closes and any remaining open-position ledger.",
+      "cost_model": "FIXED_ALL_IN_0.40_PER_OUNCE_PER_ROUNDTRIP"
+    },
+    "independent_per_position_floating_reconciliation": "PASSED",
+    "capacity_rejected": 285
+  },
+  "elapsed_seconds": 83.026,
+  "limits": "Synthetic common BID OHLC reference; no broker tick/margin validation or profit claim."
+}

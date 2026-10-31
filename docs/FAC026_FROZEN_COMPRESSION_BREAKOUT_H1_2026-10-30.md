@@ -1,0 +1,17 @@
+# FAC026 — Frozen M15 volatility-compression breakout with completed H1 directional efficiency (2026-10-30)
+
+**Status: PREDECLARED / SYNTHETIC UNIT TESTS ONLY / ZERO ORIGINAL-SOURCE BACKTESTS.** This is ONE new causal hypothesis with **32 correlated parameter settings**, not 32 independent discoveries. It is not FAC025 sweep/reclaim and must not be tuned to FAC025 outcomes.
+
+## Hypothesis frozen before outcomes
+A directional **continuation breakout** of the preceding M15 compression range, in the direction of completed H1 path efficiency, may be more robust than unrestricted breakout/fade signals. Require a baseline of N completed contiguous M15 bars followed by N completed contiguous compressed M15 bars, followed by a completed trigger bar closing strictly outside the compression range. Compression means mean compressed high-low range <= C × mean baseline high-low range. Three contiguous fully observed H1 bars must have directional movement aligned with the breakout and absolute first-open-to-last-close movement divided by the sum of their three high-low ranges >= E. No H1 bar may close after the trigger M15 bar. All candles require 15/60 *actually observed* M1 constituent minutes; never synthesize market gaps.
+
+**Frozen grid (32 correlated settings):** N={8,12}, C={0.65,0.80}, E={0.35,0.55}, New York-local session={08–12,09–13}, prior same-NY-calendar-day realized-net loss halt USD/oz={2,4}. Use `America/New_York` DST, only trades closed strictly before the decision timestamp. Signal decision exactly 1 minute after the trigger M15 close; no same-instant lookahead. Research-intent normalized stop-distance proxy = max(trigger high-low, trigger close × 0.0004) / trigger close, bounded <= 0.002. It is **not** executable entry sizing, because the next observed M1 open may differ. The evaluator emits no orders and does not use future M1 quotes.
+
+## Execution / evaluation acceptance gates
+1. The present change freezes the hypothesis, exact grid and synthetic causal checks **before any results**. Code: `scripts/research_fac026_compression_breakout.py`; tests: `tests/test_research_fac026_compression_breakout.py`. No portfolio or profit claims, no source access.
+2. Future separate research must verify the private original ZIP SHA256 `1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121` locally, build M15/H1 solely from observed M1, and independently compare a sampled signal chronology.
+3. Before replay, freeze entry at **next eligible observed M1 open within 60 seconds**, stop-first, adverse gap-through, no fabricated minutes, exactly **$0.40/oz ALL-IN roundtrip**; apply one real shared-capacity slot and chronological closed-trade halt (not post-hoc daily P/L). Canonical `run`/`run_fast` trade, monthly and M1 floating-equity parity required.
+4. Evaluate every observed UTC calendar month, worst full month, worst 3-month block, net after fees, number of trades, max global and month-local observed M1 close-equity drawdown, and correlated-spec multiple-testing penalty. No sums of standalone portfolio profits.
+5. 2012–2016 and all previously viewed years are historically exposed. Require separate prospective forward holdout, source manifest, embargo, and a predeclared family-level acceptance policy. Keep PR #1 Draft; never upload raw BID/ASK or connect live MT5.
+
+**Results:** Backtests 0; monthly net N/A; floating drawdown N/A; independently approved strategies 0.

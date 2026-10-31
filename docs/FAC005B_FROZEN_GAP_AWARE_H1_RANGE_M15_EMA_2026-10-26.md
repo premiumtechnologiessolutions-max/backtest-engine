@@ -1,0 +1,16 @@
+# NRF-FAC-005B — FROZEN follow-up: gap-aware H1 realized-range regime / M15 EMA crossover
+
+**Date frozen:** 2026-10-26. **Status:** design follow-up after FAC005 H1-contiguity failed (all zero-trade). **This is NOT independent OOS**, NOT a retroactive repair to FAC005, and does NOT create a new independent family. No FAC005B original-data outcomes were inspected when this spec was committed.
+
+**Motivation:** The original XAUUSD source has a normal daily quote interruption; no run of 40 fully observed consecutive H1 bars exists in 2012–2013. FAC005 is retained as a frozen negative control. FAC005B explicitly switches the volatility statistic rather than altering the rejected experiment's code.
+
+**Frozen hypothesis:** Trade a **fully closed M15 EMA crossover** only when the **latest fully observed H1 bar's high-low range** is at least a threshold multiple of the median high-low range of the **24 immediately preceding fully observed H1 bars**. The current H1 bar MUST be excluded from its baseline; do not interpolate missing H1 bars. Require that the oldest of those 24 observed baseline H1 candles closed within the prior **168 elapsed hours** of the current H1 close. Only a completed H1 bar whose close is at/before M15 confirmation and at most 60 minutes old may qualify. The source's quote gaps are not automatically treated as official exchange holidays.
+
+- M15 EMA fast periods **5, 8, 12, 16**; slow periods **26, 34, 50, 72**, calculated **within contiguous complete M15 runs**, reset at gaps and warm up for at least slow+2 complete M15 candles.
+- H1 range / trailing previous-24 complete-H1-range median thresholds **0.80, 1.00, 1.20, 1.40**. Strict `>=` threshold, median >0, no current/future bar in denominator.
+- Signal long when fast EMA crosses from <=slow to >slow, short when fast crosses from >=slow to <slow, confirmed only on complete M15 candle close.
+- 4×4×4 = **64** signal-rule specs. Each ×20 stop distances $1.00..$10.50 step $0.50 ×20 targets $1.00..$10.50 step $0.50 = **25,600 candidate parameter specifications per year**.
+- Separate historically exposed **2012, 2013** design years, exact private original `Gold data.zip` SHA256 `1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121`. Never upload raw quotes to public GitHub.
+- Canonical BID-reference M1 open fills at next eligible observed minute open <=60 seconds after confirmation; single 1-ounce position; stop-first if intraminute both sides touched, adverse gap-open fill, one **$0.40/oz ALL-IN** round-trip fee; annual capital reset, not continuous portfolio.
+- Frozen report: all filled trades, all 12 exit-booked monthly net values, annual net, worst month, M1 floating DD, costs, 12 sampled original-source `run_fast` parity checks (6/year). Exact 25,600-ID join across years, count 24/24 and annual-positive both. **Only call a batch meaningful if actual filled trades exist**; report zero-trade variants separately. Stop/flag parity mismatches.
+- Run full GitHub CI first, then execute the exact CI-verified public source artifact privately against original archive. No retrospective tuning, no live-trading advice. These design years are already heavily inspected and do not constitute clean independent OOS.

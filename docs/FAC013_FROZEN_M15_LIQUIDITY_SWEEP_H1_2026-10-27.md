@@ -1,0 +1,19 @@
+# NRF-FAC-013 — FROZEN M15 LIQUIDITY SWEEP / H1 CONTEXT (2026-10-27)
+
+Status: **PREREGISTERED BEFORE VIEWING FAC013 OUTCOMES**. This document must remain immutable; implementation corrections must be explicitly versioned, never silently retuned. 2012–2013 are historically exposed design years, **NOT independent OOS**.
+
+## Independent logic
+On each fully observed, closed UTC M15 candle j, compare its high/low with the extremes of the **previous N contiguous completed M15 candles** (N=6,12,24,36). A bullish liquidity-sweep rejection requires low[j] < min(low[j-N:j]) - k*R, and close[j] > previous_low, close[j] < previous_high; bearish mirrors previous high, with high[j] > previous_high + k*R and close[j] < previous_high, close[j] > previous_low. R is the median range of the previous 20 completed M15 candles (excluding j); no missing M15 bars in the required history. Both-direction ambiguity rejected. Signal timestamp is close_at[j], entry only at next observed M1 open <=60s.
+
+Causal H1 context: use last completed observed H1 bar no older than 60m, with at least 26 completed H1 bars observed within the previous 168h, no synthetic H1 bars; EMA8 vs EMA24 direction, current completed H1 range / median of 24 prior observed H1 ranges, with no H1 interval >168h. Volatility gate: CALM ratio <=1.0; ACTIVE ratio >1.0. Direction mode: WITH_H1, AGAINST_H1, IGNORE_H1 (IGNORE still requires valid completed H1 context). Session: ALL, LONDON_LOCAL_08_12, NY_LOCAL_0930_1330; IANA Europe/London and America/New_York DST conversion.
+
+## Fixed grid and execution
+N=[6,12,24,36]; k=[0.0,0.25,0.5]; H1 mode=[WITH_H1,AGAINST_H1,IGNORE_H1]; volatility=[CALM,ACTIVE]; session=[ALL,LONDON_LOCAL_08_12,NY_LOCAL_0930_1330]; stop_mult=target_mult=[0.50,0.75,1.00,1.25,1.50,1.75,2.00,2.25,2.50,2.75]. Exactly **21,600 correlated parameter specs per year**, maximum **43,200 annual parameter replays** across 2012 and 2013. Distinct parameter specifications are **not** independent hypotheses; report unique signal streams separately. A spec with no filled trades is a zero-trade negative control, not an active backtest.
+
+1 oz; exactly **$0.40/oz ALL-IN roundtrip**, no second spread fee; stop-first when intrabar ambiguous; adverse gap-through at observed opening; do not fabricate M1 fills. Stop and target are R*mult at signal close, strictly positive. No new position on same M1 bar after an exit; one concurrent position. Book realized P/L to UTC exit month; floating M1 mark includes fee. Full original Gold data.zip SHA256 `1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121` remains local and never enters public GitHub/Actions.
+
+## Frozen joint acceptance
+For the **same parameter spec across BOTH years**: >=80 filled trades in EACH year, >=18 of 24 positive UTC months, annual net >0 in BOTH years, worst monthly net >=-$12/oz, annual floating M1 max drawdown <=$80/oz in BOTH years. Report monthly net, fees, trades, worst month, annual M1 DD for every completed spec. Reject any failing spec. Even a passing spec remains exploratory and must be locked before any later historical stress, not called independent OOS.
+
+## Parity, anti-bias and governance
+Canonical `run_fast` audit at least first, middle, last deterministic spec/year and the highest-monthly candidate/year, compare all 12 exit-booked monthly values, total net, fee, filled trades, M1 floating DD. Independent slow `execution.run` for at least one small fixture and a selected annual case when feasible. Save all negative results and source fingerprints; never count a generated grid as executed tests. Separate shared-capacity portfolio experiment only if candidate passes frozen gate, with preregistered portfolio logic and one capital account. Multiple-testing risk explicitly noted; prospective embargoed evaluation must use future truly unseen observations. PR remains Draft, no live trading or billing/privacy changes.

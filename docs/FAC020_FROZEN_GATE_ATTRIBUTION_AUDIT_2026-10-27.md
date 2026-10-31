@@ -1,0 +1,15 @@
+# FAC020 frozen-gate attribution and export-integrity audit — 2026-10-27
+
+**Status: arithmetic audit only; no new market replays, no new parameter searches, no new independent hypotheses.** This independent pass used the already exported FAC020 2012 and 2013 annual CSVs and the 12,288-row combined CSV. Source of original exports: previously SHA-verified private Gold ZIP, not redistributed. The audit is reproducible with `python -m scripts.audit_fac020_gate --fac020-export-zip <existing FAC020 result ZIP> --output <new JSON path>`. It refuses to overwrite an existing report.
+
+## Verified from the existing exports
+
+- 12,288 correlated exit/entry parameter specifications, **192 entry-rule groups** (not 12,288 independent hypotheses); 24,576 previously executed active annual replays and 294,912 previously computed monthly net P/L values. **No new backtests in this audit.**
+- For each same-ID configuration, reconciled all 24 exit-booked UTC monthly net P/L values, yearly and combined net, both-year fills, exactly $0.40/oz roundtrip fees per fill, worst UTC month, maximum observed annual M1 floating drawdown, positive-month count and frozen joint-acceptance Boolean. No reconciliation mismatch at absolute tolerance 1e-7.
+- Individual frozen-gate pass counts among the 12,288 specs: **>=18/24 positive months: 4**; **>=100 fills in each year: 9,848**; **positive net in both years: 111**; **worst month >= -$20/oz: 2,354**; **max annual observed floating DD <= $100/oz: 3,912**. **All five together: 0**.
+- Only **4** specs reach 18+ months, all from **two closely related** M15 variance-ratio reversal entry-rule IDs, not independent discoveries. Their fills/year are (80,101), (79,98), (65,80), (64,77); all fail the >=100 fills/year frozen requirement. Three fail *only* the fills gate, and one fails fills and worst-month gate. The best 19/24 setting remains **REJECT**, +$108.155/oz after $72.40 fees, worst month -$11.6575/oz and observed floating DD $27.325/oz; do not retune.
+- **5** specs pass all frozen conditions except the positive-month gate; this does not qualify them and does not authorize changing the frozen threshold. All 12,288 combined acceptance flags reconcile to the frozen screen.
+
+## Integrity and limits
+
+New script `scripts/audit_fac020_gate.py` and 10 synthetic tests in `tests/test_audit_fac020_gate.py` reject duplicate IDs, cross-year missing IDs, mismatched rule IDs, incorrect fee/net/monthly/DD fields, nonfinite trades, and inconsistent acceptance flags. The script does not read or upload raw BID/ASK quotes, does not validate the canonical execution engine, and does not prove prospective monthly returns. Both years are historically exposed, multiple testing is substantial, and a single-parameter one-slot replay cannot substitute for an actual shared-capacity multi-strategy portfolio. The project PR remains Draft and unmerged. Factory totals stay **614,956 active annual M1 replays** and **7,379,472 monthly values**; corrected active distinct parameter specs **312,924**.

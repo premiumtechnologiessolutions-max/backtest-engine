@@ -1,0 +1,9 @@
+# FAC025 canonical closed-trade receipt / fee reconciliation — 2026-10-29
+
+**Software-only causal-risk integrity work; NOT a strategy batch, new P/L, independent OOS, or proof of live fills.** FAC025 still has one preregistered hypothesis and 72 correlated settings, zero completed original-source backtests, and no accepted strategy.
+
+The optional `scripts/research_fac025_canonical_receipts.py` bridges the existing paired BID/ASK receipt gate to the canonical **15-field closed-trade ledger plus an explicit independently supplied `confirmed_at`** timestamp. It fails closed on missing or extra fields, non-UTC/late confirmations, noncausal or unordered fills, invalid side/price/stop/target/gap/exit-reason geometry, boolean/nonfinite values, and arithmetic inconsistencies. Gross P/L is recomputed from signed entry-to-exit price movement and ounces; roundtrip cost is **exactly $0.40 per ounce ALL-IN**; net P/L is recomputed and normalized to USD/oz before the preknown New York-day loss halt. Both reported and recomputed gross, fee and net must match within $1e-7 absolute tolerance. No alternative fee is configurable.
+
+Synthetic tests cover valid stop/gap-stop and rejected price/reason contracts, accounting mismatches, late receipt, and bridge propagation into the frozen session gate. Existing canonical market execution, one-position capacity, stop-first, adverse gap-through, missing M1 and fee policies remain unchanged.
+
+**Critical limit:** caller-supplied `confirmed_at` is not independently authenticated; matching 15-field arithmetic does not prove original ZIP, broker execution, or that a closed trade was actually received then. Historical 2012–2016 are exposed; actual source-pinned portfolio replay and independent prospective/embargo validation remain pending. No raw Gold ZIP or quotes are committed. PR #1 remains Draft/unmerged; no live MT5, privacy, billing or repository-visibility changes.

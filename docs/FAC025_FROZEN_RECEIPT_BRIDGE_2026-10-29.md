@@ -1,0 +1,9 @@
+# FAC025 frozen filter ↔ canonical BID/ASK receipt integration (2026-10-29)
+
+**Scope:** software integration only; **0 new original-source backtests, 0 new monthly P/L observations, no new floating M1 drawdown, 0 approved strategies**. This is **one hypothesis with 72 correlated parameter settings**, not 72 independent discoveries.
+
+`scripts/research_fac025_frozen_receipt_bridge.py` binds each preregistered `FAC025-001`…`072` ID and SHA256 fingerprint to the existing receipt-stamped BID/ASK, canonical closed-trade fee and causal M15/New-York-session gates. The frozen decimal strings are converted to numeric gate inputs only **after** validation of the exact frozen parameter dictionary and its ID. Arbitrary parameter overrides, posthoc extra fields, ID/fingerprint mismatches, crossed quote sides, late receipts and noncanonical trade costs fail closed.
+
+Synthetic regression tests in `tests/test_research_fac025_frozen_receipt_bridge.py` exercise all 72 settings, distinct preregistered daily-loss thresholds, tampering, incomplete M1 and stale quote receipts. This bridge **does not authenticate** caller-provided receipt times or source quotes, define entry/exit signals, execute positions, resolve competing signals, measure shared portfolio capacity, or certify OOS performance. Passing the gate means **research filter eligibility only**.
+
+The previously frozen grid and its SHA256 manifest remain unchanged. Historical FAC023 rejection and registry backtest totals are unchanged. To produce FAC025 trading results, separately preregister a fixed entry/exit policy and one-slot execution priority, then use the private SHA-pinned Gold archive for original-source replay, canonical trade/equity parity, after-fee monthly downside and true shared-capacity risk; prospective OOS with embargo remains mandatory. Keep PR #1 Draft/unmerged; never publish raw BID/ASK M1.

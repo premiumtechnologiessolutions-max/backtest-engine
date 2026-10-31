@@ -1,0 +1,21 @@
+{
+  "status": "PASSED",
+  "method": "independent arithmetic from saved trade ledgers plus original annual BID closes and OHLC",
+  "trades_reconciled": 172,
+  "m1_marks_reconciled": 1765104,
+  "exit_price_ohlc_checks": 172,
+  "observed_held_m1_samples": 124,
+  "max_realized_error": 1.4210854715202004e-14,
+  "max_floating_error": 8.326672684688674e-17,
+  "max_equity_error": 1.4210854715202004e-14,
+  "period_pnl_max_errors": {
+    "monthly": 8.881784197001252e-16,
+    "weekly": 6.661338147750939e-16
+  },
+  "fixed_fee_per_trade": 0.4,
+  "total_fees": 68.79999999999998,
+  "annual_source_fingerprints_rechecked": true,
+  "later_periods_loaded": false,
+  "signal_generation_rerun": false,
+  "strategy_execution_rerun": false
+}

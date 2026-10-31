@@ -1,0 +1,696 @@
+"""Offline frozen batch research orchestration. No trading, broker access, or OOS claims."""
+from __future__ import annotations
+
+import argparse
+from contextlib import contextmanager
+import csv
+from datetime import date
+import hashlib
+from html import escape
+from itertools import product
+import json
+import math
+import os
+import stat
+import tempfile
+from pathlib import Path
+import re
+import subprocess
+import sys
+
+try:
+    import fcntl
+except ImportError:
+    fcntl = None
+
+try:
+    import msvcrt  # Windows nonblocking byte-range locks
+except ImportError:
+    msvcrt = None
+
+from norisk_quant.evidence_reconciliation import verify_exit_periods
+from norisk_quant.model import Settings, serialize_settings
+from norisk_quant.quote_stress import qs01_settings
+
+try:
+    from scripts.research_terminal_export import write_private_html
+except ModuleNotFoundError as exc:
+    if exc.name != "scripts":
+        raise
+    from research_terminal_export import write_private_html
+
+SCHEMA = "NRFX_FROZEN_BATCH_V1"
+PASSED = "ACCOUNTING_RECONCILED_HISTORICAL_EXPOSED_NOT_OOS"
+HEX40 = re.compile(r"[0-9a-f]{40}\Z")
+HEX64 = re.compile(r"[0-9a-f]{64}\Z")
+JOB_ID = re.compile(r"[a-z][a-z0-9-]{0,47}\Z")
+STRATEGY_PARAMS = {
+    "ema": {"fast", "slow", "stop_atr", "rr"},
+    "donchian": {"donchian_lookback", "stop_usd", "target_usd"},
+    "fvg": {"fvg_min_gap_usd", "fvg_stop_buffer_usd", "fvg_rr", "fvg_expiry_hours"},
+    "bos-fib": {"bos_pivot_left", "bos_pivot_right", "bos_fib_entry",
+                "bos_zone_lower", "bos_zone_upper",
+                "bos_rr", "bos_stop_buffer_usd", "bos_min_break_usd",
+                "bos_min_impulse_usd", "bos_expiry_minutes",
+                "bos_min_gross_reward_fee_multiple"},
+    "qs01": set(),
+    "tf-sweep": {"tf_sweep_lookback_bars", "tf_sweep_penetration_usd",
+                 "tf_sweep_stop_buffer_usd", "tf_sweep_reward_risk",
+                 "tf_sweep_min_stop_usd", "tf_sweep_max_stop_usd"},
+    "m1-sweep": {"sweep_lookback", "sweep_min_excess_usd",
+                 "sweep_reclaim_usd", "sweep_stop_buffer_usd",
+                 "sweep_reward_risk", "sweep_max_stop_usd"},
+}
+INT_PARAMS = {"fast", "slow", "donchian_lookback", "bos_pivot_left",
+              "bos_pivot_right", "bos_expiry_minutes", "sweep_lookback",
+              "tf_sweep_lookback_bars"}
+BASE = {"strategy", "timeframe", "execution", "start", "end"}
+
+
+def canonical(obj: object) -> bytes:
+    return json.dumps(obj, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
+
+
+def file_sha(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+
+def read_strict_json(path: Path) -> object:
+    """Fail closed on ambiguous frozen JSON keys, constants, and symlinks.
+
+    Applies to plans, summary evidence and resumable batch manifests.
+    Standard json.load silently overwrites duplicate object keys and accepts
+    NaN/Infinity extensions, neither of which belongs in frozen evidence.
+    """
+    path = Path(path)
+    if path.is_symlink() or not path.is_file():
+        raise ValueError("Missing or unsafe research JSON")
+
+    def unique_keys(pairs: list[tuple[str, object]]) -> dict:
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("Duplicate research JSON key")
+            result[key] = value
+        return result
+
+    def reject_constant(value: str) -> object:
+        raise ValueError("Nonfinite research JSON constant: " + value)
+
+    def finite_float(value: str) -> float:
+        # JSON 1e999 is syntactically valid: json.load turns it into inf
+        # without invoking parse_constant. Never admit overflowed evidence.
+        number = float(value)
+        if not math.isfinite(number):
+            raise ValueError("Nonfinite research JSON numeric literal: " + value)
+        return number
+
+    try:
+        with path.open("r", encoding="utf-8") as handle:
+            return json.load(handle, object_pairs_hook=unique_keys,
+                             parse_constant=reject_constant, parse_float=finite_float)
+    except (json.JSONDecodeError, UnicodeError) as exc:
+        raise ValueError("Malformed research JSON") from exc
+
+
+def check_spec(spec: object) -> dict:
+    if not isinstance(spec, dict) or set(spec) != BASE | {"parameters"}:
+        raise ValueError("Unexpected or missing strategy specification field")
+    if type(spec["strategy"]) is not str or spec["strategy"] not in STRATEGY_PARAMS:
+        raise ValueError("Unsupported research strategy")
+    if spec["timeframe"] not in ("M1", "M5", "M15", "H1", "H4"):
+        raise ValueError("Unsupported timeframe")
+    if spec["execution"] not in ("fast", "reference"):
+        raise ValueError("Unsupported execution")
+    if spec["strategy"] in ("fvg", "bos-fib") and spec["execution"] != "reference":
+        raise ValueError("Limit execution is reference-only")
+    if spec["strategy"] == "tf-sweep" and spec["timeframe"] not in ("M15", "H1"):
+        raise ValueError("TF sweep research requires M15 or H1")
+    if spec["strategy"] in ("bos-fib", "qs01", "m1-sweep") and spec["timeframe"] != "M1":
+        raise ValueError("Frozen strategy requires M1")
+    for field in ("start", "end"):
+        if type(spec[field]) is not str or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", spec[field]):
+            raise ValueError("Invalid YYYY-MM-DD date")
+        date.fromisoformat(spec[field])
+    if spec["start"] > spec["end"]:
+        raise ValueError("Chronologically reversed window")
+    params = spec["parameters"]
+    if not isinstance(params, dict) or not set(params).issubset(STRATEGY_PARAMS[spec["strategy"]]):
+        raise ValueError("Unsupported strategy parameters")
+    for name, value in params.items():
+        if type(value) not in (int, float) or not math.isfinite(value):
+            raise ValueError("Parameter must be a finite real number, not boolean")
+        if name in INT_PARAMS and (type(value) is not int or value < 1):
+            raise ValueError("Parameter requires positive integer")
+        if name not in INT_PARAMS and (value < 0 if name == "bos_min_gross_reward_fee_multiple" else value <= 0):
+            raise ValueError("Parameter must be nonnegative or positive")
+    if spec["strategy"] == "ema" and params.get("fast", 9) >= params.get("slow", 21):
+        raise ValueError("EMA fast must be below slow")
+    if spec["strategy"] == "tf-sweep":
+        if params.get("tf_sweep_lookback_bars", 12) < 3:
+            raise ValueError("TF sweep lookback must be >=3")
+        if params.get("tf_sweep_min_stop_usd", 0.50) > params.get("tf_sweep_max_stop_usd", 50.0):
+            raise ValueError("TF sweep minimum stop exceeds maximum")
+    if spec["strategy"] == "m1-sweep":
+        if params.get("sweep_lookback", 20) < 3:
+            raise ValueError("M1 sweep lookback must be >=3")
+        if params.get("sweep_stop_buffer_usd", 0.10) > params.get("sweep_max_stop_usd", 20.0):
+            raise ValueError("Sweep stop buffer cannot exceed max stop")
+    if spec["strategy"] == "bos-fib":
+        lower, entry, upper = (params.get("bos_zone_lower", 0.618),
+                               params.get("bos_fib_entry", 0.618),
+                               params.get("bos_zone_upper", 0.786))
+        if not (0 < lower <= entry <= upper < 1):
+            raise ValueError("BOS fib entry must lie within the declared research zone")
+    return spec
+
+
+def expand(plan: dict, *, limit: int = 50000) -> tuple[list[dict], str]:
+    if not isinstance(plan, dict) or set(plan) != {
+        "schema", "dataset", "source_sha256", "engine_commit",
+        "exposure_context", "jobs", "grids",
+    }:
+        raise ValueError("Unexpected frozen plan schema")
+    if plan["schema"] != SCHEMA or plan["exposure_context"] != "historical_exposed":
+        raise ValueError("Historical exposed research only")
+    if type(plan["dataset"]) is not str or not Path(plan["dataset"]).is_absolute():
+        raise ValueError("Dataset must be an absolute private local file")
+    if type(plan["source_sha256"]) is not str or not HEX64.fullmatch(plan["source_sha256"]):
+        raise ValueError("Original data SHA256 required")
+    if type(plan["engine_commit"]) is not str or not HEX40.fullmatch(plan["engine_commit"]):
+        raise ValueError("Full Git commit required")
+    if not isinstance(plan["jobs"], list) or not isinstance(plan["grids"], list):
+        raise ValueError("Jobs and grids must be arrays")
+    if type(limit) is not int or not 1 <= limit <= 50000:
+        raise ValueError("Invalid limit")
+    jobs = []
+    ids = set()
+    # One exact frozen specification is one backtest, regardless of its label.
+    # This does not claim that different parameter sets are independent hypotheses.
+    seen_specs: dict[str, str] = {}
+
+    def add(ident: str, spec: dict):
+        if type(ident) is not str or not JOB_ID.fullmatch(ident):
+            raise ValueError("Unsafe job ID")
+        if ident in ids or len(jobs) >= limit:
+            raise ValueError("Duplicate ID or batch expansion cap reached")
+        validated = check_spec(spec)
+        fingerprint = hashlib.sha256(canonical(validated)).hexdigest()
+        if fingerprint in seen_specs:
+            raise ValueError(
+                "Duplicate frozen strategy specification: "
+                + seen_specs[fingerprint] + " and " + ident
+            )
+        seen_specs[fingerprint] = ident
+        ids.add(ident)
+        jobs.append({"id": ident, "spec": validated})
+
+    for item in plan["jobs"]:
+        if not isinstance(item, dict) or set(item) != BASE | {"parameters", "id"}:
+            raise ValueError("Invalid individual experiment")
+        add(item["id"], {k: item[k] for k in BASE | {"parameters"}})
+    for grid in plan["grids"]:
+        if not isinstance(grid, dict) or set(grid) != BASE | {"grid", "id_prefix"}:
+            raise ValueError("Invalid frozen parameter grid")
+        dimensions = grid["grid"]
+        if (type(grid["strategy"]) is not str
+                or grid["strategy"] not in STRATEGY_PARAMS
+                or not isinstance(dimensions, dict) or not dimensions
+                or not set(dimensions).issubset(STRATEGY_PARAMS[grid["strategy"]])):
+            raise ValueError("Unsupported grid dimensions")
+        keys = sorted(dimensions)
+        values = []
+        count = 1
+        for key in keys:
+            arr = dimensions[key]
+            if not isinstance(arr, list) or not arr:
+                raise ValueError("Empty grid axis")
+            count *= len(arr)
+            if len(jobs) + count > limit:
+                raise ValueError("Grid exceeds expansion cap")
+            values.append(arr)
+        for combination in product(*values):
+            spec = {k: grid[k] for k in BASE}
+            spec["parameters"] = dict(zip(keys, combination))
+            check_spec(spec)
+            suffix = hashlib.sha256(canonical(spec)).hexdigest()[:12]
+            add(grid["id_prefix"] + "-" + suffix, spec)
+    if not jobs:
+        raise ValueError("Empty frozen research plan")
+    return jobs, hashlib.sha256(canonical(plan)).hexdigest()
+
+
+def expected_months(first: str, last: str) -> list[str]:
+    a, b = date.fromisoformat(first), date.fromisoformat(last)
+    year, month = a.year, a.month
+    result = []
+    while (year, month) <= (b.year, b.month):
+        result.append(f"{year:04d}-{month:02d}")
+        month += 1
+        if month == 13:
+            year, month = year + 1, 1
+    return result
+
+
+def finite(value: object, *, nonnegative: bool = False) -> float:
+    if type(value) not in (int, float, str):
+        raise ValueError("Invalid report numeric field")
+    try:
+        result = float(value)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise ValueError("Malformed numeric value") from exc
+    if not math.isfinite(result) or (nonnegative and result < 0):
+        raise ValueError("Nonfinite or negative report value")
+    return result
+
+
+def count(value: object) -> int:
+    if type(value) is int and value >= 0:
+        return value
+    if type(value) is str and re.fullmatch(r"(?:0|[1-9]\d*)", value):
+        return int(value)
+    raise ValueError("Invalid nonnegative integer report field")
+
+
+def same(a: float, b: float) -> bool:
+    """Absolute accounting tolerance; large P/L must not mask material drift."""
+    return math.isfinite(a) and math.isfinite(b) and abs(a - b) <= 1e-6
+
+
+def read_ledger_csv(path: Path) -> list[dict[str, str]]:
+    """Reject ambiguous headers, ragged rows and symlinked frozen CSV ledgers.
+
+    csv.DictReader otherwise silently overwrites duplicate column names and
+    puts overflow cells under a None key, hiding contradictory evidence.
+    """
+    if path.is_symlink() or not path.is_file():
+        raise ValueError("Missing or unsafe ledger CSV")
+    with path.open(newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        names = reader.fieldnames
+        if (not names or len(names) != len(set(names))
+                or any(not name or name.strip() != name for name in names)):
+            raise ValueError("Duplicate or invalid ledger CSV header")
+        rows = list(reader)
+    if any(None in row or any(value is None for value in row.values()) for row in rows):
+        raise ValueError("Ragged ledger CSV row")
+    return rows
+
+
+def audit_run(folder: Path, spec: dict, source_sha: str, engine_sha: str) -> dict:
+    """Reconcile actual engine output without certifying broker execution."""
+    summary_path = folder / "summary.json"
+    if summary_path.is_symlink() or not summary_path.is_file():
+        raise ValueError("Missing or unsafe summary JSON")
+    summary = read_strict_json(summary_path)
+    rows = read_ledger_csv(folder / "monthly.csv")
+    if not isinstance(summary, dict) or not rows:
+        raise ValueError("Missing evidence")
+    if summary.get("execution") != "synthetic_same_reference_bid_ohlc_fixed_all_in_fee":
+        raise ValueError("Unknown execution mode")
+    settings = summary.get("settings")
+    if not isinstance(settings, dict) or finite(settings.get("roundtrip_cost_per_ounce")) != 0.40:
+        raise ValueError("Research transaction cost mismatch")
+    # The frozen CLI command declares exactly one ounce, with no unrecorded
+    # holding/entry-delay/forced-close overrides. A correct fee alone cannot
+    # attest that the accepted experiment used the canonical execution policy.
+    # QS01 is the sole intentionally different frozen execution preset.
+    expected_settings = serialize_settings(
+        qs01_settings() if spec["strategy"] == "qs01" else Settings()
+    )
+    if canonical(settings) != canonical(expected_settings):
+        raise ValueError("Frozen execution settings differ from canonical one-ounce preset")
+    provenance = summary.get("source_fingerprints")
+    if (not isinstance(provenance, dict)
+            or provenance.get("source_file_sha256") != source_sha
+            or provenance.get("git_revision_env") != engine_sha
+            or type(provenance.get("loaded_m1_bidask_sha256")) is not str
+            or not HEX64.fullmatch(provenance["loaded_m1_bidask_sha256"])):
+        raise ValueError("Source/code/M1 fingerprint mismatch")
+    actual = summary.get("run_parameters")
+    if not isinstance(actual, dict):
+        raise ValueError("No recorded CLI parameters")
+    for field in BASE:
+        if actual.get(field) != spec[field]:
+            raise ValueError(f"Recorded run setting differs: {field}")
+    for key, value in spec["parameters"].items():
+        if actual.get(key) != value:
+            raise ValueError(f"Recorded strategy setting differs: {key}")
+    months = expected_months(spec["start"], spec["end"])
+    if [row.get("period") for row in rows] != months:
+        raise ValueError("Monthly rows do not fully cover requested interval")
+    # Three independently emitted ledgers must reconcile before promotion.
+    weekly = read_ledger_csv(folder / "weekly.csv")
+    individual = read_ledger_csv(folder / "trades.csv")
+    if not weekly:
+        raise ValueError("Weekly evidence missing")
+    pnl, trades, fees, gaps, forced = {}, 0, 0.0, 0, 0
+    for row in rows:
+        if count(row.get("observed_m1_samples")) == 0:
+            raise ValueError("Calendar month without observed M1 cannot be certified")
+        pnl[row["period"]] = finite(row.get("net_pnl"))
+        trades += count(row.get("trades"))
+        fees += finite(row.get("total_cost"), nonnegative=True)
+        gaps += count(row.get("uncertain_gap_trades"))
+        forced += count(row.get("synthetic_end_of_data_trades"))
+    if gaps > trades or forced > trades:
+        raise ValueError("Gap or forced-close counts exceed executed trades")
+    weekly_pnl = sum(finite(row.get("net_pnl")) for row in weekly)
+    weekly_fees = sum(finite(row.get("total_cost"), nonnegative=True) for row in weekly)
+    weekly_trades = sum(count(row.get("trades")) for row in weekly)
+    trade_pnl = sum(finite(row.get("net_pnl")) for row in individual)
+    trade_fees = sum(finite(row.get("cost"), nonnegative=True) for row in individual)
+    if any(not same(finite(row.get("cost"), nonnegative=True), 0.40) for row in individual):
+        raise ValueError("Individual trade fee differs from frozen $0.40/oz model")
+    verify_exit_periods(rows, weekly, individual,
+                        first_utc_date=spec["start"], last_utc_date=spec["end"])
+    if (weekly_trades != trades or len(individual) != trades
+            or not same(weekly_pnl, sum(pnl.values()))
+            or not same(trade_pnl, sum(pnl.values()))
+            or not same(weekly_fees, fees) or not same(trade_fees, fees)):
+        raise ValueError("Weekly, monthly and individual trade ledgers disagree")
+    if (count(summary.get("trades")) != trades
+            or not same(finite(summary.get("net_pnl")), sum(pnl.values()))
+            or not same(finite(summary.get("total_fees")), fees)
+            or count(summary.get("months_observed")) != len(months)
+            or count(summary.get("positive_months")) != sum(v > 0 for v in pnl.values())
+            or count(summary.get("nonpositive_months")) != sum(v <= 0 for v in pnl.values())
+            or count(summary.get("forced_end_of_data_closures")) != forced):
+        raise ValueError("Monthly and summary accounting disagree")
+    return {
+        "status": PASSED, "trades": trades, "net_pnl": round(sum(pnl.values()), 8),
+        "total_cost": round(fees, 8), "positive_months": sum(v > 0 for v in pnl.values()),
+        "months_observed": len(months), "monthly_net_pnl": pnl,
+        "uncertain_gap_trade_month_assignments": gaps,
+        "synthetic_end_of_data_closures": forced,
+        "summary_sha256": file_sha(folder / "summary.json"),
+        "monthly_sha256": file_sha(folder / "monthly.csv"),
+        "weekly_sha256": file_sha(folder / "weekly.csv"),
+        "trades_sha256": file_sha(folder / "trades.csv"),
+    }
+
+
+def checkout_commit() -> str:
+    try:
+        result = subprocess.run([
+            "git", "-C", str(Path(__file__).resolve().parents[1]), "rev-parse", "HEAD"
+        ], check=True, capture_output=True, text=True, timeout=10).stdout.strip()
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as exc:
+        raise ValueError("Git revision unavailable") from exc
+    if not HEX40.fullmatch(result):
+        raise ValueError("Invalid Git revision")
+    try:
+        dirty = subprocess.run(
+            ["git", "-C", str(Path(__file__).resolve().parents[1]),
+             "status", "--porcelain", "--untracked-files=no"],
+            check=True, capture_output=True, text=True, timeout=10,
+        ).stdout
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as exc:
+        raise ValueError("Cannot verify checkout cleanliness") from exc
+    if dirty.strip():
+        raise ValueError("Uncommitted changes invalidate frozen engine revision")
+    # An untracked importable module can shadow frozen code without changing HEAD.
+    # Match the research-job preflight: reject untracked src/ and scripts/ files.
+    try:
+        untracked = subprocess.run(
+            ["git", "-C", str(Path(__file__).resolve().parents[1]),
+             "ls-files", "--others", "--exclude-standard", "--", "src", "scripts"],
+            check=True, capture_output=True, text=True, timeout=10,
+        ).stdout
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as exc:
+        raise ValueError("Cannot verify untracked research source cleanliness") from exc
+    if untracked.strip():
+        raise ValueError("Untracked research source invalidates frozen engine revision")
+    return result
+
+
+@contextmanager
+def exclusive_batch_lock(output: Path):
+    """Serialize real batch execution for one output directory on POSIX.
+
+    The lock is held through canonical execution, evidence reconciliation,
+    manifest publication and HTML export. Never unlink lock files: flock
+    protects the inode, and removing a held path could permit a second owner.
+    """
+    if fcntl is None and msvcrt is None:
+        raise ValueError("Batch execution requires supported file locks")
+    if output.is_symlink() or not output.is_dir():
+        raise ValueError("Unsafe batch output directory")
+    lock = output / ".research_batch.lock"
+    if lock.is_symlink():
+        raise ValueError("Unsafe batch lock symlink")
+    flags = os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0)
+    fd = os.open(lock, flags, 0o600)
+    locked = False
+    try:
+        info = os.fstat(fd)
+        if (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1
+                or info.st_size != 0
+                or (os.name == "posix" and (info.st_uid != os.getuid()
+                     or info.st_mode & 0o077))):
+            raise ValueError("Unsafe batch lock file")
+        try:
+            if os.name == "nt":
+                if msvcrt is None:
+                    raise ValueError("Windows batch lock unavailable")
+                os.lseek(fd, 0, os.SEEK_SET)
+                msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+            else:
+                if fcntl is None:
+                    raise ValueError("POSIX batch lock unavailable")
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            locked = True
+        except (BlockingIOError, OSError) as exc:
+            raise ValueError("Research batch already running for this output") from exc
+        # Detect a swapped/unlinked path before entering the critical section.
+        current = os.stat(lock, follow_symlinks=False)
+        if (lock.is_symlink() or not stat.S_ISREG(current.st_mode)
+                or (current.st_dev, current.st_ino) != (info.st_dev, info.st_ino)):
+            raise ValueError("Research batch lock path changed during acquisition")
+        yield
+    finally:
+        try:
+            if locked:
+                if os.name == "nt":
+                    os.lseek(fd, 0, os.SEEK_SET)
+                    msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+                else:
+                    fcntl.flock(fd, fcntl.LOCK_UN)
+        finally:
+            os.close(fd)
+
+
+def atomic_manifest(path: Path, data: dict) -> None:
+    """Durable private manifest replace; never follow a predictable .tmp link."""
+    if path.is_symlink() or (path.exists() and path.stat().st_nlink != 1):
+        raise ValueError("Unsafe batch manifest target")
+    payload = canonical(data) + b"\n"
+    fd, staging = tempfile.mkstemp(prefix=".batch-manifest-", suffix=".tmp",
+                                  dir=path.parent)
+    try:
+        with os.fdopen(fd, "wb") as stream:
+            stream.write(payload)
+            stream.flush()
+            os.fsync(stream.fileno())
+        if path.is_symlink() or (path.exists() and path.stat().st_nlink != 1):
+            raise ValueError("Unsafe batch manifest target")
+        os.replace(staging, path)
+        # Windows cannot os.open() an ordinary directory descriptor.
+        # The atomic replace is retained; POSIX additionally fsyncs directory.
+        if os.name == "posix":
+            dir_fd = os.open(path.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+            try:
+                os.fsync(dir_fd)
+            finally:
+                os.close(dir_fd)
+    finally:
+        if os.path.exists(staging):
+            os.unlink(staging)
+
+
+def render_index(manifest: dict) -> str:
+    months = sorted({m for rec in manifest["results"].values()
+                     if rec.get("status") == PASSED for m in rec["monthly_net_pnl"]})
+    heads = "".join("<th>" + escape(m) + "</th>" for m in months)
+    body = []
+    for name, rec in sorted(manifest["results"].items()):
+        cells = []
+        for month in months:
+            value = rec.get("monthly_net_pnl", {}).get(month)
+            if value is None:
+                cells.append("<td>—</td>")
+            else:
+                color = "gain" if value > 0 else "loss" if value < 0 else ""
+                cells.append('<td class="' + color + '">' + f"{value:+,.2f}" + "</td>")
+        links = "—"
+        if rec.get("status") == PASSED:
+            links = (f'<a href="runs/{name}/monthly.csv">monthly</a> · '
+                     f'<a href="runs/{name}/weekly.csv">weekly</a> · '
+                     f'<a href="runs/{name}/summary.json">audit</a>')
+        body.append("<tr><th>" + escape(name) + "</th><td>"
+                    + escape(rec["status"]) + "</td><td>" + links + "</td>"
+                    + "".join(cells) + "</tr>")
+    return ('<!doctype html><html lang="en"><head><meta charset="utf-8">'
+            '<meta name="viewport" content="width=device-width,initial-scale=1">'
+            '<title>No Risk FX | Historical Quant Research</title>'
+            '<style>:root{color-scheme:dark;font-family:system-ui;background:#071526;color:#eaf0fb}'
+            'body{padding:clamp(14px,3vw,42px)}h1{color:#e2c184}'
+            'p{line-height:1.6;color:#c0cad8;max-width:1000px}'
+            '.wrap{overflow:auto;border:1px solid #334761;border-radius:12px}'
+            'table{border-collapse:collapse;width:100%;white-space:nowrap}'
+            'th,td{padding:12px;text-align:right;border-bottom:1px solid #273b50}'
+            'th:first-child{text-align:left}.gain{color:#8cdfbb}'
+            '.loss{color:#f3aaaa}a{color:#b6dcff}</style></head><body>'
+            '<h1>NO RISK FX · Monthly Research Evidence</h1>'
+            '<p>Local historical-exposed research only, NOT independent OOS or broker fills. '
+            'P/L is net for 1 oz synthetic XAUUSD position with 0.40 USD/oz '
+            'all-in roundtrip costs. Forced end-of-data trades and gap exposures '
+            'require inspection. Every accepted row is reconciled to engine reports.</p>'
+            '<div class="wrap"><table><thead><tr><th>Research job</th><th>Status</th>'
+            '<th>Reports</th>' + heads + '</tr></thead><tbody>'
+            + "".join(body) + '</tbody></table></div></body></html>')
+
+
+def run_plan(plan: dict, output: Path, *, max_jobs: int = 20, dry_run: bool = False,
+             recover_verified_orphans: bool = False) -> dict:
+    """Resume frozen batches; orphan recovery requires explicit opt-in and full audit."""
+    jobs, plan_sha = expand(plan)
+    if type(recover_verified_orphans) is not bool:
+        raise ValueError("Orphan recovery flag must be boolean")
+    if type(max_jobs) is not int or not 1 <= max_jobs <= 500:
+        raise ValueError("Per-invocation job cap is 1..500")
+    if dry_run:
+        return {"status": "DEFINED_ONLY_NO_BACKTEST", "jobs": len(jobs),
+                "plan_sha256": plan_sha, "budget": max_jobs}
+    dataset = Path(plan["dataset"]).resolve(strict=True)
+    if not dataset.is_file() or file_sha(dataset) != plan["source_sha256"]:
+        raise ValueError("Original private source archive SHA256 mismatch")
+    revision = checkout_commit()
+    if revision != plan["engine_commit"]:
+        raise ValueError("Current checkout differs from frozen engine revision")
+    if output.is_symlink():
+        raise ValueError("Unsafe batch output symlink")
+    output = output.resolve()
+    output.mkdir(parents=True, exist_ok=True)
+    with exclusive_batch_lock(output):
+        manifest_path = output / "batch_manifest.json"
+        if manifest_path.is_symlink():
+            raise ValueError("Unsafe batch manifest symlink")
+        if manifest_path.exists():
+            manifest = read_strict_json(manifest_path)
+            if (not isinstance(manifest, dict)
+                    or set(manifest) != {"schema", "plan_sha256", "source_sha256", "engine_commit", "results"}
+                    or manifest["schema"] != SCHEMA
+                    or manifest["plan_sha256"] != plan_sha
+                    or manifest["source_sha256"] != plan["source_sha256"]
+                    or manifest["engine_commit"] != revision
+                    or not isinstance(manifest["results"], dict)):
+                raise ValueError("Existing output has incompatible plan/commit")
+        else:
+            manifest = {"schema": SCHEMA, "plan_sha256": plan_sha,
+                        "source_sha256": plan["source_sha256"],
+                        "engine_commit": revision, "results": {}}
+        known_ids = {j["id"] for j in jobs}
+        if not set(manifest["results"]).issubset(known_ids):
+            raise ValueError("Manifest contains unrecognized experiment identifiers")
+        launched = 0
+        recovered = 0
+        runs_root = output / "runs"
+        if runs_root.is_symlink() or (runs_root.exists() and not runs_root.is_dir()):
+            raise ValueError("Unsafe research runs directory")
+        for job in jobs:
+            ident, spec = job["id"], job["spec"]
+            folder = runs_root / ident
+            if folder.is_symlink():
+                raise ValueError("Unsafe experiment directory symlink")
+            existing = manifest["results"].get(ident)
+            if existing is not None:
+                if existing.get("status") != PASSED:
+                    raise ValueError("A failed run requires manual investigation")
+                if audit_run(folder, spec, plan["source_sha256"], revision) != existing:
+                    raise ValueError("Previously accepted evidence was modified")
+                continue
+            if folder.exists():
+                if not folder.is_dir():
+                    raise ValueError("Unsafe experiment output path")
+                if any(folder.iterdir()):
+                    if not recover_verified_orphans:
+                        raise ValueError("Unknown existing run output requires inspection")
+                    # An interrupted process may finish canonical report files
+                    # before its manifest record is durably published. Re-admit
+                    # ONLY complete, exactly source/commit/spec-reconciled
+                    # evidence. Never infer success from a folder's existence.
+                    try:
+                        recovered_record = audit_run(
+                            folder, spec, plan["source_sha256"], revision)
+                    except (ValueError, OSError, FileNotFoundError, KeyError) as exc:
+                        raise ValueError(
+                            "Orphaned run failed canonical evidence audit; "
+                            "manual investigation required") from exc
+                    manifest["results"][ident] = recovered_record
+                    atomic_manifest(manifest_path, manifest)
+                    recovered += 1
+                    continue
+            if launched >= max_jobs:
+                break
+            folder.mkdir(parents=True, exist_ok=True)
+            cmd = [sys.executable, "-m", "norisk_quant.cli", "backtest",
+                   "--data", str(dataset), "--start", spec["start"], "--end", spec["end"],
+                   "--out", str(folder), "--strategy", spec["strategy"],
+                   "--timeframe", spec["timeframe"], "--execution", spec["execution"],
+                   "--ounces", "1", "--all-in-cost-per-ounce", "0.40"]
+            for key, value in sorted(spec["parameters"].items()):
+                cmd += ["--" + key.replace("_", "-"), str(value)]
+            env = dict(os.environ, GITHUB_SHA=revision)
+            try:
+                subprocess.run(cmd, check=True, capture_output=True, text=True,
+                               timeout=7200, env=env)
+                record = audit_run(folder, spec, plan["source_sha256"], revision)
+            except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError,
+                    ValueError, FileNotFoundError, KeyError) as exc:
+                manifest["results"][ident] = {
+                    "status": "FAILED_REQUIRES_INVESTIGATION", "error_type": type(exc).__name__
+                }
+                atomic_manifest(manifest_path, manifest)
+                raise RuntimeError("A backtest failed verification: " + ident) from exc
+            manifest["results"][ident] = record
+            atomic_manifest(manifest_path, manifest)
+            launched += 1
+        index = output / "research_batch_index.html"
+        # Monthly results and local evidence links are private by default.
+        # Never follow a pre-planted HTML symlink or expose under a loose umask.
+        write_private_html(index, render_index(manifest))
+        return {
+            "status": "HISTORICAL_RESEARCH_ONLY", "defined_jobs": len(jobs),
+            "reconciled_jobs": sum(
+                rec.get("status") == PASSED for rec in manifest["results"].values()),
+            "executed_this_invocation": launched,
+            "recovered_verified_orphans": recovered, "plan_sha256": plan_sha,
+            "index": str(index),
+        }
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--plan", required=True, type=Path)
+    parser.add_argument("--out", required=True, type=Path)
+    parser.add_argument("--max-jobs", type=int, default=20)
+    parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--recover-verified-orphans", action="store_true",
+        help="Opt in to canonical re-audit of complete unmanifested run outputs")
+    args = parser.parse_args(argv)
+    plan = read_strict_json(args.plan)
+    print(json.dumps(run_plan(
+        plan, args.out, max_jobs=args.max_jobs, dry_run=args.dry_run,
+        recover_verified_orphans=args.recover_verified_orphans), indent=2))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

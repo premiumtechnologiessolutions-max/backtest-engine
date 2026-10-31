@@ -1,0 +1,114 @@
+name: Engine quality gates
+
+# Full repository verification runs on Draft PR updates as well as explicit
+# dispatch. No raw quotes, private ZIPs, broker credentials or live trading.
+# Do not mistake synthetic CI for original-source parity or independent OOS.
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quant-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          # Match the Python minor version of the audited 2026-10-25 local snapshot.
+          python-version: "3.12"
+      - name: Install project and constrained test dependencies
+        run: python -m pip install -c constraints-ci.txt -e ".[dev]"
+      - name: Record environment and check dependency compatibility
+        run: |
+          python --version
+          python -m pip freeze
+          python -m pip check
+      - name: Compile all Python modules
+        run: python -m compileall -q src tests scripts
+      - name: Run the complete repository test suite
+        run: python -m pytest -q
+      - name: CLI smoke test
+        run: |
+          norisk --help
+          norisk backtest --help
+          norisk audit-gaps --help
+      - name: End-to-end CLI test using synthetic M1 only
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, math, os, zipfile
+          from datetime import datetime, timedelta, timezone
+          from pathlib import Path
+          archive = Path(os.environ["RUNNER_TEMP"]) / "SYNTHETIC_NOT_REAL_GOLD.zip"
+          start = datetime(2024, 1, 8, tzinfo=timezone.utc)
+          rows = []
+          for i in range(840):
+              phase = i * 2 * math.pi / 65
+              op = 2000 + 4 * math.sin(phase)
+              cl = op + .15 * math.cos(phase)
+              rows.append(dict(ts=int((start + timedelta(minutes=i)).timestamp()),
+                  o=op, h=max(op, cl)+.5, l=min(op, cl)-.5, c=cl,
+                  ao=op+.4, ah=max(op, cl)+.9, al=min(op, cl)-.1, ac=cl+.4, v=1))
+          with zipfile.ZipFile(archive, "w") as out:
+              out.writestr("2024.json", json.dumps(rows))
+          PY
+          for mode in reference fast; do
+            norisk backtest --data "$RUNNER_TEMP/SYNTHETIC_NOT_REAL_GOLD.zip" \
+              --start 2024-01-08 --end 2024-01-08 \
+              --out "$RUNNER_TEMP/$mode" --strategy ema --timeframe M1 \
+              --fast 5 --slow 15 --stop-atr 1 --rr 1 \
+              --ounces 1 --all-in-cost-per-ounce 0.40 --execution "$mode" > /dev/null
+          done
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          import pandas as pd
+          root = Path(os.environ["RUNNER_TEMP"])
+          summaries, ledgers = [], []
+          for mode in ("reference", "fast"):
+              folder = root / mode
+              summary = json.loads((folder / "summary.json").read_text())
+              trades = pd.read_csv(folder / "trades.csv")
+              assert len(trades) == summary["trades"] and len(trades) > 0
+              assert abs(summary["total_fees"] - .4 * len(trades)) < 1e-7
+              assert abs(summary["net_pnl"] - trades["net_pnl"].sum()) < 1e-7
+              assert (trades["cost"] == .4).all()
+              for period in ("monthly", "weekly"):
+                  df = pd.read_csv(folder / f"{period}.csv")
+                  assert abs(df["net_pnl"].sum() - summary["net_pnl"]) < 1e-7
+              assert summary["source_fingerprints"]["loaded_m1_rows"] == 840
+              summaries.append(summary)
+              ledgers.append(trades)
+          pd.testing.assert_frame_equal(ledgers[0], ledgers[1], check_dtype=False,
+                                        check_exact=False, atol=1e-7, rtol=0)
+          assert abs(summaries[0]["net_pnl"] - summaries[1]["net_pnl"]) < 1e-7
+          print(f"e2e PASS: {summaries[0]['trades']} synthetic trades, "
+                f"net={summaries[0]['net_pnl']:.5f}, fee=$0.40/oz/cycle, "
+                "reference-fast parity verified")
+          PY
+      - name: Package public source snapshot for offline private-data verification
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: verified-code-${{ github.sha }}
+          path: |
+            src/
+            scripts/
+            tests/
+            research/
+            pyproject.toml
+            constraints-ci.txt
+            README.md
+          retention-days: 1
+          if-no-files-found: error
+# Do not upload raw Gold data, historical quotes, or secrets.
