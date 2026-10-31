@@ -43,23 +43,31 @@ def allow_portfolio_entry(
     open_positions = 0
     realized_today = 0.0
     previous_entry = None
+    # Validate historical capacity too: an already overfilled ledger cannot be
+    # treated as proof that the current entry is safe.
+    observed_exits: list[datetime | None] = []
     for entry, exit_time, net in trades:
         start = _utc(entry)
         if start >= now or (previous_entry is not None and start < previous_entry):
             raise ValueError("entries must be past-only and chronological")
         previous_entry = start
+        active_at_entry = sum(end is None or end > start for end in observed_exits)
+        if active_at_entry >= max_open_positions:
+            raise ValueError("historical trade ledger exceeds shared capacity")
         if start.date() == now.date():
             daily_entries += 1
         if exit_time is None:
             if net is not None:
                 raise ValueError("open trade cannot have realized P/L")
             open_positions += 1
+            observed_exits.append(None)
             continue
         end = _utc(exit_time)
         if end < start or end >= now:
             raise ValueError("exit must be observed after entry and before decision")
         if isinstance(net, bool) or not isinstance(net, (int, float)) or not isfinite(net):
             raise ValueError("closed trade requires finite realized net P/L")
+        observed_exits.append(end)
         if end.date() == now.date():
             realized_today += net
 
