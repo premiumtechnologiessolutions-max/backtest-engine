@@ -24,6 +24,8 @@ class SweepSignal:
 
 def detect_liquidity_sweeps(bars):
     """Signal only; next contiguous M1 open. Does NOT implement position management."""
+    # Materialize once: generators must not disappear before the M5 aggregation pass.
+    bars = list(bars)
     previous = None
     by_time = {}
     for b in bars:
