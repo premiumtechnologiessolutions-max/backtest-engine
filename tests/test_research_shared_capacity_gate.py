@@ -48,3 +48,23 @@ def test_invalid_limits_fail_closed():
                               max_daily_entries=True)
     with pytest.raises(ValueError):
         gate(t(31, 12), [], max_open_positions=0)
+
+
+def test_rejects_historical_over_capacity_even_when_all_positions_closed():
+    trades = [(t(31, 8), t(31, 10), 1.0),
+              (t(31, 9), t(31, 11), 1.0)]
+    with pytest.raises(ValueError, match="exceeds shared capacity"):
+        gate(t(31, 12), trades)
+    assert gate(t(31, 12), trades, max_open_positions=2) is False  # daily entries cap
+
+
+def test_exit_at_next_entry_is_not_overlap():
+    trades = [(t(31, 8), t(31, 9), 1.0),
+              (t(31, 9), t(31, 10), 1.0)]
+    assert not gate(t(31, 12), trades)  # two entries, not capacity corruption
+
+
+def test_two_concurrent_trades_with_two_slots_are_valid():
+    trades = [(t(30, 8), t(31, 10), 1.0),
+              (t(30, 9), t(31, 11), 1.0)]
+    assert gate(t(31, 12), trades, max_open_positions=2)
