@@ -43,3 +43,24 @@ def test_invalid_crossed_quote_rejected():
 
 def test_empty_is_valid_no_op():
     assert require_execution_grade_m1(iter(())) == []
+
+
+def test_gate_does_not_call_signal_detector(monkeypatch):
+    import scripts.liquidity_sweep_signal as signals
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("execution quote gate invoked strategy detector")
+
+    monkeypatch.setattr(signals, "detect_liquidity_sweeps", forbidden)
+    assert len(require_execution_grade_m1([bar(0), bar(1)])) == 2
+
+
+def test_invalid_ask_open_below_bid_open_rejected():
+    with pytest.raises(ValueError, match="invalid ASK"):
+        require_execution_grade_m1([replace(bar(), ask_open=99.9)])
+
+
+def test_non_utc_minute_rejected():
+    with pytest.raises(ValueError, match="UTC"):
+        require_execution_grade_m1([replace(bar(), time=bar().time +
+                                             timedelta(seconds=1))])
