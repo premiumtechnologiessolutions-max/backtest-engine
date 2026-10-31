@@ -71,7 +71,24 @@ def allow_portfolio_entry(
         if end.date() == now.date():
             realized_exits_today.append(float(net))
 
+    # A loss halt is sticky for the rest of the UTC day. A later winning
+    # close must not retroactively permit new entries after the loss cap hit.
+    # Sorting observed exits, rather than entry order, prevents lookahead.
+    today_exits = sorted(
+        (_utc(exit_time), float(net))
+        for _, exit_time, net in trades
+        if exit_time is not None and _utc(exit_time).date() == now.date()
+    )
+    running: list[float] = []
+    halted = False
     try:
+        for _, net in today_exits:
+            running.append(net)
+            subtotal = fsum(running)
+            if not isfinite(subtotal):
+                raise ValueError("nonfinite realized daily P/L")
+            if subtotal <= -max_daily_loss_usd_per_oz:
+                halted = True
         realized_today = fsum(realized_exits_today)
     except OverflowError as exc:
         raise ValueError("realized daily P/L overflow") from exc
@@ -80,4 +97,5 @@ def allow_portfolio_entry(
 
     return (daily_entries < max_daily_entries
             and open_positions < max_open_positions
+            and not halted
             and realized_today > -max_daily_loss_usd_per_oz)
