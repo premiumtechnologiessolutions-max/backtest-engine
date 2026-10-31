@@ -82,8 +82,20 @@ def allow_portfolio_entry(
     running: list[float] = []
     halted = False
     try:
-        for _, net in today_exits:
-            running.append(net)
+        # Exits sharing one timestamp are simultaneously observable. Apply
+        # their net result atomically so ledger row order cannot create a
+        # fictitious intratimestamp loss halt. Distinct timestamps remain sticky.
+        index = 0
+        while index < len(today_exits):
+            stamp = today_exits[index][0]
+            batch: list[float] = []
+            while index < len(today_exits) and today_exits[index][0] == stamp:
+                batch.append(today_exits[index][1])
+                index += 1
+            batch_net = fsum(batch)
+            if not isfinite(batch_net):
+                raise ValueError("nonfinite realized daily P/L")
+            running.append(batch_net)
             subtotal = fsum(running)
             if not isfinite(subtotal):
                 raise ValueError("nonfinite realized daily P/L")
