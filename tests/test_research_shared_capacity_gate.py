@@ -68,3 +68,21 @@ def test_two_concurrent_trades_with_two_slots_are_valid():
     trades = [(t(30, 8), t(31, 10), 1.0),
               (t(30, 9), t(31, 11), 1.0)]
     assert gate(t(31, 12), trades, max_open_positions=2)
+
+
+def test_daily_realized_overflow_fails_closed():
+    # Each realized fill is finite, but their sum is not representable.
+    trades = [(t(31, 8), t(31, 9), 1e308),
+              (t(31, 10), t(31, 11), 1e308)]
+    with pytest.raises(ValueError, match="overflow"):
+        gate(t(31, 12), trades)
+
+
+def test_daily_realized_cancellation_is_stable():
+    # An ordinary running sum loses the small loss between large offsets.
+    trades = [(t(31, 8), t(31, 9), 1e16),
+              (t(31, 10), t(31, 11), -6.0),
+              (t(31, 12), t(31, 13), -1e16)]
+    assert not allow_portfolio_entry(t(31, 14), trades,
+                                     max_daily_loss_usd_per_oz=5,
+                                     max_daily_entries=4)
