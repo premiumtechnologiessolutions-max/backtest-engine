@@ -7,7 +7,7 @@ after the decision is not observable and must NOT be passed as a known outcome.
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from math import isfinite
+from math import fsum, isfinite
 
 
 def _utc(value: datetime) -> datetime:
@@ -41,7 +41,7 @@ def allow_portfolio_entry(
 
     daily_entries = 0
     open_positions = 0
-    realized_today = 0.0
+    realized_exits_today: list[float] = []
     previous_entry = None
     # Validate historical capacity too: an already overfilled ledger cannot be
     # treated as proof that the current entry is safe.
@@ -69,7 +69,14 @@ def allow_portfolio_entry(
             raise ValueError("closed trade requires finite realized net P/L")
         observed_exits.append(end)
         if end.date() == now.date():
-            realized_today += net
+            realized_exits_today.append(float(net))
+
+    try:
+        realized_today = fsum(realized_exits_today)
+    except OverflowError as exc:
+        raise ValueError("realized daily P/L overflow") from exc
+    if not isfinite(realized_today):
+        raise ValueError("nonfinite realized daily P/L")
 
     return (daily_entries < max_daily_entries
             and open_positions < max_open_positions
