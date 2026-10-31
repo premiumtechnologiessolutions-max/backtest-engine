@@ -47,3 +47,17 @@ def test_daily_halt_aggregate_overflow_fails_closed():
     with pytest.raises(ValueError, match="overflow"):
         allow_entry(t(31, 11), exits, max_daily_loss_usd_per_oz=5,
                     max_daily_trades=4)
+
+
+@pytest.mark.parametrize("decision, exits, loss", [
+    (t(31, 11), [], True),
+    (t(31, 11), [], "5"),
+    (t(31, 11), [(t(31, 10), True)], 5),
+    (t(31, 11), [(t(31, 10), "1")], 5),
+    (t(31, 11), [("2026-10-31T10:00Z", 1.0)], 5),
+    ("2026-10-31T11:00Z", [], 5),
+])
+def test_daily_halt_rejects_malformed_numeric_and_timestamp_inputs(decision, exits, loss):
+    with pytest.raises(ValueError):
+        allow_entry(decision, exits, max_daily_loss_usd_per_oz=loss,
+                    max_daily_trades=3)
