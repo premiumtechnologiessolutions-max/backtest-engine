@@ -6,7 +6,7 @@ This module does not execute orders or certify a strategy.
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from math import isfinite
+from math import fsum, isfinite
 
 
 def allow_entry(decision_utc: datetime, observed_exits: list[tuple[datetime, float]],
@@ -19,7 +19,7 @@ def allow_entry(decision_utc: datetime, observed_exits: list[tuple[datetime, flo
             or max_daily_loss_usd_per_oz <= 0):
         raise ValueError("invalid frozen risk limits")
     now = decision_utc.astimezone(timezone.utc)
-    net = 0.0
+    daily_pnl: list[float] = []
     trades = 0
     previous = None
     for exit_time, pnl in observed_exits:
@@ -34,6 +34,12 @@ def allow_entry(decision_utc: datetime, observed_exits: list[tuple[datetime, flo
         if not isfinite(pnl):
             raise ValueError("nonfinite realized P/L")
         if stamp.date() == now.date():
-            net += pnl
+            daily_pnl.append(float(pnl))
             trades += 1
+    try:
+        net = fsum(daily_pnl)
+    except OverflowError as exc:
+        raise ValueError("daily realized P/L overflow") from exc
+    if not isfinite(net):
+        raise ValueError("nonfinite daily realized P/L")
     return trades < max_daily_trades and net > -max_daily_loss_usd_per_oz
