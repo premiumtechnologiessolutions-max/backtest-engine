@@ -15,7 +15,7 @@ def test_daily_loss_and_capacity():
 
 def test_utc_day_boundary_and_offset():
     local = timezone(timedelta(hours=2))
-    assert allow_entry(datetime(2026, 11, 1, 1, tzinfo=local),
+    assert allow_entry(datetime(2026, 11, 1, 3, tzinfo=local),
         [(t(31, 21), -9.0)], max_daily_loss_usd_per_oz=5, max_daily_trades=2)
     assert allow_entry(t(31, 23), [(t(30, 23), -9.0)],
         max_daily_loss_usd_per_oz=5, max_daily_trades=2)
