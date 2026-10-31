@@ -36,7 +36,8 @@ def detect_liquidity_sweeps(bars):
         if any(isinstance(x, bool) or not isinstance(x, (int, float))
                or not isfinite(x) or x <= 0 for x in v):
             raise ValueError("invalid quote")
-        if (b.bid_low > min(b.bid_open, b.bid_close)
+        if (b.bid_low > b.bid_high
+                or b.bid_low > min(b.bid_open, b.bid_close)
                 or b.bid_high < max(b.bid_open, b.bid_close)
                 or b.ask_open < b.bid_open):
             raise ValueError("invalid OHLC/spread")
