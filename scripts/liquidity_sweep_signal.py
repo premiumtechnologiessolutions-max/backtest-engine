@@ -11,6 +11,9 @@ class M1Bar:
     bid_low: float
     bid_close: float
     ask_open: float
+    ask_high: float | None = None
+    ask_low: float | None = None
+    ask_close: float | None = None
 
 @dataclass(frozen=True)
 class SweepSignal:
@@ -41,6 +44,21 @@ def detect_liquidity_sweeps(bars):
                 or b.bid_high < max(b.bid_open, b.bid_close)
                 or b.ask_open < b.bid_open):
             raise ValueError("invalid OHLC/spread")
+        # Full ASK OHLC is optional for signal-only legacy callers, but any
+        # execution-grade quote must provide all three remaining ASK fields.
+        ask_tail = (b.ask_high, b.ask_low, b.ask_close)
+        if any(x is not None for x in ask_tail):
+            if any(x is None for x in ask_tail):
+                raise ValueError("partial ASK OHLC is not execution-grade")
+            if any(isinstance(x, bool) or not isinstance(x, (int, float))
+                   or not isfinite(x) or x <= 0 for x in ask_tail):
+                raise ValueError("invalid ASK quote")
+            if (b.ask_low > b.ask_high
+                    or b.ask_low > min(b.ask_open, b.ask_close)
+                    or b.ask_high < max(b.ask_open, b.ask_close)
+                    or b.ask_low < b.bid_low or b.ask_high < b.bid_high
+                    or b.ask_close < b.bid_close):
+                raise ValueError("invalid ASK OHLC/spread")
         if previous is not None and b.time <= previous:
             raise ValueError("unsorted or duplicate M1")
         previous = b.time
