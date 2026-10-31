@@ -33,3 +33,17 @@ def test_rejects_noncausal_or_corrupt_ledger(exits):
 def test_rejects_invalid_limits():
     with pytest.raises(ValueError):
         allow_entry(t(31, 11), [], max_daily_loss_usd_per_oz=5, max_daily_trades=True)
+
+
+def test_daily_halt_stable_cancellation_preserves_small_loss():
+    # Naive accumulation loses -6 between opposite 1e16 outcomes.
+    exits = [(t(31, 8), 1e16), (t(31, 9), -6.0), (t(31, 10), -1e16)]
+    assert not allow_entry(t(31, 11), exits, max_daily_loss_usd_per_oz=5,
+                           max_daily_trades=4)
+
+
+def test_daily_halt_aggregate_overflow_fails_closed():
+    exits = [(t(31, 8), 1e308), (t(31, 9), 1e308)]
+    with pytest.raises(ValueError, match="overflow"):
+        allow_entry(t(31, 11), exits, max_daily_loss_usd_per_oz=5,
+                    max_daily_trades=4)
