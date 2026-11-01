@@ -218,7 +218,14 @@ def list_jobs(root: Path) -> list[dict]:
             continue
         if file.suffix != ".json":
             raise ValueError("Unexpected queue entry")
-        jobs.append(_verify(json.loads(_read_job_bytes(file)), file.name))
+        # A checksum of parsed JSON is insufficient: duplicate keys and
+        # alternate encodings can represent the same object while altering
+        # an immutable queue record. Refuse every noncanonical disk byte.
+        raw = _read_job_bytes(file)
+        record = _verify(json.loads(raw), file.name)
+        if raw != _canonical(record) + b"\n":
+            raise ValueError("Noncanonical immutable queue record bytes")
+        jobs.append(record)
     return jobs
 
 
