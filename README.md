@@ -7,9 +7,9 @@ The repository is **PUBLIC** according to GitHub metadata, and the research
 pull request is **Draft / unmerged**. No original Gold ZIP, private quote/trade
 ledgers, secrets or broker credentials are committed here.
 
-- **GitHub Actions exact branch commit `deab3cc2`: 3,337 pytest tests PASSED**,
+- **GitHub Actions exact branch commit `f94ce6c3`: 3,366 pytest tests PASSED**,
   including complete repository suite, compilation and synthetic CLI/parity
-  checks; see [Engine quality gates run 41290985103](https://github.com/premiumtechnologiessolutions-max/backtest-engine/actions/runs/41290985103).
+  checks; see [Engine quality gates run 41293588841](https://github.com/premiumtechnologiessolutions-max/backtest-engine/actions/runs/41293588841).
   Newer commits require their own fresh CI result.
 - **Actual source check completed offline:** original private annual Gold ZIP
   SHA256 `1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121`.
@@ -19,10 +19,26 @@ ledgers, secrets or broker credentials are committed here.
 - An additional legacy BOS/H1 replay on 2012–2019 matched **3,800 trades**
   on **13 execution fields** over 16 independently checked year/variant
   scenarios. It is a *different research design* from the 2,876-trade replay.
-- **Neither historical exposed result is independent OOS, broker tick validation
-  or evidence of a monthly profit edge.** Continuous campaign end-to-end
-  acceptance, truly untouched forward validation, broker fills and final
-  release approval remain open.
+- **A complete local private historical training pipeline now runs from one
+  command:** original Gold ZIP -> source-reconciled bootstrap -> immutable
+  arithmetic campaign -> independent reference/fast annual auditing ->
+  cached-generation re-attestation -> static read-only HTML dashboard.
+  The **fresh empty-root run** completed successfully with four bootstrap
+  executions plus eight generated-formula executions in 2012/2013,
+  one research generation and three compared candidates. A separate reuse
+  run successfully re-audited the saved generation without new backtests.
+- The best observed training-only candidate (+$413.35 USD/oz, 14/24
+  profitable training months) **FAILED** a predeclared exposed historical
+  2017/2024 cross-year stress: +$198.52 in 2017 (9/12 months), -$237.02
+  in 2024 (5/12), combined -$38.50 USD/oz and 14/24 positive months.
+  Historical results are not independent OOS; no strategy was approved.
+- New source-mutation guard detects a changing archive during a CLI backtest
+  and prevents publication under inconsistent source identity. Interrupted
+  annual bootstrap outputs are staged atomically.
+- [Research platform runbook, actual Gold execution and rejected candidate](docs/REAL_SOURCE_FULL_PIPELINE_AND_CROSS_YEAR_STRESS_2026-11-01.md).
+- **Remaining:** genuinely untouched prospective OOS, broker tick fills,
+  continuous host scheduling, complete cross-family research integration,
+  and release approval. No every-month profitability has been proven.
 - [Detailed actual archive replay audit](docs/ORIGINAL_GOLD_OFFLINE_REPLAY_AND_3800_TRADE_PARITY_2026-11-01.md).
 
 **Historical notes below retain their original dates and may describe old
