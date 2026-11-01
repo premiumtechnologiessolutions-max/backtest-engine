@@ -97,10 +97,22 @@ def run_cycles(training_input: Path, source_zip: Path, output_root: Path, *,
     if source_zip.suffix.lower() != ".zip" or _digest(source_zip) != SOURCE_SHA:
         raise ValueError("Only the authorized original private Gold ZIP is accepted")
     root = output_root.resolve()
-    if (training_input.resolve().is_relative_to(root)
-            or source_zip.resolve().is_relative_to(root)
-            or root.is_relative_to(training_input.resolve())
-            or root.is_relative_to(source_zip.resolve())):
+    if source_zip.resolve().is_relative_to(root) or root.is_relative_to(source_zip.resolve()):
+        raise ValueError("Original private archive must be outside research outputs")
+    # A campaign is resumable across independent one-generation invocations.
+    # After generation N completes, its immutable next input lives inside the
+    # output tree. The earlier blanket ban on ANY in-tree input accidentally
+    # prevented the supervisor from starting generation N+1 on real data.
+    # Accept ONLY the immediate previous generation's canonical feedback file.
+    input_path = training_input.resolve()
+    if input_path.is_relative_to(root):
+        prior = (root / f"generation_{first_generation - 1:04d}"
+                 / "next_training_input.json")
+        if (first_generation <= 1 or input_path != prior
+                or any(parent.is_symlink() for parent in
+                       (training_input, *training_input.parents))):
+            raise ValueError("Research input inside outputs must be immediate prior generation feedback")
+    elif root.is_relative_to(input_path):
         raise ValueError("Research outputs must be separate from frozen inputs")
     _outside_checkout(output_root.resolve())
     output_root.mkdir(parents=True, exist_ok=True)
