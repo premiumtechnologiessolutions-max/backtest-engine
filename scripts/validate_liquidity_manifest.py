@@ -83,12 +83,31 @@ def validate(data):
         raise ValueError("max_drawdown_oz_usd must be positive")
     return True
 
+def _unique_object(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON key: {key}")
+        result[key] = value
+    return result
+
+
+def _reject_constant(value):
+    raise ValueError(f"non-finite JSON numeric literal: {value}")
+
+
+def parse_manifest(raw):
+    """Reject duplicate keys and NaN/Infinity before validating registration."""
+    return json.loads(raw, object_pairs_hook=_unique_object,
+                      parse_constant=_reject_constant)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("manifest", type=Path)
     args = parser.parse_args()
     raw = args.manifest.read_bytes()
-    data = json.loads(raw)
+    data = parse_manifest(raw)
     validate(data)
     print(json.dumps({"status": "STRUCTURE_VALID_ONLY",
                       "manifest_sha256": hashlib.sha256(raw).hexdigest(),
