@@ -73,6 +73,8 @@ def test_reject_missing_and_unknown_shape():
     '{"hypotheses_count":NaN}',
     '{"hypotheses_count":Infinity}',
     '{"hypotheses_count":-Infinity}',
+    '{"hypotheses_count":1e999}',
+    '{"nested":{"threshold":-1e999}}',
 ])
 def test_parse_rejects_ambiguous_or_nonfinite_json(raw):
     with pytest.raises(ValueError):
