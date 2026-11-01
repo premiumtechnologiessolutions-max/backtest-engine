@@ -209,3 +209,50 @@ def test_candidate_budget_checked_again_before_second_generation(harness, monkey
         run(harness, generations=2)
     assert len(seen) == 1
     assert not (harness[2] / "generation_0002").exists()
+
+
+
+def test_separate_invocations_can_resume_from_immediate_previous_generation(harness):
+    source, gold, root, calls = harness
+    initial = run(harness, generations=1)
+    assert initial['status'] == 'COMPLETE_TRAINING_ONLY_NOT_OOS'
+    prior = root / 'generation_0001' / 'next_training_input.json'
+    assert prior.is_file()
+    calls.clear()
+    second = cycles.run_cycles(prior, gold, root,
+                               seed=11, first_generation=2, generations=1,
+                               proposal_count=3, shard_size=2)
+    assert second['status'] == 'COMPLETE_TRAINING_ONLY_NOT_OOS'
+    assert any(c[0] == 'generate' and c[1] == 2 for c in calls)
+    assert len([c for c in calls if c[0] == 'replay']) == 4
+    assert (root / 'generation_0002' / 'next_training_input.json').is_file()
+
+
+def test_in_tree_research_input_cannot_skip_or_forge_predecessor(harness):
+    source, gold, root, calls = harness
+    run(harness, generations=1)
+    prior = root / 'generation_0001' / 'next_training_input.json'
+    calls.clear()
+    wrong = root / 'other_input.json'
+    wrong.write_bytes(prior.read_bytes())
+    for input_path, generation in ((wrong, 2), (prior, 3), (prior, 1)):
+        with pytest.raises(ValueError, match='immediate prior generation'):
+            cycles.run_cycles(input_path, gold, root, seed=11,
+                              first_generation=generation, generations=1,
+                              proposal_count=3)
+    assert calls == []
+    assert not (root / 'generation_0002').exists()
+
+
+def test_symlink_to_predecessor_is_not_accepted(harness):
+    source, gold, root, calls = harness
+    run(harness, generations=1)
+    prior = root / 'generation_0001' / 'next_training_input.json'
+    alias = root / 'alias.json'
+    alias.symlink_to(prior)
+    calls.clear()
+    with pytest.raises(ValueError, match='regular file'):
+        cycles.run_cycles(alias, gold, root, seed=11,
+                          first_generation=2, generations=1,
+                          proposal_count=3)
+    assert calls == []
