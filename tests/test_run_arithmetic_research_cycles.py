@@ -256,3 +256,31 @@ def test_symlink_to_predecessor_is_not_accepted(harness):
                           first_generation=2, generations=1,
                           proposal_count=3)
     assert calls == []
+
+
+def test_crash_staging_is_quarantined_and_missing_shard_replayed(harness):
+    # Simulate SIGKILL: one canonical shard missing; hidden partial evidence
+    # exists. Previously accepted shards MUST NOT be replayed.
+    import shutil
+
+    run(harness)
+    root = harness[2]
+    generation = root / "generation_0001"
+    missing = generation / "replay_2013_from_001_count_002"
+    shutil.rmtree(missing)
+    orphan = generation / ".nrfx_arithmetic_training_crashed"
+    orphan.mkdir()
+    (orphan / "private_partial.csv").write_text("forensic bytes")
+    harness[-1].clear()
+    result = run(harness)
+    assert result["quarantined_incomplete_staging"] == [
+        "generation_0001__.nrfx_arithmetic_training_crashed"
+    ]
+    assert not orphan.exists()
+    assert (root / ".quarantined_training_staging" /
+            result["quarantined_incomplete_staging"][0] /
+            "private_partial.csv").read_text() == "forensic bytes"
+    assert missing.is_dir()
+    assert [c for c in harness[-1] if c[0] == "replay"] == [
+        ("replay", 2013, 1, 2)
+    ]
