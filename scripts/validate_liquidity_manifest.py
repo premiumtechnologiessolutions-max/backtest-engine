@@ -47,6 +47,9 @@ def validate(data):
     missing = sorted(REQUIRED - data.keys())
     if missing:
         raise ValueError("missing required fields: " + ", ".join(missing))
+    unexpected = sorted(data.keys() - REQUIRED)
+    if unexpected:
+        raise ValueError("unexpected manifest fields: " + ", ".join(unexpected))
     for key in REQUIRED - {"contract_size_oz", "all_in_cost_per_oz", "max_holding_minutes",
                            "max_concurrent_positions", "minimum_trades", "minimum_active_months",
                            "max_drawdown_oz_usd", "primary_pass_threshold", "hypotheses_count"}:
