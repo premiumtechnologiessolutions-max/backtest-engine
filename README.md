@@ -1,5 +1,34 @@
 # No Risk FX Quant Engine
 
+## Current verified status — 2026-11-01
+
+**Research platform under development — not approved for live trading or claimed profitable.**
+The repository is **PUBLIC** according to GitHub metadata, and the research
+pull request is **Draft / unmerged**. No original Gold ZIP, private quote/trade
+ledgers, secrets or broker credentials are committed here.
+
+- **GitHub Actions exact branch commit `deab3cc2`: 3,337 pytest tests PASSED**,
+  including complete repository suite, compilation and synthetic CLI/parity
+  checks; see [Engine quality gates run 41290985103](https://github.com/premiumtechnologiessolutions-max/backtest-engine/actions/runs/41290985103).
+  Newer commits require their own fresh CI result.
+- **Actual source check completed offline:** original private annual Gold ZIP
+  SHA256 `1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121`.
+  A fresh frozen 2012/2017/2020/2024 replay matched the archived evidence
+  **26 of 26 files byte-for-byte**, **2,876 trades** and **0/48 positive months**
+  at **-$1,226.22560/oz** across four separate studies.
+- An additional legacy BOS/H1 replay on 2012–2019 matched **3,800 trades**
+  on **13 execution fields** over 16 independently checked year/variant
+  scenarios. It is a *different research design* from the 2,876-trade replay.
+- **Neither historical exposed result is independent OOS, broker tick validation
+  or evidence of a monthly profit edge.** Continuous campaign end-to-end
+  acceptance, truly untouched forward validation, broker fills and final
+  release approval remain open.
+- [Detailed actual archive replay audit](docs/ORIGINAL_GOLD_OFFLINE_REPLAY_AND_3800_TRADE_PARITY_2026-11-01.md).
+
+**Historical notes below retain their original dates and may describe old
+GitHub Actions quota or CI blockers that were resolved by November 1, 2026.**
+Do not interpret those old notes as the current release status.
+
 **Status: v0.1 research foundation — NOT a validated trading engine.**
 
 A single reproducible XAUUSD backtesting foundation. Repository visibility: PUBLIC as verified 2026-10-28; do not commit raw quotes, credentials or private research artifacts. No live trading, no orders, no guaranteed monthly profit.
