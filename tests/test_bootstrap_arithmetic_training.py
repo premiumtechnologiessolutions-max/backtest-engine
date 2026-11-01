@@ -31,7 +31,7 @@ def sandbox(tmp_path, monkeypatch):
         engine = command[command.index("--execution") + 1]
         out = Path(command[command.index("--out") + 1])
         calls.append((year, engine))
-        out.mkdir(parents=True)
+        out.mkdir(parents=True, exist_ok=True)
         summary = {
             "source_fingerprints": {
                 "source_file_sha256": module.SOURCE_SHA,
@@ -45,6 +45,9 @@ def sandbox(tmp_path, monkeypatch):
             "period,net_pnl\n" + "".join(
                 f"{year}-{month:02d},{10 if month == 1 else -5 if month == 2 else 0}\n"
                 for month in range(1, 13)))
+        for filename in ("trades.csv", "weekly.csv", "equity_m1.csv",
+                         "gap_catalogue.csv"):
+            (out / filename).write_text("synthetic fixture only\n")
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
     monkeypatch.setattr(module.subprocess, "run", run)
@@ -117,6 +120,7 @@ def test_partial_failing_cli_never_publishes_training_seed(sandbox, monkeypatch)
     with pytest.raises(RuntimeError, match="failed"):
         module.bootstrap(gold, root, min_free_gb=0)
     assert not (root / "initial_training_input.json").exists()
+    assert not list(root.glob("annual_replays/*/.*.staging-*"))
 
 
 def test_refuses_git_checkout_and_symlink_output(sandbox):
@@ -126,3 +130,36 @@ def test_refuses_git_checkout_and_symlink_output(sandbox):
     with pytest.raises(ValueError, match="Git checkout"):
         module.bootstrap(gold, root, min_free_gb=0)
     assert not calls
+
+
+def test_partial_cli_output_is_never_published(sandbox, monkeypatch):
+    gold, root, _ = sandbox
+
+    def interrupted(command, **kwargs):
+        out = Path(command[command.index("--out") + 1])
+        out.mkdir(parents=True, exist_ok=True)
+        (out / "trades.csv").write_text("partial private report")
+        return SimpleNamespace(returncode=1, stdout="", stderr="interrupted")
+
+    monkeypatch.setattr(module.subprocess, "run", interrupted)
+    with pytest.raises(RuntimeError, match="no annual evidence was published"):
+        module.bootstrap(gold, root, min_free_gb=0)
+    assert not (root / "annual_replays" / "2012" / "reference").exists()
+    assert not list(root.glob("annual_replays/*/.*.staging-*"))
+    assert not (root / "initial_training_input.json").exists()
+
+
+def test_success_exit_without_complete_report_fails_closed(sandbox, monkeypatch):
+    gold, root, _ = sandbox
+
+    def missing_monthly(command, **kwargs):
+        out = Path(command[command.index("--out") + 1])
+        (out / "summary.json").write_text("{}")
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(module.subprocess, "run", missing_monthly)
+    with pytest.raises(ValueError, match="lacks required evidence"):
+        module.bootstrap(gold, root, min_free_gb=0)
+    assert not (root / "annual_replays" / "2012" / "reference").exists()
+    assert not list(root.glob("annual_replays/*/.*.staging-*"))
+    assert not (root / "initial_training_input.json").exists()
