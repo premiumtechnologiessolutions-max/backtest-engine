@@ -85,3 +85,17 @@ def test_parse_accepts_unambiguous_json():
     assert module.parse_manifest('{"experiment_id":"liquidity-v1"}') == {
         "experiment_id": "liquidity-v1"
     }
+
+
+def test_reject_unregistered_extra_fields():
+    data = valid()
+    data["alternate_entry_rule"] = "silently-added-after-registration"
+    with pytest.raises(ValueError, match="unexpected manifest fields: alternate_entry_rule"):
+        module.validate(data)
+
+
+def test_reject_nested_shadow_field_at_top_level():
+    data = valid()
+    data["metadata"] = {"entry_rule": "different-rule"}
+    with pytest.raises(ValueError, match="unexpected manifest fields: metadata"):
+        module.validate(data)
