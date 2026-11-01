@@ -65,3 +65,21 @@ def test_reject_missing_and_unknown_shape():
         module.validate(data)
     with pytest.raises(ValueError):
         module.validate([])
+
+
+@pytest.mark.parametrize("raw", [
+    '{"experiment_id":"first","experiment_id":"overwritten"}',
+    '{"outer":{"x":1,"x":2}}',
+    '{"hypotheses_count":NaN}',
+    '{"hypotheses_count":Infinity}',
+    '{"hypotheses_count":-Infinity}',
+])
+def test_parse_rejects_ambiguous_or_nonfinite_json(raw):
+    with pytest.raises(ValueError):
+        module.parse_manifest(raw)
+
+
+def test_parse_accepts_unambiguous_json():
+    assert module.parse_manifest('{"experiment_id":"liquidity-v1"}') == {
+        "experiment_id": "liquidity-v1"
+    }
