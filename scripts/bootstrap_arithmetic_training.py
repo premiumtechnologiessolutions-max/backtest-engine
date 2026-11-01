@@ -18,7 +18,9 @@ import argparse
 from dataclasses import asdict
 from pathlib import Path
 import json
+import os
 import shutil
+import tempfile
 import subprocess
 import sys
 
@@ -57,35 +59,54 @@ def _safe_root(root: Path, source: Path) -> None:
 
 def _run_engine(source: Path, year: int, formula_path: Path,
                 execution: str, output: Path, timeout_seconds: int) -> None:
+    """Publish only a complete CLI replay, never a partially written directory.
+
+    The CLI writes to a private sibling staging folder. After success and
+    structural checks, an atomic same-filesystem rename makes it visible.
+    A process killed during the CLI may leave an orphan *staging* directory,
+    which is never treated as a completed annual report on resume.
+    """
     if execution not in ("reference", "fast"):
         raise ValueError("Unsupported research execution")
     if output.is_symlink() or output.exists():
         if output.is_symlink() or not output.is_dir():
             raise ValueError("Unsafe pre-existing annual report")
-        # Reuse only after the independent pairwise report audit below.
+        # _annual_record independently audits the pair before seed publication.
         return
-    command = [
-        sys.executable, "-m", "norisk_quant.cli", "backtest",
-        "--data", str(source), "--start", f"{year}-01-01",
-        "--end", f"{year}-12-31", "--out", str(output),
-        "--strategy", "arithmetic", "--timeframe", "M1",
-        "--formula-json", str(formula_path), "--execution", execution,
-        "--ounces", "1", "--all-in-cost-per-ounce", "0.40",
-    ]
+    stage = Path(tempfile.mkdtemp(prefix=f".{execution}.staging-",
+                                  dir=output.parent))
     try:
-        completed = subprocess.run(
-            command, cwd=REPO_ROOT, text=True, capture_output=True,
-            timeout=timeout_seconds, check=False,
-        )
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        raise RuntimeError("Annual source replay failed or timed out") from exc
-    if completed.returncode != 0:
-        raise RuntimeError(
-            f"Canonical {year} {execution} replay failed; "
-            "leave partial results for review, never publish a seed"
-        )
-    if output.is_symlink() or not output.is_dir():
-        raise ValueError("Annual engine did not create a safe report directory")
+        command = [
+            sys.executable, "-m", "norisk_quant.cli", "backtest",
+            "--data", str(source), "--start", f"{year}-01-01",
+            "--end", f"{year}-12-31", "--out", str(stage),
+            "--strategy", "arithmetic", "--timeframe", "M1",
+            "--formula-json", str(formula_path), "--execution", execution,
+            "--ounces", "1", "--all-in-cost-per-ounce", "0.40",
+        ]
+        try:
+            completed = subprocess.run(
+                command, cwd=REPO_ROOT, text=True, capture_output=True,
+                timeout=timeout_seconds, check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise RuntimeError("Annual source replay failed or timed out") from exc
+        if completed.returncode != 0:
+            raise RuntimeError(
+                f"Canonical {year} {execution} replay failed; "
+                "no annual evidence was published"
+            )
+        for filename in ("summary.json", "trades.csv", "monthly.csv",
+                         "weekly.csv", "equity_m1.csv", "gap_catalogue.csv"):
+            path = stage / filename
+            if path.is_symlink() or not path.is_file():
+                raise ValueError("Canonical engine replay lacks required evidence")
+        if output.exists() or output.is_symlink():
+            raise FileExistsError("Concurrent annual evidence publication refused")
+        os.rename(stage, output)
+    finally:
+        if stage.exists():
+            shutil.rmtree(stage)
 
 
 def _annual_record(folder: Path, formula: Formula, year: int) -> dict:
