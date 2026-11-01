@@ -163,3 +163,12 @@ def test_success_exit_without_complete_report_fails_closed(sandbox, monkeypatch)
     assert not (root / "annual_replays" / "2012" / "reference").exists()
     assert not list(root.glob("annual_replays/*/.*.staging-*"))
     assert not (root / "initial_training_input.json").exists()
+
+
+def test_relative_private_paths_are_resolved_before_engine_subprocess(sandbox, monkeypatch):
+    gold, root, calls = sandbox
+    monkeypatch.chdir(gold.parent)
+    result = module.bootstrap(Path(gold.name), Path(root.name),
+                              years=[2012, 2013], min_free_gb=0)
+    assert Path(result["seed"]) == root / "initial_training_input.json"
+    assert len(calls) == 4

@@ -122,3 +122,39 @@ def test_forged_source_zip_is_rejected_before_creating_output(harness, monkeypat
     with pytest.raises(ValueError, match="SHA-pinned"):
         _execute(harness)
     assert not harness[1].exists()
+
+
+def test_relative_cli_paths_are_pinned_to_original_directory(harness, monkeypatch):
+    gold, root, calls = harness
+    monkeypatch.chdir(gold.parent)
+    result = module.run_pipeline(Path(gold.name), Path(root.name),
+                                 years=[2012, 2013], seed=7,
+                                 generations=1, proposal_count=2,
+                                 shard_size=1, min_free_gb=0)
+    assert result["status"] == "COMPLETE_EXPOSED_TRAINING_PIPELINE_NOT_OOS"
+    assert calls[0] == ("bootstrap", [2012, 2013])
+
+
+def test_rejects_unverified_dashboard_even_when_campaign_claims_complete(
+        harness, monkeypatch):
+    def false_dashboard(cycles, output):
+        output.write_text("unverified UI")
+        return {"generations": 1, "verified_generations": 0,
+                "sha256": "a" * 64}
+
+    monkeypatch.setattr(module, "build_dashboard", false_dashboard)
+    with pytest.raises(ValueError, match="unverified generations"):
+        _execute(harness)
+    status = json.loads((harness[1] / "platform_status.json").read_text())
+    assert status["status"] == "FAILED_REQUIRES_EVIDENCE_REVIEW"
+
+
+def test_rejects_forged_campaign_completion_without_generations(
+        harness, monkeypatch):
+    monkeypatch.setattr(
+        module, "campaign", lambda *args, **kwargs: {
+            "status": "COMPLETE_TRAINING_ONLY_NOT_OOS", "completed": []})
+    with pytest.raises(ValueError, match="empty completed"):
+        _execute(harness)
+    status = json.loads((harness[1] / "platform_status.json").read_text())
+    assert status["status"] == "FAILED_REQUIRES_EVIDENCE_REVIEW"

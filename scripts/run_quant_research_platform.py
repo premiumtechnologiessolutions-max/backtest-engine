@@ -91,6 +91,10 @@ def run_pipeline(gold_zip: Path, root: Path, *, years: list[int], seed: int,
     if gold_zip.resolve().is_relative_to(root.resolve()):
         raise ValueError("Source archive cannot be placed in research output")
     _safe_private_root(root)
+    # Freeze relative CLI paths to absolute locations. The annual engine
+    # changes cwd to the project root, and must still read the SAME private
+    # source and write to the SAME outside-checkout output directory.
+    gold_zip, root = gold_zip.resolve(strict=True), root.resolve()
     base = {"schema": SCHEMA, "source_sha256": SOURCE_SHA,
             "training_only": True, "independent_oos_proven": False,
             "live_trading_authorized": False, "historical_exposed": True}
@@ -113,10 +117,22 @@ def run_pipeline(gold_zip: Path, root: Path, *, years: list[int], seed: int,
                 proposal_policy=proposal_policy,
             )
             state["campaign"] = campaign_result
-            if campaign_result["completed"]:
+            complete = campaign_result["status"] == "COMPLETE_TRAINING_ONLY_NOT_OOS"
+            paused = campaign_result["status"] in (
+                "PAUSED_DISK_BUDGET", "PAUSED_TIME_BUDGET_BETWEEN_GENERATIONS"
+            )
+            finished = campaign_result["completed"]
+            if not (complete or paused) or type(finished) is not list or (complete and not finished):
+                raise ValueError("Unrecognized or empty completed research campaign")
+            if finished:
                 dashboard_path = root / "quant_research_dashboard.html"
                 dashboard = build_dashboard(root / "campaign" / "cycles",
                                             dashboard_path)
+                if (type(dashboard.get("generations")) is not int
+                        or type(dashboard.get("verified_generations")) is not int
+                        or dashboard["generations"] != len(finished)
+                        or dashboard["verified_generations"] != len(finished)):
+                    raise ValueError("Research dashboard has unverified generations")
                 state["dashboard"] = {**dashboard, "path": str(dashboard_path)}
             else:
                 state["dashboard"] = None

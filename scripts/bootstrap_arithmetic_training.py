@@ -155,7 +155,10 @@ def bootstrap(gold_zip: Path, root: Path, *,
             or gold_zip.suffix.lower() != ".zip"
             or _digest(gold_zip) != SOURCE_SHA):
         raise ValueError("Only the SHA-pinned original private Gold ZIP is accepted")
+    # The engine subprocess runs from REPO_ROOT; bind user-supplied relative
+    # paths to their original invoking directory BEFORE changing its cwd.
     _safe_root(root, gold_zip)
+    gold_zip, root = gold_zip.resolve(strict=True), root.resolve()
     root.mkdir(parents=True, exist_ok=True)
     formula = Formula()
     with exclusive_batch_lock(root):
