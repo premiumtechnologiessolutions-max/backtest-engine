@@ -18,6 +18,7 @@ from scripts.compile_arithmetic_training_feedback import (
     compile_feedback, _checked_index,
 )
 from scripts.research_batch_orchestrator import exclusive_batch_lock as _exclusive_research_lock
+from scripts.research_orphan_staging import quarantine_abandoned_staging_locked
 
 
 def _real_file(path: Path) -> Path:
@@ -117,6 +118,7 @@ def run_cycles(training_input: Path, source_zip: Path, output_root: Path, *,
     _outside_checkout(output_root.resolve())
     output_root.mkdir(parents=True, exist_ok=True)
     with _exclusive_research_lock(output_root):
+        quarantined = quarantine_abandoned_staging_locked(output_root)
         initial_input = training_input
         completed = []
         for offset in range(generations):
@@ -156,6 +158,7 @@ def run_cycles(training_input: Path, source_zip: Path, output_root: Path, *,
                               "next_input_sha256": feedback["next_input_sha256"]})
             initial_input = next_input
         return {"status": "COMPLETE_TRAINING_ONLY_NOT_OOS", "generations": completed,
+                "quarantined_incomplete_staging": quarantined,
                 "last_training_input": str(initial_input),
                 "independent_oos_proven": False, "live_trading_authorized": False}
 
