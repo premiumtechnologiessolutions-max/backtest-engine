@@ -281,6 +281,8 @@ def main() -> None:
         )
         print(json.dumps(manifest, indent=2, ensure_ascii=False))
     elif args.command == "backtest":
+        data_path = Path(args.data)
+        initial_source_sha = sha256_file(data_path) if data_path.is_file() else None
         data = load_market(args.data, args.start, args.end)
         settings = qs01_settings() if args.strategy == "qs01" else Settings(
             ounces=args.ounces,
@@ -361,8 +363,12 @@ def main() -> None:
                     stop_distance=args.stop_usd, target_distance=args.target_usd,
                 )
             result = (run_fast if args.execution == "fast" else run)(data, signals, settings)
-        data_path = Path(args.data)
         source_file_sha = sha256_file(data_path) if data_path.is_file() else None
+        if source_file_sha != initial_source_sha:
+            raise ValueError(
+                "Market source file changed during backtest execution; "
+                "refusing to publish inconsistent provenance"
+            )
         manifest_sha = None
         manifest_file = data_path / "manifest.json" if data_path.is_dir() else None
         if manifest_file is not None and manifest_file.is_file():
