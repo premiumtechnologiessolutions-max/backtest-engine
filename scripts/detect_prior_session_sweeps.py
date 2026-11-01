@@ -33,12 +33,14 @@ def detect_prior_utc_day_sweeps(bars, *, min_sweep_usd=0.50):
     bar in current day resets pending sweeps; no signals across discontinuities.
     Only completed bars are consumed, and no same-bar sweep/reclaim is allowed.
     """
-    if not math.isfinite(min_sweep_usd) or min_sweep_usd <= 0:
+    if isinstance(min_sweep_usd, bool) or not isinstance(min_sweep_usd, (int, float)) or not math.isfinite(min_sweep_usd) or min_sweep_usd <= 0:
         raise ValueError("min_sweep_usd must be finite and positive")
     bars = list(bars)
     previous = None
     days = {}
     for b in bars:
+        if not isinstance(b.timestamp, datetime):
+            raise ValueError("timestamps must be datetime instances")
         if b.timestamp.tzinfo is None or b.timestamp.utcoffset() != timedelta(0):
             raise ValueError("timestamps must be UTC aware")
         if b.timestamp.second or b.timestamp.microsecond:
@@ -47,7 +49,7 @@ def detect_prior_utc_day_sweeps(bars, *, min_sweep_usd=0.50):
             raise ValueError("timestamps must be strictly increasing")
         previous = b.timestamp
         vals = (b.open, b.high, b.low, b.close)
-        if not all(math.isfinite(v) and v > 0 for v in vals):
+        if not all(not isinstance(v, bool) and isinstance(v, (int, float)) and math.isfinite(v) and v > 0 for v in vals):
             raise ValueError("prices must be positive finite numbers")
         if b.high < max(b.open, b.close, b.low) or b.low > min(b.open, b.close, b.high):
             raise ValueError("invalid OHLC envelope")
