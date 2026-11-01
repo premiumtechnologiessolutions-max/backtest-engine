@@ -117,12 +117,6 @@ def _annual_record(folder: Path, formula: Formula, year: int) -> dict:
         "synthetic_forced_closures": summary["forced_end_of_data_closures"],
         "accounting": "PASSED",
     }
-    training_summary([{"year": year, "metrics": metrics},
-                      {"year": year + 1, "metrics": {
-                          **metrics, "months": {
-                              f"{year+1}-{m:02d}": months[f"{year}-{m:02d}"]
-                              for m in range(1, 13)
-                          }}}], (year, year + 1))
     return {"year": year, "metrics": metrics}
 
 
