@@ -78,6 +78,7 @@ def evaluate(root: Path, *, max_age_seconds: int = 300,
                     or director["verified_generations"] != verified
                     or director.get("training_only") is not True
                     or director.get("independent_oos_proven") is not False
+                    or director.get("market_edge_confirmed") is not False
                     or director.get("live_trading_authorized") is not False):
                 raise ValueError("Director completion evidence contradicts health")
             return 0, {"state": state, "healthy": True,
