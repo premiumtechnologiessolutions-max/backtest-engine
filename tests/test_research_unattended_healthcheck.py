@@ -170,3 +170,14 @@ def test_naive_reference_clock_is_invalid_evidence(root):
     code, report = h.evaluate(root, now=datetime(2026, 11, 2, 12, 0))
     assert code == 3
     assert report["state"] == "INVALID_HEALTH_EVIDENCE"
+
+
+def test_forged_director_market_edge_claim_rejected(root):
+    now = write(root, "TRAINING_CAP_REACHED_NOT_OOS")
+    path = root / "autonomous_research_status.json"
+    evidence = json.loads(path.read_text())
+    evidence["market_edge_confirmed"] = True
+    path.write_text(json.dumps(evidence))
+    code, report = h.evaluate(root, now=now)
+    assert code == 3
+    assert report["state"] == "INVALID_HEALTH_EVIDENCE"
