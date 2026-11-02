@@ -78,11 +78,17 @@ def detect_prior_utc_day_sweeps(bars, *, min_sweep_usd=0.50):
             # inspected before registering sweeps from the current bar.
             # The confirming bar is completed at signal time; its wick may
             # extend the sweep extreme and must not be omitted from risk geometry.
-            if pending_high is not None and "SELL" not in emitted and b.close < prior_high:
+            sell_reclaim = pending_high is not None and "SELL" not in emitted and b.close < prior_high
+            buy_reclaim = pending_low is not None and "BUY" not in emitted and b.close > prior_low
+            # A single completed bar cannot establish the ordering of two
+            # opposite pending reclaims. Fail closed for both directions.
+            if sell_reclaim and buy_reclaim:
+                emitted.update(("SELL", "BUY"))
+            elif sell_reclaim:
                 signals.append(SweepSignal(b.timestamp + timedelta(minutes=1), "SELL",
                                            prior_high, max(pending_high, b.high), day.isoformat()))
                 emitted.add("SELL")
-            if pending_low is not None and "BUY" not in emitted and b.close > prior_low:
+            elif buy_reclaim:
                 signals.append(SweepSignal(b.timestamp + timedelta(minutes=1), "BUY",
                                            prior_low, min(pending_low, b.low), day.isoformat()))
                 emitted.add("BUY")
