@@ -19,7 +19,7 @@ def write(root, state="RESEARCH_RUNNING", *, delta=0, **updates):
         "schema": h.HEALTH_SCHEMA, "status": state,
         "training_only": True, "independent_oos_proven": False,
         "market_edge_confirmed": False, "live_trading_authorized": False,
-        "worker_pid": 42,
+        "worker_pid": 42 if state == "RESEARCH_RUNNING" else None,
         "verified_generations_reported": 3,
         "supervised_worker_runs": 1,
         "updated_utc": (now + timedelta(seconds=delta)).isoformat(),
@@ -130,3 +130,15 @@ def test_forged_director_oos_rejected(root):
     evidence["independent_oos_proven"] = True
     path.write_text(json.dumps(evidence))
     assert h.evaluate(root, now=now)[0] == 3
+
+
+@pytest.mark.parametrize("state", [
+    "TRAINING_CAP_REACHED_NOT_OOS",
+    "PAUSED_DISK_BUDGET",
+    "FAULT_REQUIRES_EVIDENCE_REVIEW",
+])
+def test_terminal_state_cannot_claim_running_child(root, state):
+    now = write(root, state, worker_pid=8765)
+    code, report = h.evaluate(root, now=now)
+    assert code == 3
+    assert report["state"] == "INVALID_HEALTH_EVIDENCE"
