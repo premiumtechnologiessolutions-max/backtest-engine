@@ -14,7 +14,7 @@ from pathlib import Path
 import sys
 
 from scripts.research_batch_orchestrator import read_strict_json
-from scripts.research_unattended_service import HEALTH_SCHEMA, load_config
+from scripts.research_unattended_service import HEALTH_SCHEMA, DIR_SCHEMA, load_config
 
 RUNNING = {"RESEARCH_RUNNING", "SLEEPING_BEFORE_SAFE_RESUME"}
 COMPLETE = {"TRAINING_CAP_REACHED_NOT_OOS"}
@@ -57,6 +57,20 @@ def evaluate(root: Path, *, max_age_seconds: int = 300,
         if state in COMPLETE:
             if verified < 1:
                 raise ValueError("Completion without verified generations")
+            # A durable green heartbeat alone is not proof of completion.
+            director_path = root / "autonomous_research_status.json"
+            if director_path.is_symlink() or not director_path.is_file():
+                raise ValueError("Missing director completion evidence")
+            director = read_strict_json(director_path)
+            if (type(director) is not dict
+                    or director.get("schema") != DIR_SCHEMA
+                    or director.get("status") != "COMPLETE_HISTORICAL_TRAINING_ONLY_NOT_OOS"
+                    or type(director.get("verified_generations")) is not int
+                    or director["verified_generations"] != verified
+                    or director.get("training_only") is not True
+                    or director.get("independent_oos_proven") is not False
+                    or director.get("live_trading_authorized") is not False):
+                raise ValueError("Director completion evidence contradicts health")
             return 0, {"state": state, "healthy": True,
                        "note": "Training cap only; independent OOS not proven"}
         if state in PAUSED:
