@@ -28,7 +28,7 @@ def write(root, state="RESEARCH_RUNNING", *, delta=0, **updates):
 
 
 @pytest.mark.parametrize("state,expected", [
-    ("RESEARCH_RUNNING", 0), ("SLEEPING_BEFORE_SAFE_RESUME", 0),
+    ("RESEARCH_RUNNING", 0), ("SLEEPING_BEFORE_SAFE_RESUME", 2),
     ("TRAINING_CAP_REACHED_NOT_OOS", 0),
     ("PAUSED_DISK_BUDGET", 2),
     ("PAUSED_UNATTENDED_RETRY_BUDGET", 2),
@@ -75,3 +75,8 @@ def test_symlink_status_rejected(root):
     real.write_text("{}")
     (root / "unattended_research_health.json").symlink_to(real)
     assert h.evaluate(root)[0] == 3
+
+
+def test_completed_health_remains_durable_after_heartbeat_age(root):
+    now = write(root, "TRAINING_CAP_REACHED_NOT_OOS", delta=-86400)
+    assert h.evaluate(root, now=now)[0] == 0
