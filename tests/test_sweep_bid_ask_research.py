@@ -15,6 +15,16 @@ class Signal:
         self.side, self.extreme, self.confirmed_at = side, extreme, T
 
 def q(i, bo=100, bh=101, bl=99, bc=100, ao=100.2, ah=101.2, al=99.2, ac=100.2):
+    # Keep synthetic BID/ASK envelopes non-crossed when a test changes
+    # only one side of a candle. Do not relax production quote validation.
+    if bh != 101 and ah == 101.2:
+        ah = bh + 0.2
+    elif ah != 101.2 and bh == 101:
+        bh = ah - 0.2
+    if bl != 99 and al == 99.2:
+        al = bl + 0.2
+    elif al != 99.2 and bl == 99:
+        bl = al - 0.2
     return m.QuoteBar(T + timedelta(minutes=i), bo, bh, bl, bc, ao, ah, al, ac)
 
 def test_buy_stop_first_when_both_touch():
