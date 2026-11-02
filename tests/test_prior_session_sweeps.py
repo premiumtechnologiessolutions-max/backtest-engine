@@ -57,3 +57,18 @@ def test_duplicate_and_bad_envelope_rejected():
 def test_reject_nonpositive_threshold():
     with pytest.raises(ValueError):
         m.detect_prior_utc_day_sweeps([], min_sweep_usd=0)
+
+def test_reclaim_bar_extends_sell_extreme_without_future_leak():
+    xs = prior() + current((100, 102, 99, 101.5), (101.5, 104, 99, 100))
+    result = m.detect_prior_utc_day_sweeps(xs)
+    assert len(result) == 1
+    assert result[0].extreme == 104
+    assert result[0].confirmed_at == T + timedelta(days=1, minutes=2)
+
+
+def test_reclaim_bar_extends_buy_extreme_without_future_leak():
+    xs = prior() + current((100, 101, 98, 98.5), (98.5, 101, 96, 100))
+    result = m.detect_prior_utc_day_sweeps(xs)
+    assert len(result) == 1
+    assert result[0].extreme == 96
+    assert result[0].confirmed_at == T + timedelta(days=1, minutes=2)
