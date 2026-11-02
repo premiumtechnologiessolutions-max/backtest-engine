@@ -26,6 +26,14 @@ def write(root, state="RESEARCH_RUNNING", *, delta=0, **updates):
     }
     data.update(updates)
     (root / "unattended_research_health.json").write_text(json.dumps(data))
+    if state == "TRAINING_CAP_REACHED_NOT_OOS":
+        (root / "autonomous_research_status.json").write_text(json.dumps({
+            "schema": h.DIR_SCHEMA,
+            "status": "COMPLETE_HISTORICAL_TRAINING_ONLY_NOT_OOS",
+            "verified_generations": data["verified_generations_reported"],
+            "training_only": True, "independent_oos_proven": False,
+            "live_trading_authorized": False,
+        }))
     return now
 
 
@@ -97,4 +105,28 @@ def test_malformed_supervised_counters_rejected(root, update):
 def test_forged_completion_without_verified_generations_rejected(root):
     now = write(root, "TRAINING_CAP_REACHED_NOT_OOS",
                 verified_generations_reported=0)
+    assert h.evaluate(root, now=now)[0] == 3
+
+
+def test_missing_director_completion_rejected(root):
+    now = write(root, "TRAINING_CAP_REACHED_NOT_OOS")
+    (root / "autonomous_research_status.json").unlink()
+    assert h.evaluate(root, now=now)[0] == 3
+
+
+def test_mismatched_director_completion_rejected(root):
+    now = write(root, "TRAINING_CAP_REACHED_NOT_OOS")
+    path = root / "autonomous_research_status.json"
+    evidence = json.loads(path.read_text())
+    evidence["verified_generations"] = 2
+    path.write_text(json.dumps(evidence))
+    assert h.evaluate(root, now=now)[0] == 3
+
+
+def test_forged_director_oos_rejected(root):
+    now = write(root, "TRAINING_CAP_REACHED_NOT_OOS")
+    path = root / "autonomous_research_status.json"
+    evidence = json.loads(path.read_text())
+    evidence["independent_oos_proven"] = True
+    path.write_text(json.dumps(evidence))
     assert h.evaluate(root, now=now)[0] == 3
