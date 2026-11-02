@@ -186,7 +186,7 @@ def test_invalid_source_overwrites_stale_complete_health(setup, monkeypatch):
     """No old green health survives a failed new boot/source SHA preflight."""
     path, root, _ = setup
     config = svc.load_config(path)
-    root.mkdir()
+    root.mkdir(mode=0o700)
     svc._health(root, status="TRAINING_CAP_REACHED_NOT_OOS",
                 verified=4, run_count=1)
     monkeypatch.setattr(svc, "_digest", lambda _: "incorrect-sha")
