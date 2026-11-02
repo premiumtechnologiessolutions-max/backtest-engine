@@ -72,3 +72,21 @@ def test_reclaim_bar_extends_buy_extreme_without_future_leak():
     assert len(result) == 1
     assert result[0].extreme == 96
     assert result[0].confirmed_at == T + timedelta(days=1, minutes=2)
+
+
+def test_opposite_pending_reclaims_on_same_bar_fail_closed():
+    # Prior high=101 and low=99. First bar sweeps both boundaries;
+    # the second bar closes inside both. M1 cannot order the two paths.
+    xs = prior() + current((100, 102, 98, 100), (100, 102, 98, 100),
+                           (100, 101, 99, 100))
+    assert m.detect_prior_utc_day_sweeps(xs) == []
+
+
+def test_single_direction_reclaim_still_emits_after_ambiguous_wick():
+    # The first bar sweeps both sides, but close above prior high
+    # confirms only the BUY reclaim; no simultaneous contradictory signal.
+    xs = prior() + current((100, 102, 98, 102), (102, 103, 98, 102))
+    result = m.detect_prior_utc_day_sweeps(xs)
+    assert len(result) == 1
+    assert result[0].side == "BUY"
+    assert result[0].extreme == 98
