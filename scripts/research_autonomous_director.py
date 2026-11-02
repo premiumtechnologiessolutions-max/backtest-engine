@@ -48,6 +48,35 @@ def _persist(root: Path, state: dict) -> None:
         Path(staged).unlink(missing_ok=True)
 
 
+
+def _completed_hint(root: Path) -> int:
+    """Choose a resume ceiling; this is NOT evidence verification.
+
+    The canonical campaign must independently re-attest every cached replay.
+    Do not start a restarted director at generation one when later immutable
+    generations already exist (the dashboard includes all cached generations).
+    """
+    cycles = root / "campaign" / "cycles"
+    if not cycles.exists():
+        return 0
+    if cycles.is_symlink() or not cycles.is_dir():
+        raise ValueError("Unsafe existing campaign cycles")
+    count = 0
+    for ordinal in range(1, 201):
+        folder = cycles / f"generation_{ordinal:04d}"
+        if folder.is_symlink():
+            raise ValueError("Symlinked campaign generation")
+        if not folder.is_dir():
+            break
+        feedback = folder / "next_training_input.json"
+        if feedback.is_symlink():
+            raise ValueError("Symlinked campaign feedback")
+        if not feedback.is_file():
+            break
+        count += 1
+    return count
+
+
 def drive(gold_zip: Path, root: Path, *, years: list[int], seed: int,
           target_generations: int = 60, step_generations: int = 5,
           proposal_count: int = 12, shard_size: int = 8,
@@ -86,6 +115,9 @@ def drive(gold_zip: Path, root: Path, *, years: list[int], seed: int,
         raise ValueError("Gold ZIP cannot be inside research output")
     _safe_private_root(root)
     gold_zip, root = gold_zip.resolve(strict=True), root.resolve()
+    resumed_hint = _completed_hint(root)
+    if resumed_hint > target_generations:
+        raise ValueError("Target smaller than existing immutable campaign")
     started = time.monotonic()
     state = {
         "schema": SCHEMA, "status": "RUNNING_TRAINING_ONLY_NOT_OOS",
@@ -105,7 +137,10 @@ def drive(gold_zip: Path, root: Path, *, years: list[int], seed: int,
     control.mkdir(mode=0o700, exist_ok=True)
     with exclusive_batch_lock(control):
         _persist(root, state)
-        target = min(target_generations, step_generations)
+        # The hint only selects how far to request; no cached result is
+        # trusted until run_pipeline independently reaudits it.
+        next_ceiling = ((resumed_hint // step_generations) + 1) * step_generations
+        target = min(target_generations, max(step_generations, next_ceiling))
         last_verified = 0
         try:
             for attempt in range(1, max_resume_attempts + 1):
