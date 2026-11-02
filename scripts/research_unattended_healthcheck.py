@@ -47,13 +47,20 @@ def evaluate(root: Path, *, max_age_seconds: int = 300,
             raise ValueError("Naive heartbeat timestamp")
         reference = now or datetime.now(timezone.utc)
         age = (reference - updated).total_seconds()
-        if age < -60 or age > max_age_seconds:
+        if age < -60:
             return 3, {"state": "STALE_OR_FUTURE_HEARTBEAT", "healthy": False}
         if state in COMPLETE:
             return 0, {"state": state, "healthy": True,
                        "note": "Training cap only; independent OOS not proven"}
         if state in PAUSED:
             return 2, {"state": state, "healthy": False}
+        # During configured retry sleep the service may intentionally be idle.
+        # A fixed watchdog cannot infer whether that interval has elapsed.
+        if state == "SLEEPING_BEFORE_SAFE_RESUME":
+            return 2, {"state": state, "healthy": False,
+                       "note": "Retry pending; inspect service and retry interval"}
+        if age > max_age_seconds:
+            return 3, {"state": "STALE_OR_FUTURE_HEARTBEAT", "healthy": False}
         if state == "RESEARCH_RUNNING":
             pid = report.get("worker_pid")
             if type(pid) is not int or pid <= 0:
