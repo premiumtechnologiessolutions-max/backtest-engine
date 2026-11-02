@@ -1,0 +1,28 @@
+# Template only. Requires an independently provisioned PRIVATE Linux host.
+# Do not use GitHub-hosted runners: original XAUUSD ZIP must stay off GitHub.
+[Unit]
+Description=No Risk FX unattended historical research (not live trading)
+After=local-fs.target
+RequiresMountsFor=/srv/noriskfx-private
+
+[Service]
+Type=simple
+User=noriskfx
+Group=noriskfx
+WorkingDirectory=/opt/noriskfx/backtest-engine
+ExecStart=/opt/noriskfx/venv/bin/python -m scripts.research_unattended_service run --config /srv/noriskfx-private/research-agent.json
+Restart=on-failure
+RestartSec=60
+TimeoutStopSec=120
+KillMode=control-group
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/srv/noriskfx-private
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
