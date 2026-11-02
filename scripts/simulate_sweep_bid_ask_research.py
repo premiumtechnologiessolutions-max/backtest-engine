@@ -55,6 +55,9 @@ def simulate_signal(signal, quotes, *, stop_buffer=0.10, reward_r=1.0, max_hold_
         raise ValueError("invalid reward multiple")
     if type(max_hold_minutes) is not int or max_hold_minutes < 1:
         raise ValueError("invalid hold period")
+    if (isinstance(signal.extreme, bool) or not isinstance(signal.extreme, (int, float))
+            or not math.isfinite(signal.extreme) or signal.extreme <= 0):
+        raise ValueError("invalid signal extreme")
     qs = list(quotes)
     previous = None
     for q in qs:
@@ -82,6 +85,8 @@ def simulate_signal(signal, quotes, *, stop_buffer=0.10, reward_r=1.0, max_hold_
     if risk <= 0 or not math.isfinite(risk):
         return None
     target = entry + risk * reward_r if buy else entry - risk * reward_r
+    if not math.isfinite(target) or target <= 0:
+        return None
     def finish(q, px, reason):
         gross = px - entry if buy else entry - px
         return Fill(signal.side, first.timestamp, q.timestamp, entry, px, stop, target,
