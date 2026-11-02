@@ -39,6 +39,11 @@ def evaluate(root: Path, *, max_age_seconds: int = 300,
                 or report.get("market_edge_confirmed") is not False
                 or report.get("live_trading_authorized") is not False):
             raise ValueError("Unsafe research evidence flags")
+        verified = report.get("verified_generations_reported")
+        runs = report.get("supervised_worker_runs")
+        if (type(verified) is not int or verified < 0
+                or type(runs) is not int or runs < 1):
+            raise ValueError("Invalid supervised research counters")
         state = report.get("status")
         if state not in RUNNING | COMPLETE | PAUSED:
             raise ValueError("Unknown research service state")
@@ -50,6 +55,8 @@ def evaluate(root: Path, *, max_age_seconds: int = 300,
         if age < -60:
             return 3, {"state": "STALE_OR_FUTURE_HEARTBEAT", "healthy": False}
         if state in COMPLETE:
+            if verified < 1:
+                raise ValueError("Completion without verified generations")
             return 0, {"state": state, "healthy": True,
                        "note": "Training cap only; independent OOS not proven"}
         if state in PAUSED:
