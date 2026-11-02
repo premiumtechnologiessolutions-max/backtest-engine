@@ -12,6 +12,9 @@ Group=noriskfx
 WorkingDirectory=/opt/noriskfx/backtest-engine
 ExecStart=/opt/noriskfx/venv/bin/python -m scripts.research_unattended_service run --config /srv/noriskfx-private/research-agent.json
 Restart=on-failure
+# Evidence faults (1) and retry-budget pauses (2) require operator review;
+# prevent systemd from turning bounded research into an infinite restart loop.
+RestartPreventExitStatus=1 2
 RestartSec=60
 TimeoutStopSec=120
 KillMode=control-group
