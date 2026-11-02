@@ -216,19 +216,14 @@ def run_worker(config: Config, *, run_count: int = 1,
 
 def serve(config: Config, *, once: bool = False,
           launcher=None, sleeper=None) -> dict:
-    """Continue research between ChatGPT sessions on the installed host."""
+    """Continue research between ChatGPT sessions on the installed host.
+
+    Acquire the exclusive owner lock BEFORE touching health evidence: a second
+    invocation must never overwrite a healthy running instance's heartbeat.
+    """
     if sleeper is None:
         sleeper = time.sleep
-    # Establish a private evidence directory before validating the archive.
-    # Otherwise an invalid/missing archive leaves an old COMPLETE heartbeat
-    # untouched, misleading the independent host watchdog.
     _safe_private_root(config.out)
-    try:
-        _source_preflight(config)
-    except Exception:
-        _health(config.out, status="FAULT_REQUIRES_EVIDENCE_REVIEW",
-                run_count=1)
-        raise
     control = config.out / ".unattended_service_lock"
     if control.is_symlink() or (control.exists() and not control.is_dir()):
         raise ValueError("Unsafe service lock")
@@ -237,6 +232,9 @@ def serve(config: Config, *, once: bool = False,
         pauses = 0
         runs = 0
         try:
+            # A failed preflight invalidates a stale green status, but ONLY
+            # after acquiring ownership of the service's exclusive lock.
+            _source_preflight(config)
             while True:
                 runs += 1
                 phase, completed = run_worker(config, run_count=runs,
@@ -257,7 +255,7 @@ def serve(config: Config, *, once: bool = False,
                 sleeper(config.retry_seconds)
         except Exception:
             _health(config.out, status="FAULT_REQUIRES_EVIDENCE_REVIEW",
-                    run_count=runs)
+                    run_count=max(runs, 1))
             raise
 
 
