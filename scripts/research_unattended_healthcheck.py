@@ -24,9 +24,12 @@ PAUSED = {"PAUSED_UNATTENDED_RETRY_BUDGET", "PAUSED_TOTAL_TIME_BUDGET",
 
 
 def evaluate(root: Path, *, max_age_seconds: int = 300,
-             now: datetime | None = None) -> tuple[int, dict]:
+             now: datetime | None = None,
+             retry_seconds: int | None = None) -> tuple[int, dict]:
     if type(max_age_seconds) is not int or max_age_seconds < 1:
         raise ValueError("max_age_seconds must be a positive integer")
+    if retry_seconds is not None and (type(retry_seconds) is not int or retry_seconds < 1):
+        raise ValueError("retry_seconds must be a positive integer")
     path = root / "unattended_research_health.json"
     if path.is_symlink() or not path.is_file():
         return 3, {"state": "MISSING_HEALTH", "healthy": False}
@@ -51,6 +54,8 @@ def evaluate(root: Path, *, max_age_seconds: int = 300,
         if updated.tzinfo is None:
             raise ValueError("Naive heartbeat timestamp")
         reference = now or datetime.now(timezone.utc)
+        if reference.tzinfo is None:
+            raise ValueError("Naive reference timestamp")
         age = (reference - updated).total_seconds()
         if age < -60:
             return 3, {"state": "STALE_OR_FUTURE_HEARTBEAT", "healthy": False}
@@ -82,6 +87,11 @@ def evaluate(root: Path, *, max_age_seconds: int = 300,
         # During configured retry sleep the service may intentionally be idle.
         # A fixed watchdog cannot infer whether that interval has elapsed.
         if state == "SLEEPING_BEFORE_SAFE_RESUME":
+            # The sleep interval is known from the private host configuration.
+            # A paused worker must not masquerade as a healthy live process,
+            # and a sleep past its deadline is an actionable stale state.
+            if retry_seconds is not None and age > retry_seconds + max_age_seconds:
+                return 3, {"state": "STALE_RETRY_SLEEP", "healthy": False}
             return 2, {"state": state, "healthy": False,
                        "note": "Retry pending; inspect service and retry interval"}
         if age > max_age_seconds:
@@ -101,7 +111,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--max-age-seconds", type=int, default=300)
     args = parser.parse_args(argv)
     config = load_config(args.config)
-    code, report = evaluate(config.out, max_age_seconds=args.max_age_seconds)
+    code, report = evaluate(config.out, max_age_seconds=args.max_age_seconds,
+                            retry_seconds=config.retry_seconds)
     print(json.dumps(report, sort_keys=True))
     return code
 
