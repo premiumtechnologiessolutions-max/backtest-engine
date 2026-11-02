@@ -142,3 +142,31 @@ def test_terminal_state_cannot_claim_running_child(root, state):
     code, report = h.evaluate(root, now=now)
     assert code == 3
     assert report["state"] == "INVALID_HEALTH_EVIDENCE"
+
+
+@pytest.mark.parametrize("delta,retry,maximum,expected,state", [
+    (-120, 900, 300, 2, "SLEEPING_BEFORE_SAFE_RESUME"),
+    (-1199, 900, 300, 2, "SLEEPING_BEFORE_SAFE_RESUME"),
+    (-1201, 900, 300, 3, "STALE_RETRY_SLEEP"),
+    (-1201, None, 300, 2, "SLEEPING_BEFORE_SAFE_RESUME"),
+])
+def test_retry_sleep_deadline_is_distinct_from_live_heartbeat(
+        root, delta, retry, maximum, expected, state):
+    now = write(root, "SLEEPING_BEFORE_SAFE_RESUME", delta=delta)
+    code, report = h.evaluate(root, now=now, max_age_seconds=maximum,
+                              retry_seconds=retry)
+    assert code == expected
+    assert report["state"] == state
+
+
+@pytest.mark.parametrize("retry", [0, -1, True, 1.5, "900"])
+def test_invalid_retry_deadline_rejected(root, retry):
+    with pytest.raises(ValueError, match="retry_seconds"):
+        h.evaluate(root, retry_seconds=retry)
+
+
+def test_naive_reference_clock_is_invalid_evidence(root):
+    write(root)
+    code, report = h.evaluate(root, now=datetime(2026, 11, 2, 12, 0))
+    assert code == 3
+    assert report["state"] == "INVALID_HEALTH_EVIDENCE"
