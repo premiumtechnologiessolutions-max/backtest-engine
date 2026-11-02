@@ -76,7 +76,9 @@ def detect_prior_utc_day_sweeps(bars, *, min_sweep_usd=0.50):
             last = b.timestamp
             # Reclaim only from an earlier completed bar. Pending state is
             # inspected before registering sweeps from the current bar.
-            # The confirming bar is completed at signal time; its wick may\n            # extend the sweep extreme and must not be omitted from risk geometry.\n            if pending_high is not None and "SELL" not in emitted and b.close < prior_high:
+            # The confirming bar is completed at signal time; its wick may
+            # extend the sweep extreme and must not be omitted from risk geometry.
+            if pending_high is not None and "SELL" not in emitted and b.close < prior_high:
                 signals.append(SweepSignal(b.timestamp + timedelta(minutes=1), "SELL",
                                            prior_high, max(pending_high, b.high), day.isoformat()))
                 emitted.add("SELL")
