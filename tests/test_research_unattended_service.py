@@ -195,3 +195,27 @@ def test_invalid_source_overwrites_stale_complete_health(setup, monkeypatch):
     report = json.loads((root / "unattended_research_health.json").read_text())
     assert report["status"] == "FAULT_REQUIRES_EVIDENCE_REVIEW"
     assert report["market_edge_confirmed"] is False
+
+
+def test_contending_instance_cannot_overwrite_running_health(setup, monkeypatch):
+    """A second process denied the owner lock must not poison the first."""
+    path, root, _ = setup
+    config = svc.load_config(path)
+    root.mkdir(mode=0o700)
+    original = svc._health(root, status="RESEARCH_RUNNING",
+                           run_count=7, worker_pid=12345)
+    before = (root / "unattended_research_health.json").read_bytes()
+
+    from contextlib import contextmanager
+
+    @contextmanager
+    def refused_lock(_root):
+        raise RuntimeError("exclusive research owner already active")
+        yield
+
+    monkeypatch.setattr(svc, "exclusive_batch_lock", refused_lock)
+    monkeypatch.setattr(svc, "_digest", lambda _: "incorrect-sha")
+    with pytest.raises(RuntimeError, match="already active"):
+        svc.serve(config, launcher=lambda *_a, **_kw: pytest.fail("must not spawn"))
+    assert (root / "unattended_research_health.json").read_bytes() == before
+    assert original["status"] == "RESEARCH_RUNNING"
