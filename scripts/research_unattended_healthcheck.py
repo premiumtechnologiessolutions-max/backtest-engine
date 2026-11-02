@@ -54,6 +54,10 @@ def evaluate(root: Path, *, max_age_seconds: int = 300,
         age = (reference - updated).total_seconds()
         if age < -60:
             return 3, {"state": "STALE_OR_FUTURE_HEARTBEAT", "healthy": False}
+        # Terminal and paused states must not claim an active child process.
+        # A stale worker PID can mislead an operator after a crash or restart.
+        if state in COMPLETE | PAUSED and report.get("worker_pid") is not None:
+            raise ValueError("Non-running state retains a worker PID")
         if state in COMPLETE:
             if verified < 1:
                 raise ValueError("Completion without verified generations")
