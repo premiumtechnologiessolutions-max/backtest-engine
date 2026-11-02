@@ -43,6 +43,8 @@ def test_crossed_bid_ask_rejected():
     q = bar()
     data = vars(q).copy()
     data["ask_open"] = data["bid_open"] - 0.01
+    # Keep the ASK OHLC envelope valid so the crossed-market guard is tested.
+    data["ask_low"] = min(data["ask_low"], data["ask_open"])
     with pytest.raises(ValueError, match="crossed"):
         simulate_signal(signal(), [QuoteBar(**data)])
 
