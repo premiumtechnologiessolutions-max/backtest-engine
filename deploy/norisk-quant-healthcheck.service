@@ -1,0 +1,21 @@
+# Read-only local health alarm. Nonzero exit is visible to systemd/journald.
+# Requires private host configuration; never sends market data externally.
+[Unit]
+Description=No Risk FX research health audit
+After=local-fs.target
+RequiresMountsFor=/srv/noriskfx-private
+
+[Service]
+Type=oneshot
+User=noriskfx
+Group=noriskfx
+WorkingDirectory=/opt/noriskfx/backtest-engine
+ExecStart=/opt/noriskfx/venv/bin/python -m scripts.research_unattended_healthcheck --config /srv/noriskfx-private/research-agent.json --max-age-seconds 300
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadOnlyPaths=/srv/noriskfx-private
+StandardOutput=journal
+StandardError=journal
