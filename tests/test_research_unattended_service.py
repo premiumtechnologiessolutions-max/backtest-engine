@@ -180,3 +180,18 @@ def test_pause_retry_limit_persists_safe_state(setup):
     status = svc.serve(config, launcher=launch, sleeper=lambda _: None)
     assert len(calls) == 2
     assert status["status"] == "PAUSED_UNATTENDED_RETRY_BUDGET"
+
+
+def test_invalid_source_overwrites_stale_complete_health(setup, monkeypatch):
+    """No old green health survives a failed new boot/source SHA preflight."""
+    path, root, _ = setup
+    config = svc.load_config(path)
+    root.mkdir()
+    svc._health(root, status="TRAINING_CAP_REACHED_NOT_OOS",
+                verified=4, run_count=1)
+    monkeypatch.setattr(svc, "_digest", lambda _: "incorrect-sha")
+    with pytest.raises(ValueError, match="SHA mismatch"):
+        svc.serve(config, launcher=lambda *_a, **_kw: pytest.fail("must not spawn"))
+    report = json.loads((root / "unattended_research_health.json").read_text())
+    assert report["status"] == "FAULT_REQUIRES_EVIDENCE_REVIEW"
+    assert report["market_edge_confirmed"] is False
