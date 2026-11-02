@@ -20,6 +20,8 @@ def write(root, state="RESEARCH_RUNNING", *, delta=0, **updates):
         "training_only": True, "independent_oos_proven": False,
         "market_edge_confirmed": False, "live_trading_authorized": False,
         "worker_pid": 42,
+        "verified_generations_reported": 3,
+        "supervised_worker_runs": 1,
         "updated_utc": (now + timedelta(seconds=delta)).isoformat(),
     }
     data.update(updates)
@@ -80,3 +82,19 @@ def test_symlink_status_rejected(root):
 def test_completed_health_remains_durable_after_heartbeat_age(root):
     now = write(root, "TRAINING_CAP_REACHED_NOT_OOS", delta=-86400)
     assert h.evaluate(root, now=now)[0] == 0
+
+@pytest.mark.parametrize("update", [
+    {"verified_generations_reported": -1},
+    {"verified_generations_reported": True},
+    {"supervised_worker_runs": 0},
+    {"supervised_worker_runs": "1"},
+])
+def test_malformed_supervised_counters_rejected(root, update):
+    now = write(root, **update)
+    assert h.evaluate(root, now=now)[0] == 3
+
+
+def test_forged_completion_without_verified_generations_rejected(root):
+    now = write(root, "TRAINING_CAP_REACHED_NOT_OOS",
+                verified_generations_reported=0)
+    assert h.evaluate(root, now=now)[0] == 3
