@@ -219,8 +219,16 @@ def serve(config: Config, *, once: bool = False,
     """Continue research between ChatGPT sessions on the installed host."""
     if sleeper is None:
         sleeper = time.sleep
-    _source_preflight(config)
+    # Establish a private evidence directory before validating the archive.
+    # Otherwise an invalid/missing archive leaves an old COMPLETE heartbeat
+    # untouched, misleading the independent host watchdog.
     _safe_private_root(config.out)
+    try:
+        _source_preflight(config)
+    except Exception:
+        _health(config.out, status="FAULT_REQUIRES_EVIDENCE_REVIEW",
+                run_count=1)
+        raise
     control = config.out / ".unattended_service_lock"
     if control.is_symlink() or (control.exists() and not control.is_dir()):
         raise ValueError("Unsafe service lock")
