@@ -13,7 +13,7 @@ import json
 import math
 import re
 from urllib.parse import urlencode
-from urllib.request import Request, urlopen
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 import pandas as pd
 
@@ -21,6 +21,13 @@ PRACTICE_URL = "https://api-fxpractice.oanda.com"
 INSTRUMENT = re.compile(r"[A-Z]{3}_[A-Z]{3}\Z")
 MAX_MINUTES = 5000
 MAX_RESPONSE_BYTES = 5_000_000
+
+
+class _RejectRedirects(HTTPRedirectHandler):
+    """Never forward the practice bearer token to a redirected endpoint."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise ValueError("OANDA redirects are forbidden")
 
 
 def utc_timestamp(value: object) -> pd.Timestamp:
@@ -146,7 +153,7 @@ def fetch_practice_m1(instrument: str, start: object, end: object, *,
         "Accept": "application/json",
     }, method="GET")
     try:
-        response = (opener or urlopen)(request, timeout=20)
+        response = (opener or build_opener(_RejectRedirects()).open)(request, timeout=20)
         with response:
             raw = response.read(MAX_RESPONSE_BYTES + 1)
         if len(raw) > MAX_RESPONSE_BYTES:
