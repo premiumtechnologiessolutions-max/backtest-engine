@@ -225,13 +225,67 @@ class DurableResearchState:
             if row is None:
                 raise ValueError("Unknown research request")
             prior = row["state"]
-            if prior in _TERMINAL:
+            if prior in _TERMINAL or prior == "CANCEL_REQUESTED":
                 return prior
             state = "CANCEL_REQUESTED" if prior in {"RUNNING", "RECONCILING"} else "CANCELLED"
             db.execute("UPDATE jobs SET state=?, version=version+1, "
                        "updated_ms=? WHERE request_id=?", (state, now, request_id))
             self._event(db, request_id, prior, state, row["fencing_token"], now)
             return state
+
+    def acknowledge_cancel(self, request_id: str, attempt_id: str,
+                           fencing_token: int, worker: str,
+                           *, now_ms: int | None = None) -> None:
+        """Cooperative worker cancellation, with attempt identity and fencing.
+
+        A cancelled worker cannot use ordinary heartbeat/transition APIs.
+        This is only a metadata acknowledgement; the supervisor must ensure
+        the underlying process has actually stopped before acknowledging.
+        """
+        now = _now_ms() if now_ms is None else now_ms
+        if type(now) is not int or now < 0:
+            raise ValueError("Invalid UTC lease clock")
+        with self._write() as db:
+            row = db.execute("SELECT * FROM jobs WHERE request_id=?", (request_id,)).fetchone()
+            if (row is None or row["state"] != "CANCEL_REQUESTED"
+                    or type(fencing_token) is not int
+                    or row["fencing_token"] != fencing_token
+                    or row["attempt_id"] != attempt_id or row["worker"] != worker
+                    or row["lease_until_ms"] is None
+                    or row["lease_until_ms"] <= now):
+                raise ValueError("Stale or unauthorized cancellation acknowledgement")
+            db.execute("UPDATE jobs SET state='CANCELLED', version=version+1, "
+                       "worker=NULL, lease_until_ms=NULL, updated_ms=? "
+                       "WHERE request_id=?", (now, request_id))
+            self._event(db, request_id, "CANCEL_REQUESTED", "CANCELLED",
+                        fencing_token, now)
+
+    def finalize_expired_cancel(self, request_id: str, *, now_ms: int | None = None) -> bool:
+        """Retire an expired cancellation after supervisor confirms process exit.
+
+        Callers MUST first establish that the former worker process is dead;
+        lease expiry alone does not terminate a process. This method is not a
+        process killer and cannot publish research results.
+        """
+        now = _now_ms() if now_ms is None else now_ms
+        if type(now) is not int or now < 0:
+            raise ValueError("Invalid UTC lease clock")
+        with self._write() as db:
+            row = db.execute("SELECT * FROM jobs WHERE request_id=?", (request_id,)).fetchone()
+            if row is None:
+                raise ValueError("Unknown research request")
+            if row["state"] == "CANCELLED":
+                return False
+            if (row["state"] != "CANCEL_REQUESTED"
+                    or row["lease_until_ms"] is None
+                    or row["lease_until_ms"] > now):
+                raise ValueError("Cancellation is not eligible for retirement")
+            db.execute("UPDATE jobs SET state='CANCELLED', version=version+1, "
+                       "worker=NULL, lease_until_ms=NULL, updated_ms=? "
+                       "WHERE request_id=?", (now, request_id))
+            self._event(db, request_id, "CANCEL_REQUESTED", "CANCELLED",
+                        row["fencing_token"], now)
+            return True
 
     def status(self, request_id: str) -> dict:
         if type(request_id) is not str or not _HEX64.fullmatch(request_id):
