@@ -74,14 +74,16 @@ def audit_fac028(text: str, *, execution_contract: dict | None = None) -> dict:
                if not isinstance(execution_contract, dict)
                or not _is_defined(execution_contract.get(key))]
     # Repeating one generic sentence for unrelated semantics is not a contract.
-    if isinstance(execution_contract, dict) and not missing:
-        values = [" ".join(unicodedata.normalize("NFKC", execution_contract[key]).split()).casefold()
-                  for key in EXECUTION_KEYS]
-        if len(set(values)) != len(values):
-            # Any copied semantics across distinct execution dimensions need review.
-            duplicates = {value for value in values if values.count(value) > 1}
-            missing = [key for key, value in zip(EXECUTION_KEYS, values)
-                       if value in duplicates]
+    if isinstance(execution_contract, dict):
+        # Diagnose copied rules even when another dimension is unresolved.
+        # A partial contract must never conceal independent duplicate defects.
+        valid = {key: " ".join(unicodedata.normalize("NFKC", execution_contract[key]).split()).casefold()
+                 for key in EXECUTION_KEYS if key not in missing}
+        duplicates = {value for value in valid.values()
+                      if list(valid.values()).count(value) > 1}
+        missing_set = set(missing) | {key for key, value in valid.items()
+                                      if value in duplicates}
+        missing = [key for key in EXECUTION_KEYS if key in missing_set]
     return {"status": "BLOCKED_UNRESOLVED_EXECUTION_SEMANTICS" if missing
             else "READY_FOR_INDEPENDENT_CONTRACT_REVIEW_NOT_EXECUTION",
             "missing": missing, "grid_specs": 24,
