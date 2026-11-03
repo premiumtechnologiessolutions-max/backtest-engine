@@ -11,10 +11,15 @@ import hashlib
 import json
 import math
 import re
+import sys
+from pathlib import Path
 from collections import defaultdict
 
 import pandas as pd
+import numpy as np
 
+from . import causal_market_context as _context_module
+from . import oanda_readonly as _oanda_module
 from .causal_market_context import (
     Observation, ScheduledEvent, as_of, news_blackout,
 )
@@ -206,6 +211,21 @@ def evaluate_robots(candles_by_instrument: dict[str, tuple[ClosedCandle, ...]],
             "max_intents": max_intents,
             "robots": [asdict(r) for r in sorted(robots, key=lambda r: r.robot_id)],
             "intent_engine_contract": "NRFX_MULTI_ASSET_RESEARCH_INTENTS_V1",
+        }),
+        # Digest actual imported source bytes, not an unverified environment
+        # label. These are reproducibility identifiers, NOT code signatures.
+        "engine_sources_sha256": digest_input({
+            "robot_research_lab": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+            "causal_market_context": hashlib.sha256(
+                Path(_context_module.__file__).read_bytes()).hexdigest(),
+            "oanda_readonly": hashlib.sha256(
+                Path(_oanda_module.__file__).read_bytes()).hexdigest(),
+        }),
+        "runtime_versions_sha256": digest_input({
+            "python": [sys.version_info.major, sys.version_info.minor,
+                       sys.version_info.micro],
+            "pandas": pd.__version__,
+            "numpy": np.__version__,
         }),
     }
     payload = {
