@@ -9,10 +9,9 @@ import hashlib
 import json
 import math
 import re
-import math
 
 import pandas as pd
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from typing import Any
 
 _HEX64 = re.compile(r"^[0-9a-fA-F]{64}$")
@@ -56,46 +55,20 @@ class ExperimentIdentity:
         end = pd.Timestamp(self.window_end_exclusive_utc)
         if start.tzinfo is None or end.tzinfo is None or not start < end:
             raise ValueError("Experiment window must be chronological and timezone-aware")
-        # Snapshot the nested parameter tree at construction. A frozen dataclass
-        # does not freeze its mutable dict: silently changing it after an ID is
-        # issued would make historical manifests and their fingerprints drift.
-        if type(self.parameters) is not dict:
-            raise ValueError("Parameters must be a JSON object")
-        try:
-            frozen = json.dumps(self.parameters, sort_keys=True, separators=(",", ":"),
-                                ensure_ascii=False, allow_nan=False)
-            parsed = json.loads(frozen)
-        except (TypeError, ValueError, OverflowError) as exc:
-            raise ValueError("Parameters must be finite JSON values") from exc
-        if not isinstance(parsed, dict):
-            raise ValueError("Parameters must be a JSON object")
-        object.__setattr__(self, "_parameters_snapshot", frozen)
-        if not math.isfinite(self.quantity_ounces) or not math.isfinite(self.fee_all_in_per_ounce):
-            raise ValueError("Nonfinite quantity or fee")
         if self.execution_mode == "observed_tick_research":
-            # This prototype cannot run an observed tick event engine yet.
             raise ValueError("Observed tick execution is not implemented")
         if type(self.parameters) is not dict:
-            raise ValueError("Parameters require finite JSON mapping")
+            raise ValueError("Parameters must be a JSON object")
         try:
             frozen = json.dumps(
                 self.parameters, sort_keys=True, separators=(",", ":"),
                 ensure_ascii=False, allow_nan=False,
             )
-        except (ValueError, TypeError, OverflowError) as exc:
-            raise ValueError("Parameters require finite JSON values") from exc
-        # Frozen dataclass does not recursively freeze caller-owned mappings.
-        # Pin exact original bytes and reject later mutation before fingerprint
-        # or manifest generation instead of silently changing experiment ID.
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise ValueError("Parameters must be finite JSON values") from exc
+        # Caller-owned nested mappings remain mutable. Keep a byte-exact
+        # snapshot and fail closed if they change before identity publication.
         object.__setattr__(self, "_frozen_parameters_json", frozen)
-
-
-def _checked_fields(identity: ExperimentIdentity) -> dict:
-    fields = asdict(identity)
-    if json.dumps(fields['parameters'], sort_keys=True, separators=(',', ':'),
-                  ensure_ascii=False, allow_nan=False) != identity._parameters_snapshot:
-        raise ValueError('Experiment parameters mutated after identity was frozen')
-    return fields
 
 
 def _numeric_canonical(value):
