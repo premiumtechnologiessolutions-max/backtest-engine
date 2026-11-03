@@ -69,7 +69,11 @@ def run(args) -> dict:
     fd, tmp = tempfile.mkstemp(prefix=".multi-asset-", dir=root)
     try:
         with os.fdopen(fd, "wb") as stream:
-            os.fchmod(stream.fileno(), 0o600)
+            # mkstemp creates an owner-restricted file on POSIX. Windows
+            # has no os.fchmod; preserve the inherited private-root ACL and
+            # never pretend POSIX mode bits establish Windows ACL security.
+            if hasattr(os, "fchmod"):
+                os.fchmod(stream.fileno(), 0o600)
             stream.write(payload)
             stream.flush()
             os.fsync(stream.fileno())
