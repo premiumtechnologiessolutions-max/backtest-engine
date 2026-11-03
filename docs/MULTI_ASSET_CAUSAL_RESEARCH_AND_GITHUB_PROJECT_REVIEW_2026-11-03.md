@@ -331,3 +331,118 @@ not to copy more "Grok Bot" repos. It is to put an **auditable, typed
 independent verification gate** between every proposed mathematical
 idea and the one canonical deterministic research/execution engine,
 then validate real broker-fills separately from synthetic profit.
+
+
+## Phase IV: Operational completeness and external system selection (2026-11-03)
+
+### Exact code-base baseline and research boundaries
+
+Checked current \`feat/quant-engine-foundation\` Draft PR #1. The code base
+already has a Python 3.12 CI workflow, \`constraints-ci.txt\`, a full pytest
+step, \`norisk_quant\` engine, independent service/director and local QuantLab.
+It does **not** have one authoritative multi-family execution and experiment
+ledger, a production host acceptance report, or independently demonstrated
+prospective FX/XAU edge. CI does **not** have the private original market ZIP,
+nor proof of broker-side execution. No new vendor should be installed just
+because its feature appears on an architectural checklist.
+
+### New research: external candidates, concrete caveats and decision
+
+| Source | Verified capability / crucial caveat | Decision for NRFX |
+| --- | --- | --- |
+| [Feast point-in-time join guide](https://github.com/feast-dev/feast/blob/master/docs/getting-started/concepts/point-in-time-joins.md) (Apache-2.0) | **Critical finding:** default PIT join filters on event timestamp, but a later backfilled correction may still be returned. When supported, \`filter_by_created_timestamp=True\` also requires \`created_timestamp <= entity_timestamp\`. Not all stores support it and a source-side falsified created time still leaks. | Adapt *availability timestamp semantics* to our current strict macro \`released_at / first_seen_at\` contract and write adversarial leak tests. Do **not** deploy full feature server first |
+| [Pandera](https://github.com/unionai-oss/pandera) (MIT) | DataFrame schemas with strict columns, row/column bounds and dtype constraints, supports pandas/Polars/Arrow. Coercion may mask raw ingestion faults if used carelessly. | Pilot on closed OANDA BA bars and source-level rejection, not on private baseline until equivalence |
+| [MLflow dataset tracking](https://mlflow.org/docs/latest/dataset/) (Apache-2.0) | Dataset fingerprint, origin lineage, experiment tags and stored artifacts. Tracking metadata does not independently certify a backtest or prevent revised economic feature leakage. | Lightweight experiment read model only if existing immutable JSON/Parquet manifests are insufficient |
+| [DuckDB](https://github.com/duckdb/duckdb) (MIT) | Efficient local SQL aggregation of Parquet, analytical join across monthly/weekly/robot audits. A DuckDB database is not a writer authorization or broker source of truth. | Prefer a read-only analytical view, preserving existing source hashes and one canonical ledger |
+| [Evidently](https://github.com/evidentlyai/evidently) (Apache-2.0) | Observability on missing-value rate, drift, unusual spread/volatility/news distributions. Drift alone does not prove strategy decay or license retraining on holdout. | Add monitoring metrics and alarms before introducing a permanent drift service |
+| [Temporal Python SDK](https://github.com/temporalio/sdk-python) (MIT) | Durable event-driven long-running orchestration with deterministic workflow replay; requires external service and workflow/worker separation. The SDK sandbox catches nondeterminism, **not malicious code execution**. | Defer until measured failure of a single-host supervisor plus SQLite state journal |
+| [Dagster](https://github.com/dagster-io/dagster) (Apache-2.0) | Asset lineage, pipeline definitions, data quality checks and UI. A whole second scheduler would duplicate QuantLab. | Benchmark only against concrete 7-day failure/resume requirements |
+| [holdout](https://github.com/DaniyalMlk/holdout) (MIT) and [backtest-guard](https://github.com/AgentJDrew/backtest-guard) (MIT) | Candidate-family DSR/PSR/PBO, multiple-testing penalties, purged CV and worked examples. Returns series must use consistent units, frequency, non-i.i.d. treatment and honest count of tried candidates. Small repositories, so rerun their claims independently. | Standalone research *statistical audit* benchmark on synthetic null + known edge, then controlled training-only exports |
+| [PySR](https://github.com/MilesCranmer/PySR) / [official docs](https://pysr.ai/dev/) | Complex symbolic nonlinear expressions with constrained operators, custom losses and complexity penalties. Julia/runtime overhead and unrestricted operators can create noncausal/unstable expressions. | Run **isolated CPU/complexity benchmark** against existing arithmetic grammar; use AST whitelist, capped depth, no private holdout/host execution |
+| [gplearn](https://github.com/trevorstephens/gplearn) | Genetic programming symbolic expression trees, crossover/mutation, parsimony and correlation-based candidate reduction. Fitness on price prediction is not equivalent to executable after-cost P/L. | Low-cost baseline before PySR; every proposed formula goes through the canonical evaluator |
+| [Pydantic AI](https://github.com/pydantic/pydantic-ai) | Typed AI agent output with validation, usage limits, optional human approval; output schemas are not code sandbox or truthful research evidence. | Pilot structured Grok/Qwen hypothesis plan, **no broker tools or arbitrary Python execution** |
+| [Langfuse](https://github.com/langfuse/langfuse) | Agent trace/cost/prompt versions, MIT except \`ee\` folders; self-hosted telemetry documented. It can inadvertently capture sensitive quotes, sources and credentials. | Optional redacted AI-cost tracing only, no market data/prompt secrets; avoid heavyweight stack initially |
+| [GitHub Actions secure use guide](https://docs.github.com/en/actions/reference/security/secure-use) | Use workflow dependency lockfiles where possible; otherwise full-length action commit pins, minimal GITHUB_TOKEN privileges, restricted triggers. | **Implemented** in the accompanying workflow change: exact official checkout v4, setup-python v5 and upload-artifact v4 commit SHAs plus security regression |
+
+### Crucial official broker + macro controls
+
+- OANDA [REST API development guide](https://developer.oanda.com/rest-live-v20/development-guide/)
+  documents 120 REST requests/s per IP, 20 streaming connections per IP,
+  and at most 2 *new* connections/s. Our eventual data collector must bound
+  requests/backoff, reuse sessions and avoid 1 stream per robot.
+- OANDA [account state polling](https://developer.oanda.com/rest-live-v20/account-ep/)
+  exposes \`/v3/accounts/{accountID}/changes?sinceTransactionID=...\` and
+  \`lastTransactionID\`. The [transactions endpoint](https://developer.oanda.com/rest-live-v20/transaction-ep/)
+  exposes \`/transactions/sinceid?id=...\` with full event IDs.
+  A future **read-only** practice reconciler should persist a high-water ID
+  atomically **with** accepted journal rows, detect duplicates, require matching
+  instrument/units/time, and not silently infer missing transactions from a
+  stale cursor. Stream heartbeats are *liveness*, not fill confirmation.
+- OANDA [Instrument schema](https://developer.oanda.com/rest-live-v20/primitives-df/)
+  provides \`pipLocation\` and \`displayPrecision\` along with trade unit and
+  margin rules. Never reapply XAU USD-per-ounce cost semantics to EUR_USD,
+  USD_JPY or varying account currencies.
+- [ALFRED vintage dates](https://fred.stlouisfed.org/docs/api/fred/series_vintagedates.html)
+  and [FRED observations](https://fred.stlouisfed.org/docs/api/fred/series_observations.html)
+  operate primarily with **YYYY-MM-DD** real-time periods. FRED
+  [release dates](https://fred.stlouisfed.org/docs/api/fred/release_dates.html)
+  need not be the time the data became available through FRED. Intraday
+  macro trading needs original release timestamp and actual captured
+  availability timestamp. A date-only vintage can never authorize an
+  M1 news-reaction backtest.
+
+### Lean target architecture (one owner per invariant)
+
+| Concern / canonical owner | Required action / test | Reject the alternative |
+| --- | --- | --- |
+| Market data | existing canonical M1 importer + source SHA manifest; provider adapters are read-only, immutable and timestamped | second arbitrary quote schema / late corrections mislabeled historical |
+| Macro feature view | one PIT normalizer: \`released_at <= first_seen_at <= decision_at\`, valid value vintage/source and timezone; future corrections hidden | today's latest FRED values copied across old M1 dates |
+| Formula agents | isolated expression AST from bounded Grok/Qwen/GP proposal, canonical validation and resource budget | AI writing engine/evaluator/risk/holdout access |
+| Experiment lifecycle | one local SQLite WAL append-only *index* referencing immutable private evidence artifacts and SHA lineage; checkpoint transaction owner | separate independently mutable JSON states across controller/director/UI |
+| Execution economics | deterministic per-instrument quote side, lots/units, account conversion, financing and fee specs; preserve old frozen XAU \`0.40/oz ALL-IN\` historical contract | universal FX fee, “filled” label from candle touch alone |
+| Fitness authority | score computed ONLY after external independent evidence reconciliation; agent results remain unverified proposals | caller/LLM-supplied fitness accepted as scientific result |
+| Scientific validation | training-only selection, purged/embargoed temporal CV, cumulative tested-family accounting, **one-use future holdout** | repeated adaptive holdout veto and leaked macro |
+| Analytics | DuckDB read-only over Parquet/SQLite; make dashboard a projection | dashboard writing states or recreating its own report values |
+| Operations | existing single-host supervisor first; real restart/kill/disk/network outage drill before introducing Temporal/Dagster | 3 simultaneous “owners” issuing jobs, green heartbeat without host |
+| Security | no public dataset/token; pin GitHub actions to exact SHA; source-only CI, separate practice-only permission boundary, no live API adapter until explicitly authorized | public raw ZIP, PR automation with production secrets |
+
+This is a **target contract**, not a report that all components exist or have
+passed live end-to-end validation. “100%” can only mean defined acceptance
+criteria satisfied on a pinned release, not a guarantee of positive monthly
+returns or permanent correctness.
+
+### Non-negotiable acceptance suite to call the engineering release complete
+
+1. One exact pinned Git SHA; full suite green; 2012 private original 689 x 13
+   trade-field archived parity, plus independent XAU frozen negative-control
+   reproduction. Keep multi-year timed-out runs marked NOT PASSED.
+2. Synthetic 5-asset campaign with at least 3 agent families, one *shared*
+   planner, one immutable registry and exactly-once recorded outcomes; both
+   incompatible signals and missing data yield ABSTAIN.
+3. PIT negative controls: a backfilled headline, revised NFP and policy rate,
+   delayed first_seen_at, scheduled-release revision and US/EU DST all unable
+   to leak into the prior trading decision.
+4. Frozen training design vs one-use prospective validation: failed or rejected
+   strategies not reworked on observed holdout; null-data multiple-testing
+   rejection rate tested under seeded simulations.
+5. OANDA **practice** read-only transaction replay + crash-and-restart from
+   high-water transaction ID; reconcile partial fills, financing, unknown
+   slippage, currency units and duplicates from captured *private* events.
+   This alone does not enable live trading.
+6. Real 24/7 provisioned host with a 7-day monitored campaign, disk-full,
+   forced kill, reboot and transient network interruption, no double job,
+   measured CPU/RAM/IO and cost limits.
+7. CI security guard + dependency vulnerabilities/licenses reviewed; no
+   external code copied under unknown or restrictive license, secrets kept
+   outside workflows/output, role boundaries audited. Repo visibility
+   remains Public until the owner explicitly changes it.
+8. Unified UI backed by read-only canonical states; when any source, host,
+   pending experiment or provenance validation fails, UI must show BLOCKED
+   rather than falsely READY.
+
+**Adoption order:** freeze evidence contract -> unify scheduler -> broker
+ledger/FX mechanics -> time-aware macro -> independent fitness -> optimizer
+spikes -> UI/monitoring -> independent holdout/host operational acceptance.
+Avoid simultaneously installing Feast, Temporal, Dagster, MLflow, PySR and
+Langfuse: that would increase attack surface, cost, and technical debt before
+we have one trusted canonical engine.
