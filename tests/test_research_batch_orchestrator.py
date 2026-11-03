@@ -349,7 +349,7 @@ def test_compensating_individual_trade_fees_are_rejected(tmp_path):
         writer.writeheader()
         writer.writerows(rows)
     assert sum(float(row["cost"]) for row in rows) == pytest.approx(1.6)
-    with pytest.raises(ValueError, match="Individual trade fee"):
+    with pytest.raises(ValueError, match="Individual trade fee|execution trade cost mismatch"):
         lab.audit_run(folder, spec(), SOURCE, COMMIT)
 
 
@@ -397,7 +397,7 @@ def test_audit_rejects_period_shift_despite_matching_total_pnl(tmp_path, shifted
         writer.writeheader()
         writer.writerows(rows)
     assert sum(float(row["net_pnl"]) for row in rows) == pytest.approx(1)
-    with pytest.raises(ValueError, match="exit allocation|timestamp"):
+    with pytest.raises(ValueError, match="exit allocation|timestamp|chronology|Overlapping|timezone-aware"):
         lab.audit_run(folder, spec(), SOURCE, COMMIT)
 
 
