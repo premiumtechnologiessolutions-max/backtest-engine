@@ -180,3 +180,18 @@ def test_cli_emits_json_even_when_blocked(tmp_path, monkeypatch, capsys):
     assert result["status"] == "BLOCKED_UNRESOLVED_EXECUTION_SEMANTICS"
     assert set(result["missing"]) == set(EXECUTION_KEYS)
     assert result["original_source_replays"] == 0
+
+
+@pytest.mark.parametrize("bad", ["UTC\u200b close of bar", "UTC\u202eclose of bar", "UTC\ufeff close of bar"])
+def test_invisible_unicode_format_controls_blocked(bad):
+    contract = distinct_contract()
+    contract["signal_timestamp_rule"] = bad
+    assert audit_fac028(FROZEN, execution_contract=contract)["missing"] == ["signal_timestamp_rule"]
+
+
+def test_unicode_normalized_and_whitespace_variant_duplicates_blocked():
+    contract = distinct_contract()
+    contract["signal_timestamp_rule"] = "At UTC  12:00 use prior bar"
+    contract["breakout_price_comparator"] = "At UTC\u00a012:00  use prior bar"
+    result = audit_fac028(FROZEN, execution_contract=contract)
+    assert set(result["missing"]) == {"signal_timestamp_rule", "breakout_price_comparator"}
