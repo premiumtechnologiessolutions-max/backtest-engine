@@ -70,3 +70,45 @@ upstream README marketing claims are not independent verification.
 5. Add paper-mode reconciler and risk limits; no live adapter until explicit
    approval and real crash/restart/kill-switch drills.
 6. Add true prospective out-of-sample holdout and multiple-testing penalties.
+
+
+## Grok Bot role desks and OANDA failure case
+
+The following repositories specifically use **Grok Bot team/skills**, rather
+than merely invoking an xAI Grok LLM as an analysis API:
+
+- [galleonlabs/hypergrok-trading-desk](https://github.com/galleonlabs/hypergrok-trading-desk):
+  seven agent roles, one authorized writer, ticket approval, 17 skills;
+  Hyperliquid, not OANDA. MIT.
+- [tsukiema/tsukiema-desk](https://github.com/tsukiema/tsukiema-desk):
+  twenty specialized seats, cheap deterministic filters, fail-closed JSON,
+  model budget, paper execution stub.
+- [GrokDesk/grokdesk](https://github.com/GrokDesk/grokdesk):
+  six desks, supervisor reallocates research budget and retires underperforming
+  agents. Its simulation is not proven market edge.
+- [swcstudiospace/PumpGrok](https://github.com/swcstudiospace/PumpGrok):
+  ten staff roles, 35 portable skills and a rule that never signs live orders.
+- [HammeredSmithy/bull-trade](https://github.com/HammeredSmithy/bull-trade):
+  HyperGrok-style Webull team, not OANDA.
+- [Mendurim/strikegrok-trading-desk](https://github.com/Mendurim/strikegrok-trading-desk):
+  seven-role Strike Finance team; broker adapter is venue-specific.
+
+**Highest priority FX/OANDA engineering comparator:**
+[BrockStar3540/mr-scrooge-v6](https://github.com/BrockStar3540/mr-scrooge-v6)
+(Apache-2.0) uses OANDA across many FX pairs, a governor promoting and
+demoting setups, shadow outcomes, practice/real fills, hypothesis records and
+a formal bug ledger. Its November 2 published ledger reported 1,127 all-time
+closed real-money trades with a 78.2% win rate but **-$1,365.92 net P/L**.
+This is an author-published snapshot, **not independently audited here**.
+It illustrates the danger of using win rate, backtest P/L or simulation
+outcomes as a substitute for actual net broker fills. Its reported poor
+sim-to-broker agreement is exactly why No Risk FX needs a separately
+reconciled execution adapter before assigning real capital. Read its
+[research program](https://github.com/BrockStar3540/mr-scrooge-v6/blob/main/docs/RESEARCH_PROGRAM.md),
+not just the strategy catalog. Never copy strategies/risk settings blindly.
+
+Source catalog indexes:
+[awesome-grok-bot](https://github.com/ZeroPointRepo/awesome-grok-bot),
+[GitHub grok-bot topic](https://github.com/topics/grok-bot),
+[awesome-open-source-trading](https://github.com/WallStreetPete/awesome-open-source-trading).
+A search survey cannot prove that every repository has been discovered.
