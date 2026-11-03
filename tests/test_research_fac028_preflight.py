@@ -103,3 +103,18 @@ def test_cli_rejects_ambiguous_or_nonfinite_json(tmp_path, monkeypatch, payload)
     with pytest.raises(SystemExit) as exc:
         main()
     assert exc.value.code == 2
+
+
+def test_unexpected_execution_key_fails_closed():
+    contract = distinct_contract()
+    contract["undocumented_override"] = "force execution"
+    with pytest.raises(ValueError, match="unexpected FAC028 execution keys"):
+        audit_fac028(FROZEN, execution_contract=contract)
+
+
+def test_two_copied_rules_block_only_affected_dimensions():
+    contract = distinct_contract()
+    contract["entry_bid_ask_rule"] = contract["position_exit_time_rule"]
+    result = audit_fac028(FROZEN, execution_contract=contract)
+    assert result["status"] == "BLOCKED_UNRESOLVED_EXECUTION_SEMANTICS"
+    assert set(result["missing"]) == {"entry_bid_ask_rule", "position_exit_time_rule"}
