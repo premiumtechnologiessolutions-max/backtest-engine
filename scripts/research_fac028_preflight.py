@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import unicodedata
 from pathlib import Path
 
 REQUIRED = (
@@ -50,7 +51,7 @@ def _is_defined(value: object) -> bool:
     rule = value.strip()
     if not rule or len(rule) > MAX_RULE_CHARS:
         return False
-    if any(ord(ch) < 32 or ord(ch) == 127 for ch in rule):
+    if any(unicodedata.category(ch) in {"Cc", "Cf", "Cs"} for ch in rule):
         return False
     return (rule.casefold() not in PLACEHOLDER_VALUES
             and _PLACEHOLDER_PREFIX.match(rule) is None)
@@ -68,7 +69,8 @@ def audit_fac028(text: str, *, execution_contract: dict | None = None) -> dict:
                or not _is_defined(execution_contract.get(key))]
     # Repeating one generic sentence for unrelated semantics is not a contract.
     if isinstance(execution_contract, dict) and not missing:
-        values = [execution_contract[key].strip().casefold() for key in EXECUTION_KEYS]
+        values = [" ".join(unicodedata.normalize("NFKC", execution_contract[key]).split()).casefold()
+                  for key in EXECUTION_KEYS]
         if len(set(values)) != len(values):
             # Any copied semantics across distinct execution dimensions need review.
             duplicates = {value for value in values if values.count(value) > 1}
