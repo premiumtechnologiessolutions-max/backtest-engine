@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 from datetime import datetime, timezone
 import json
+import os
 from pathlib import Path
 import sys
 
@@ -21,6 +22,54 @@ COMPLETE = {"TRAINING_CAP_REACHED_NOT_OOS"}
 PAUSED = {"PAUSED_UNATTENDED_RETRY_BUDGET", "PAUSED_TOTAL_TIME_BUDGET",
           "PAUSED_DISK_BUDGET", "PAUSED_RESUME_ATTEMPTS_BUDGET",
           "FAULT_REQUIRES_EVIDENCE_REVIEW"}
+
+
+def _pid_exists(pid: int) -> bool:
+    """Probe host-local worker existence; never equate fresh JSON with liveness.
+
+    A PID check alone does not prove process *identity* or progress; a robust
+    supervisor additionally binds the spawned child and its lease. On
+    unsupported hosts we fail closed instead of reporting healthy.
+    """
+    if type(pid) is not int or pid <= 0:
+        return False
+    if os.name == "posix":
+        try:
+            os.kill(pid, 0)
+            return True
+        except ProcessLookupError:
+            return False
+        except PermissionError:
+            # Existence is known, though ownership is not.
+            return True
+        except OSError:
+            return False
+    if os.name == "nt":
+        # Unlike os.kill(pid, 0), use a non-destructive Windows process query.
+        try:
+            import ctypes
+            import ctypes.wintypes
+            api = ctypes.WinDLL("kernel32", use_last_error=True)
+            api.OpenProcess.argtypes = [ctypes.wintypes.DWORD,
+                                         ctypes.wintypes.BOOL,
+                                         ctypes.wintypes.DWORD]
+            api.OpenProcess.restype = ctypes.wintypes.HANDLE
+            handle = api.OpenProcess(0x1000, False, pid)
+            if not handle:
+                return False
+            try:
+                status = ctypes.wintypes.DWORD()
+                api.GetExitCodeProcess.argtypes = [
+                    ctypes.wintypes.HANDLE,
+                    ctypes.POINTER(ctypes.wintypes.DWORD)]
+                api.GetExitCodeProcess.restype = ctypes.wintypes.BOOL
+                return bool(api.GetExitCodeProcess(handle, ctypes.byref(status))
+                            and status.value == 259)
+            finally:
+                api.CloseHandle(handle)
+        except (AttributeError, OSError, ValueError):
+            return False
+    return False
 
 
 def evaluate(root: Path, *, max_age_seconds: int = 300,
@@ -101,6 +150,8 @@ def evaluate(root: Path, *, max_age_seconds: int = 300,
             pid = report.get("worker_pid")
             if type(pid) is not int or pid <= 0:
                 raise ValueError("Invalid worker PID")
+            if not _pid_exists(pid):
+                return 3, {"state": "WORKER_PID_NOT_ALIVE", "healthy": False}
         return 0, {"state": state, "healthy": True}
     except (ValueError, TypeError, KeyError, OverflowError, OSError):
         return 3, {"state": "INVALID_HEALTH_EVIDENCE", "healthy": False}
