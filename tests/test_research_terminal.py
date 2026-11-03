@@ -226,3 +226,11 @@ def test_cli_invalid_sha_target_rejected_before_output(tmp_path):
                        "--evidence-commit", "main"])
     assert exc.value.code == 2
     assert not out.exists()
+
+
+@pytest.mark.parametrize("unsafe", ["docs/.", "docs/./evidence.md", "docs//evidence.md", "research/../docs/evidence.md"])
+def test_ambiguous_report_path_segments_rejected(unsafe):
+    bad = registry()
+    bad["completed_batches"][0]["report"] = unsafe
+    with pytest.raises(ValueError, match="Unsafe report"):
+        dashboard_model(bad)
