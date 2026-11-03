@@ -54,6 +54,15 @@ def audit_fac028(text: str, *, execution_contract: dict | None = None) -> dict:
             "independent_hypotheses": 1, "original_source_replays": 0}
 
 
+def _reject_duplicate_keys(pairs: list[tuple[str, object]]) -> dict:
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate execution contract key: {key}")
+        result[key] = value
+    return result
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("frozen_protocol", type=Path)
@@ -62,7 +71,7 @@ def main() -> int:
     contract = None
     if args.execution_contract is not None:
         try:
-            contract = json.loads(args.execution_contract.read_text(encoding="utf-8"))
+            contract = json.loads(args.execution_contract.read_text(encoding="utf-8"),\n                                  object_pairs_hook=_reject_duplicate_keys,\n                                  parse_constant=lambda value: (_ for _ in ()).throw(\n                                      ValueError(f"non-finite JSON constant: {value}")))
         except (OSError, ValueError) as exc:
             parser.error(f"invalid execution contract: {exc}")
         if not isinstance(contract, dict):
