@@ -96,6 +96,39 @@ jobs:
                 f"net={summaries[0]['net_pnl']:.5f}, fee=$0.40/oz/cycle, "
                 "reference-fast parity verified")
           PY
+      - name: Verify core wheel and source-platform package contents
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os
+          import tarfile
+          import tempfile
+          import zipfile
+          from pathlib import Path
+          from setuptools import build_meta
+
+          out = Path(tempfile.mkdtemp(prefix="nrfx-pkg-", dir=os.environ["RUNNER_TEMP"]))
+          source_name = build_meta.build_sdist(str(out))
+          wheel_name = build_meta.build_wheel(str(out))
+          with tarfile.open(out / source_name) as archive:
+              entries = {name.split("/", 1)[1] for name in archive.getnames() if "/" in name}
+          expected = {
+              "src/norisk_quant/cli.py",
+              "scripts/quantlab_desktop_ui.html",
+              "research/strategy_factory_registry.json",
+              "deploy/Start-NoRiskFXResearch.ps1",
+              "deploy/norisk-quant-research.service",
+              "constraints-ci.txt", "start_quantlab.py",
+              "MANIFEST.in", "README.md",
+          }
+          assert expected <= entries, sorted(expected - entries)
+          assert not any(name.endswith(".zip") for name in entries)
+          with zipfile.ZipFile(out / wheel_name) as archive:
+              wheel_files = set(archive.namelist())
+          assert "norisk_quant/cli.py" in wheel_files
+          assert not any(name.endswith(".zip") for name in wheel_files)
+          print("Packaging PASS: library wheel + complete public source-platform sdist")
+          PY
       - name: Package public source snapshot for offline private-data verification
         continue-on-error: true
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
