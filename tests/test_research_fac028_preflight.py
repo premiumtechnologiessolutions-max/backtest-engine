@@ -133,7 +133,7 @@ def test_prefixed_placeholder_is_not_a_frozen_rule(placeholder):
 
 
 @pytest.mark.parametrize("bad", [
-    "valid rule\\ninjected second rule", "valid rule\\tfake table",
+    "valid rule\ninjected second rule", "valid rule\tfake table",
     "x" * 4097,
 ])
 def test_control_characters_and_unbounded_rules_fail_closed(bad):
