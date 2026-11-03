@@ -477,6 +477,57 @@ def audit_run(folder: Path, spec: dict, source_sha: str, engine_sha: str) -> dic
     }
 
 
+def frozen_backtest_command(dataset: Path, folder: Path, spec: dict) -> list[str]:
+    """Construct the single approved CLI contract used for run and recovery."""
+    cmd = [sys.executable, "-m", "norisk_quant.cli", "backtest",
+           "--data", str(dataset), "--start", spec["start"], "--end", spec["end"],
+           "--out", str(folder), "--strategy", spec["strategy"],
+           "--timeframe", spec["timeframe"], "--execution", spec["execution"],
+           "--ounces", "1", "--all-in-cost-per-ounce", "0.40"]
+    for key, value in sorted(spec["parameters"].items()):
+        cmd += ["--" + key.replace("_", "-"), str(value)]
+    return cmd
+
+
+def replay_orphan_from_source(
+        original: Path, dataset: Path, spec: dict, source_sha: str,
+        engine_sha: str, output_root: Path) -> dict:
+    """Recover only after an independent fresh CLI replay of private source.
+
+    Self-reconciling CSV and summary fields alone cannot authenticate an
+    orphan: an attacker can edit both. Regenerate all executed trades in a
+    private temporary directory with the frozen CLI, then compare complete
+    ledgers, actual M1 fingerprint and execution summary provenance. This is
+    repeatability evidence, NOT independent engine/market OOS validation.
+    """
+    candidate = audit_run(original, spec, source_sha, engine_sha)
+    with tempfile.TemporaryDirectory(
+            prefix=".orphan-source-replay-", dir=output_root) as scratch:
+        rebuilt = Path(scratch)
+        subprocess.run(
+            frozen_backtest_command(dataset, rebuilt, spec),
+            check=True, capture_output=True, text=True, timeout=7200,
+            env=dict(os.environ, GITHUB_SHA=engine_sha),
+        )
+        replay = audit_run(rebuilt, spec, source_sha, engine_sha)
+        # No opportunity to certify a forged +P/L by self-consistent totals.
+        # Reproducing the complete executed trade ledger also binds the M1
+        # price path to this local frozen dataset and checkout.
+        for name in ("trades.csv", "monthly.csv", "weekly.csv"):
+            if file_sha(original / name) != file_sha(rebuilt / name):
+                raise ValueError("Orphan evidence differs from source replay: " + name)
+        original_summary = read_strict_json(original / "summary.json")
+        replay_summary = read_strict_json(rebuilt / "summary.json")
+        for field in ("source_fingerprints", "settings", "run_parameters",
+                      "execution", "accounting_checks"):
+            if canonical(original_summary.get(field)) != canonical(replay_summary.get(field)):
+                raise ValueError("Orphan summary differs from source replay: " + field)
+        if (candidate["trades"] != replay["trades"]
+                or not same(candidate["net_pnl"], replay["net_pnl"])):
+            raise ValueError("Orphan accounting differs from source replay")
+    return candidate
+
+
 def checkout_commit() -> str:
     try:
         result = subprocess.run([
@@ -640,7 +691,7 @@ def render_index(manifest: dict) -> str:
 
 def run_plan(plan: dict, output: Path, *, max_jobs: int = 20, dry_run: bool = False,
              recover_verified_orphans: bool = False) -> dict:
-    """Resume frozen batches; orphan recovery requires explicit opt-in and full audit."""
+    """Resume frozen batches; opt-in recovery requires a fresh source replay."""
     jobs, plan_sha = expand(plan)
     if type(recover_verified_orphans) is not bool:
         raise ValueError("Orphan recovery flag must be boolean")
@@ -708,8 +759,9 @@ def run_plan(plan: dict, output: Path, *, max_jobs: int = 20, dry_run: bool = Fa
                     # ONLY complete, exactly source/commit/spec-reconciled
                     # evidence. Never infer success from a folder's existence.
                     try:
-                        recovered_record = audit_run(
-                            folder, spec, plan["source_sha256"], revision)
+                        recovered_record = replay_orphan_from_source(
+                            folder, dataset, spec, plan["source_sha256"],
+                            revision, output)
                     except (ValueError, OSError, FileNotFoundError, KeyError) as exc:
                         raise ValueError(
                             "Orphaned run failed canonical evidence audit; "
@@ -721,13 +773,7 @@ def run_plan(plan: dict, output: Path, *, max_jobs: int = 20, dry_run: bool = Fa
             if launched >= max_jobs:
                 break
             folder.mkdir(parents=True, exist_ok=True)
-            cmd = [sys.executable, "-m", "norisk_quant.cli", "backtest",
-                   "--data", str(dataset), "--start", spec["start"], "--end", spec["end"],
-                   "--out", str(folder), "--strategy", spec["strategy"],
-                   "--timeframe", spec["timeframe"], "--execution", spec["execution"],
-                   "--ounces", "1", "--all-in-cost-per-ounce", "0.40"]
-            for key, value in sorted(spec["parameters"].items()):
-                cmd += ["--" + key.replace("_", "-"), str(value)]
+            cmd = frozen_backtest_command(dataset, folder, spec)
             env = dict(os.environ, GITHUB_SHA=revision)
             try:
                 subprocess.run(cmd, check=True, capture_output=True, text=True,
