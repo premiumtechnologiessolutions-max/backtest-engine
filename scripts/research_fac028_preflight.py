@@ -39,7 +39,8 @@ PLACEHOLDER_VALUES = frozenset({"tbd", "todo", "unknown", "n/a", "na", "pending"
 # a pending order or unknown future market event.
 _PLACEHOLDER_PREFIX = re.compile(
     r"^(?:tbd|todo|to\s+be\s+defined|not\s+specified|"
-    r"unknown|undefined|pending|n/?a|placeholder)\s*(?::|[-–—]|\(|$)",
+    r"unknown|undefined|pending|n/?a|placeholder)\s*(?::|[-–—]|\(|$|"
+    r"\b(?:define|definition|confirm|owner|review|later|waiting)\b)",
     flags=re.IGNORECASE,
 )
 MAX_RULE_CHARS = 4096

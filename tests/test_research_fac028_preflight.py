@@ -218,3 +218,26 @@ def test_unicode_normalization_does_not_reject_real_rule():
         "\uff21t UTC 12:00 use prior completed M1 candle and only known BID/ASK"
     )
     assert audit_fac028(FROZEN, execution_contract=contract)["missing"] == []
+
+
+@pytest.mark.parametrize("placeholder", [
+    "TBD define later", "TODO confirm broker feed", "Pending owner",
+    "unknown definition", "not specified waiting for data",
+])
+def test_unseparated_deferred_execution_rule_cannot_clear_review_gate(placeholder):
+    contract = distinct_contract()
+    contract["signal_timestamp_rule"] = placeholder
+    result = audit_fac028(FROZEN, execution_contract=contract)
+    assert result["status"] == "BLOCKED_UNRESOLVED_EXECUTION_SEMANTICS"
+    assert result["missing"] == ["signal_timestamp_rule"]
+
+
+def test_real_pending_order_and_known_future_unknown_not_rejected():
+    contract = distinct_contract()
+    contract["position_exit_time_rule"] = (
+        "Cancel pending order at UTC 22:00; exit existing position at next BID"
+    )
+    contract["session_calendar_definition"] = (
+        "Unknown future market events are excluded; use frozen UTC calendar"
+    )
+    assert audit_fac028(FROZEN, execution_contract=contract)["missing"] == []
