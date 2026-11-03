@@ -121,3 +121,47 @@ def test_invalid_request_and_lease_are_rejected(tmp_path):
     with pytest.raises(ValueError, match="lease"):
         store.claim_next("good-worker", lease_seconds=0)
     assert store.status(record["fingerprint"])["state"] == "QUEUED"
+
+
+def test_cancel_request_is_idempotent_and_fenced_acknowledgement(tmp_path):
+    store = state.DurableResearchState(tmp_path / "state.sqlite3")
+    ident = store.ingest_record(frozen_request())
+    claim = store.claim_next("worker-A", lease_seconds=10, now_ms=1000)
+    assert store.cancel(ident) == "CANCEL_REQUESTED"
+    assert store.cancel(ident) == "CANCEL_REQUESTED"
+    with pytest.raises(ValueError, match="Stale or unauthorized"):
+        store.acknowledge_cancel(ident, claim["attempt_id"], 0,
+                                 "worker-A", now_ms=1500)
+    store.acknowledge_cancel(ident, claim["attempt_id"],
+                             claim["fencing_token"], "worker-A", now_ms=1500)
+    assert store.status(ident)["state"] == "CANCELLED"
+    with pytest.raises(ValueError, match="Stale or unauthorized"):
+        store.acknowledge_cancel(ident, claim["attempt_id"],
+                                 claim["fencing_token"], "worker-A", now_ms=1500)
+    assert store.claim_next("worker-B", now_ms=20000) is None
+    with store._connection() as db:
+        transitions = [row[0] for row in db.execute(
+            "SELECT to_state FROM events WHERE request_id=? ORDER BY event_id",
+            (ident,))]
+    assert transitions == ["QUEUED", "RUNNING", "CANCEL_REQUESTED", "CANCELLED"]
+
+
+def test_expired_cancel_requires_supervisor_confirmed_exit(tmp_path):
+    store = state.DurableResearchState(tmp_path / "state.sqlite3")
+    ident = store.ingest_record(frozen_request())
+    claim = store.claim_next("worker-A", lease_seconds=1, now_ms=1000)
+    assert store.cancel(ident) == "CANCEL_REQUESTED"
+    with pytest.raises(ValueError, match="confirm worker process exit"):
+        store.finalize_expired_cancel(ident, now_ms=3000)
+    with pytest.raises(ValueError, match="not eligible"):
+        store.finalize_expired_cancel(
+            ident, process_exit_confirmed=True, now_ms=1500)
+    with pytest.raises(ValueError, match="Stale or unauthorized"):
+        store.acknowledge_cancel(ident, claim["attempt_id"],
+                                 claim["fencing_token"], "worker-A", now_ms=3000)
+    assert store.finalize_expired_cancel(
+        ident, process_exit_confirmed=True, now_ms=3000) is True
+    assert store.finalize_expired_cancel(
+        ident, process_exit_confirmed=True, now_ms=3000) is False
+    assert store.status(ident)["state"] == "CANCELLED"
+    assert store.claim_next("worker-B", now_ms=5000) is None
