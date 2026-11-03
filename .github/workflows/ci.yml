@@ -106,6 +106,10 @@ jobs:
             scripts/
             tests/
             research/
+            docs/
+            deploy/
+            MANIFEST.in
+            start_quantlab.py
             pyproject.toml
             constraints-ci.txt
             README.md
