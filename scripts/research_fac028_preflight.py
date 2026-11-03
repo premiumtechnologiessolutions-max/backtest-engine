@@ -24,13 +24,23 @@ EXECUTION_KEYS = (
 )
 
 
+# A nonempty placeholder is not an executable, frozen definition.
+PLACEHOLDER_VALUES = frozenset({"tbd", "todo", "unknown", "n/a", "na", "pending",
+                                "undefined", "to be defined", "not specified",
+                                "placeholder", "?"})
+
+
+def _is_defined(value: object) -> bool:
+    return (isinstance(value, str) and bool(value.strip())
+            and value.strip().casefold() not in PLACEHOLDER_VALUES)
+
+
 def audit_fac028(text: str, *, execution_contract: dict | None = None) -> dict:
     if not isinstance(text, str) or any(s not in text for s in REQUIRED):
         raise ValueError("FAC028 frozen protocol missing required safeguards")
     missing = [key for key in EXECUTION_KEYS
                if not isinstance(execution_contract, dict)
-               or not isinstance(execution_contract.get(key), str)
-               or not execution_contract[key].strip()]
+               or not _is_defined(execution_contract.get(key))]
     return {"status": "BLOCKED_UNRESOLVED_EXECUTION_SEMANTICS" if missing
             else "READY_FOR_INDEPENDENT_CONTRACT_REVIEW_NOT_EXECUTION",
             "missing": missing, "grid_specs": 24,
