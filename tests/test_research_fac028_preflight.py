@@ -150,3 +150,33 @@ def test_placeholder_word_inside_actual_execution_rule_is_not_false_positive():
         "At UTC 22:00 exit any pending position at first available BID/ASK quote"
     )
     assert audit_fac028(FROZEN, execution_contract=contract)["missing"] == []
+
+
+def test_cli_emits_strict_machine_readable_json_when_ready(tmp_path, monkeypatch, capsys):
+    import json
+    import sys
+    from scripts.research_fac028_preflight import main
+    protocol = tmp_path / "protocol.md"
+    protocol.write_text(FROZEN, encoding="utf-8")
+    contract = tmp_path / "contract.json"
+    contract.write_text(json.dumps(distinct_contract()), encoding="utf-8")
+    monkeypatch.setattr(sys, "argv", ["fac028", str(protocol), "--execution-contract", str(contract)])
+    assert main() == 0
+    result = json.loads(capsys.readouterr().out)
+    assert result["status"] == "READY_FOR_INDEPENDENT_CONTRACT_REVIEW_NOT_EXECUTION"
+    assert result["original_source_replays"] == 0
+    assert result["missing"] == []
+
+
+def test_cli_emits_json_even_when_blocked(tmp_path, monkeypatch, capsys):
+    import json
+    import sys
+    from scripts.research_fac028_preflight import main
+    protocol = tmp_path / "protocol.md"
+    protocol.write_text(FROZEN, encoding="utf-8")
+    monkeypatch.setattr(sys, "argv", ["fac028", str(protocol)])
+    assert main() == 2
+    result = json.loads(capsys.readouterr().out)
+    assert result["status"] == "BLOCKED_UNRESOLVED_EXECUTION_SEMANTICS"
+    assert set(result["missing"]) == set(EXECUTION_KEYS)
+    assert result["original_source_replays"] == 0

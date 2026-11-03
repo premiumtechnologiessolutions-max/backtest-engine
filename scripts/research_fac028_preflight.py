@@ -106,7 +106,9 @@ def main() -> int:
         if not isinstance(contract, dict):
             parser.error("execution contract must be a JSON object")
     result = audit_fac028(args.frozen_protocol.read_text(encoding="utf-8"), execution_contract=contract)
-    print(result)
+    # Machine-readable output is required for the autonomous director and CI.
+    # Python repr is not JSON and cannot be safely parsed by other services.
+    print(json.dumps(result, sort_keys=True, separators=(",", ":"), allow_nan=False))
     return 2 if result["missing"] else 0
 
 
