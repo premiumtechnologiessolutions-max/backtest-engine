@@ -51,10 +51,15 @@ def _is_defined(value: object) -> bool:
     rule = value.strip()
     if not rule or len(rule) > MAX_RULE_CHARS:
         return False
+    # Reject hidden format controls BEFORE normalization, then apply the same
+    # canonical form used by duplicate-rule detection to placeholder checks.
     if any(unicodedata.category(ch) in {"Cc", "Cf", "Cs"} for ch in rule):
         return False
-    return (rule.casefold() not in PLACEHOLDER_VALUES
-            and _PLACEHOLDER_PREFIX.match(rule) is None)
+    normalized = " ".join(unicodedata.normalize("NFKC", rule).split())
+    if not normalized or len(normalized) > MAX_RULE_CHARS:
+        return False
+    return (normalized.casefold() not in PLACEHOLDER_VALUES
+            and _PLACEHOLDER_PREFIX.match(normalized) is None)
 
 
 def audit_fac028(text: str, *, execution_contract: dict | None = None) -> dict:

@@ -195,3 +195,26 @@ def test_unicode_normalized_and_whitespace_variant_duplicates_blocked():
     contract["breakout_price_comparator"] = "At UTC\u00a012:00  use prior bar"
     result = audit_fac028(FROZEN, execution_contract=contract)
     assert set(result["missing"]) == {"signal_timestamp_rule", "breakout_price_comparator"}
+
+
+@pytest.mark.parametrize("placeholder", [
+    "\uff34\uff22\uff24",  # NFKC full-width TBD
+    "\uff34\uff22\uff24\uff1a define later",
+    "\uff30\uff25\uff2e\uff24\uff29\uff2e\uff27\uff08owner\uff09",
+    "TBD\u00a0:\u00a0waiting for data",
+    "\uff2e\uff0f\uff21",  # full-width N/A
+])
+def test_unicode_compatibility_placeholders_fail_closed(placeholder):
+    contract = distinct_contract()
+    contract["signal_timestamp_rule"] = placeholder
+    result = audit_fac028(FROZEN, execution_contract=contract)
+    assert result["missing"] == ["signal_timestamp_rule"]
+    assert result["status"] == "BLOCKED_UNRESOLVED_EXECUTION_SEMANTICS"
+
+
+def test_unicode_normalization_does_not_reject_real_rule():
+    contract = distinct_contract()
+    contract["signal_timestamp_rule"] = (
+        "\uff21t UTC 12:00 use prior completed M1 candle and only known BID/ASK"
+    )
+    assert audit_fac028(FROZEN, execution_contract=contract)["missing"] == []
