@@ -191,7 +191,7 @@ def enqueue(root: Path, request: dict) -> dict:
     record = _verify(request, request["fingerprint"] + ".json")
     directory = _queue_directory(root, create=True)
     target = directory / (record["fingerprint"] + ".json")
-    payload = _canonical(record) + b"\\n"
+    payload = _canonical(record) + b"\n"
 
     def verify_existing() -> dict:
         try:
