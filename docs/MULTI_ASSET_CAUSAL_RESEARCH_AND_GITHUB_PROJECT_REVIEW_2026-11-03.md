@@ -234,3 +234,100 @@ Optuna/LLM proposal adapter isolated to training; (5) paper-only broker
 reconciliation; (6) prospective locked validation; (7) operating host proof.
 Avoid adopting Prefect, Ray, LangGraph, or RL frameworks before establishing
 a single canonical process and measuring CPU/RAM overhead.
+
+
+## Phase III: Deep source review and engineering adoption decisions (2026-11-03, late session)
+
+Scope: **read-only GitHub/API/source inspection**. No external packages were
+installed, no third-party code copied, no private quote data uploaded, no API
+credentials accessed, and no live or practice orders sent. This inventory is
+not a security audit, independent quant proof, or a claim that all possible
+GitHub projects have been found.
+
+### Newly vetted candidates and concrete files inspected
+
+| Candidate | Exact source inspected / evidence | Applicable pattern | Decision and blocker |
+| --- | --- | --- | --- |
+| [AutoResearch-Factory/AgonAlpha](https://github.com/AutoResearch-Factory/AgonAlpha) (MIT, small research repo) | [MCTS scheduler](https://github.com/AutoResearch-Factory/AgonAlpha/blob/main/scripts/mcts.py), [unit tests](https://github.com/AutoResearch-Factory/AgonAlpha/blob/main/scripts/tests/test_mcts.py), [proposer](https://github.com/AutoResearch-Factory/AgonAlpha/blob/main/agents/alpha-proposer.md), [reviewer](https://github.com/AutoResearch-Factory/AgonAlpha/blob/main/agents/alpha-reviewer.md) | MCTS lineage allocation, exploration/exploitation, specialized independent scientific reviewer | **High research fit; do not copy scorer.** Important finding: CLI \`cmd_update\` accepts a caller-supplied finite numeric \`--score\`, and updates tree state; it does **not** enforce a cryptographic link to reviewer-attested evidence. Reviewer instructions are separate markdown/prompt procedure. NRFX must admit score only from independently verified immutable replay |
+| [algorithmicsuperintelligence/openevolve](https://github.com/algorithmicsuperintelligence/openevolve) (Apache-2.0) | [controller](https://github.com/algorithmicsuperintelligence/openevolve/blob/main/openevolve/controller.py), [evaluator](https://github.com/algorithmicsuperintelligence/openevolve/blob/main/openevolve/evaluator.py), [program database](https://github.com/algorithmicsuperintelligence/openevolve/blob/main/openevolve/database.py), [parallel worker](https://github.com/algorithmicsuperintelligence/openevolve/blob/main/openevolve/process_parallel.py) | Multi-island / MAP-Elites diversity, program evolution, population resume, separate evaluator | **Research design reuse; not a drop-in runner.** Evaluators import/execute supplied Python evaluator modules; generated program execution needs a strict isolated process, no-network sandbox and an allowlisted formula AST, not unrestricted code against the private Gold ZIP. A timeout alone is not security |
+| [CamusGIT/EvoQuant](https://github.com/CamusGIT/EvoQuant) (Apache-2.0) | [skills directory](https://github.com/CamusGIT/EvoQuant/tree/main/EvoQuant/skills), [skills README](https://github.com/CamusGIT/EvoQuant/blob/main/EvoQuant/skills/README.md) with \`local-paper-navigator\`, \`quant-paper-extractor\`, \`quant-experiment-runtime\`, \`research-ideation\`, \`experiment-pipeline\`, \`evo-memory\`; large tests tree | Scientific source-to-hypothesis memory with citation lineage and reproducible experimental questions | **Use structured knowledge/evidence schema only.** Full chat/channel/skills gateway is expensive and duplicates existing NRFX control plane; paper-derived formulae must pass causal audit and same engine |
+| [ilasek/trading-autoresearch](https://github.com/ilasek/trading-autoresearch) (no GitHub-detected/root LICENSE in reviewed tree) | [frozen experimental protocol](https://github.com/ilasek/trading-autoresearch/blob/main/engine/protocol.py), [protect-engine GitHub workflow](https://github.com/ilasek/trading-autoresearch/blob/main/.github/workflows/protect-engine.yml), [ranking](https://github.com/ilasek/trading-autoresearch/blob/main/engine/ranking.py), [costs](https://github.com/ilasek/trading-autoresearch/blob/main/engine/costs.py), [research program](https://github.com/ilasek/trading-autoresearch/blob/main/program.md) | Explicit immutability barrier: strategy agents may not rewrite evaluator/cost code; error bars, paired bootstrap, diverse mechanism clustering, multi-family scout/challenge budgets | **Strong protocol reference, NOT copyable before license grant.** Repeated holdout vetoes or adaptive reaction to their outcome contaminate the holdout even if the holdout is never used as a scored objective. Prefer sealed one-use prospective gate |
+| [rustyeddy/trader](https://github.com/rustyeddy/trader) (BSD-2-Clause, currently small Go research repo) | [execution quality](https://github.com/rustyeddy/trader/blob/main/internal/executionquality/measure.go), [determinism regression](https://github.com/rustyeddy/trader/blob/main/internal/backtest/determinism_test.go), [OANDA marketdata reader](https://github.com/rustyeddy/trader/blob/main/internal/marketdata/internal/provider/oanda/client.go), [OANDA account activity](https://github.com/rustyeddy/trader/blob/main/internal/adapters/accountactivity/oanda/client.go) | Exact currency/quantity arithmetic, event journals, broker-fill vs quote-touch slippage, missing values stay \`UNKNOWN\` | **High architecture fit for broker reconciliation.** In inspected \`internal/adapters/broker/\`, the concrete broker adapters were \`alpaca\` and \`sim\`; OANDA marketdata/account-activity adapters exist but **an OANDA order-placement adapter was not evidenced**. Do not claim tested OANDA execution or production readiness |
+| [nkaz001/hftbacktest](https://github.com/nkaz001/hftbacktest) (MIT) | [upstream implementation and docs](https://github.com/nkaz001/hftbacktest), [full-depth replay](https://hftbacktest.readthedocs.io/en/latest/) and [accelerated limitation](https://hftbacktest.readthedocs.io/en/latest/tutorials/Accelerated%20Backtesting.html) | Feed/order latency, L2/L3 depth, queue-position and partial-fill simulation | **Only if actual licensed tick/order-book depth exists**. Our historic Gold M1 BID/ASK has no L2/L3 queue, so adopting this now risks fabricating realistic-looking executions. Its accelerated mode explicitly omits some fill/latency effects |
+| [Optima-CityU/LLM4AD_Next](https://github.com/Optima-CityU/LLM4AD_Next) (BSD-3-Clause) | [src/llm4ad](https://github.com/Optima-CityU/LLM4AD_Next/tree/main/src/llm4ad) \`planner\`, \`coder\`, \`evaluator\`, \`orchestrator\`, \`memory\`, \`agent\` | Broad general-purpose algorithm discovery and modular evaluator interfaces | **Benchmark only, large integration footprint**. No NRFX performance proof, and no reason to replace our immutable engine until a bounded benchmark wins on identical tasks |
+| [ashutosh99sri-cyber/paper-trading-research-agent](https://github.com/ashutosh99sri-cyber/paper-trading-research-agent) (MIT) | [published negative result and reports](https://github.com/ashutosh99sri-cyber/paper-trading-research-agent) | Conservative paper-only gates, negative controls, reproducible walk-forward failure reports | **Reference for honest publication of rejection**; self-reported outcomes are not independently certified |
+| [karpathy/autoresearch](https://github.com/karpathy/autoresearch) (license not independently cleared in this review) | [project methodology](https://github.com/karpathy/autoresearch) and quant adaptation above | Short edit-run-score-retain loop under immutable scoring protocol | **Template concept only**; not an autonomous FX backtesting engine; avoid blind reuse of holdout results or data in git |
+| [AutoResearch-Factory/AgonAlpha paper](https://arxiv.org/abs/2608.11250) | Research methodology claims, not independent broker results | Tree search over full experiment artifacts, not just single metrics | Separate design inspiration from evidence of deployable software or Alpha on XAUUSD |
+
+### Specific vulnerability and evidence lessons
+
+**Untrusted numeric fitness is NOT an audit.** In AgonAlpha, the source
+\`mcts.py\` finite-score check is necessary but insufficient: the caller can
+provide an arbitrary finite score without carrying replay evidence. NRFX
+should define one \`VerifiedFitness\` receipt that can only be created after:
+(1) frozen hypothesis/code/source signature checks, (2) reference/fast
+agreement where supported, (3) ledger/monthly/weekly/cost reconciliation,
+(4) allowed training-window gate, (5) independent reviewer verdict. An
+agent/LLM/MCTS must never directly write official \`fitness\` or \`PASSED\`.
+
+**Holdout is not fresh forever.** trading-autoresearch's author documents
+that the designated holdout is a *veto* rather than a ranking objective.
+That reduces direct optimizer pressure, but any repeatedly observed veto
+can leak information into subsequent adaptive proposals. A prospective
+NRFX acceptance test must preregister *one final family/candidate*
+and one evaluation moment; any re-search following rejection requires
+an entirely newer and independently sealed period.
+
+**Broker truth can be unknown.** rustyeddy's execution-quality module
+stores unresolved benchmark/currency conversion as *unknown*, not
+mathematically zero. NRFX must never assign zero slippage when no broker
+quote benchmark exists. OANDA candle BID/ASK, account transaction tape
+and real fill timestamps require distinct provenance and explicit joins.
+
+**Missing market depth is not simulated depth.** Full HFT market-order-book
+replay offers powerful test design but cannot reconstruct queue position,
+broker market impact or partial fills from M1 OHLC alone. Keep
+\`execution_assumption=M1_SYNTHETIC\` unless genuine tick/depth sources
+and their usage rights pass separate audit.
+
+**Fixed experiment law must be enforceable.** A strategy's generated
+Python must not modify tests, fees, parser, execution, holdout access,
+deployment or risk controls. Github workflow path checks are useful
+regression controls but **not enough** on their own: untrusted agent code
+should execute only inside a resource-bounded sandbox with no network,
+secrets or mounted holdout/original source (provide sanitized inputs).
+Only the deterministic runner receives authorized private quotes.
+
+### Prioritized bounded adoption spikes — no external code copied
+
+| Priority | Deliverable | Pass/fail criterion |
+| --- | --- | --- |
+| P0 / A | \`VerifiedFitness\` admission gate on *existing canonical factory* | Forged MCTS score, changed code SHA, missing evidence, wrong $0.40/oz XAU contract, partial months, reviewer conflict and holdout peeking all BLOCK; exact valid local training replay passes |
+| P0 / B | Unified experiment lifecycle + permission graph (propose/evaluate/audit/observe) | one canonical immutable evidence identifier across math director, family grids, console and unattended service; no extra independent owner |
+| P1 / C | Broker fill reconciliation pilot from private OANDA practice transactions | quote touch known vs unknown, side-specific BID/ASK, account currency, units, filled/partial/uncertain status, spread/financing, duplicate event IDs and crash replay |
+| P1 / D | Two population selection baselines against fixed arithmetic grammar | MCTS vs uniform/random vs mutation under exactly matched candidate and compute budgets; all use same evaluator, training only, report diversity/duplication and validation sensitivity |
+| P1 / E | Knowledge/citation bridge from curated papers | hypothesis with paper/source excerpt, information cutoff, formula AST, no executable free-form code; reruns reproducible |
+| P2 / F | Full source-depth HFT spike | **SKIP** unless a licensed, independently fingerprinted L2/L3 data source exists; prefer tick BID/ASK source cross-check first |
+| P2 / G | Optuna / OpenEvolve / generic LLM4AD cross-family algorithm experiment | sandbox and cost cap with explicit kill, no changes to frozen evaluator; requires demonstrable improvement to justify dependency |
+| P3 / H | Full host fault-injection | exactly-once state transition, crash recovery with clean replay, no green false success, no private source upload; actual host needed |
+
+### Scorecard for decisions (qualitative, not GitHub stars)
+
+- **Adopt design immediately:** AgonAlpha's *separate independent review*
+  plus bounded MCTS idea; trading-autoresearch's protocol hardening,
+  benchmark-aware uncertainty and correlated-family accounting;
+  rustyeddy's exact trade/account/currency event provenance.
+- **Pilot behind a measurable gate:** OpenEvolve's island diversity
+  search, EvoQuant's paper memory, Optuna/LLM4AD optimizer comparison.
+- **Do not integrate yet:** hftbacktest without order-book data, large
+  agent frameworks that duplicate our supervisor, live broker execution,
+  uncertain-license source code.
+- **Keep the old scientific evidence:** Existing 2012–2026 historical
+  exposure, negative strategy results and 13-field parity ledgers are
+  never rebranded as prospective OOS or live execution.
+
+**Architectural decision:** the path to a strong No Risk FX platform is
+not to copy more "Grok Bot" repos. It is to put an **auditable, typed
+independent verification gate** between every proposed mathematical
+idea and the one canonical deterministic research/execution engine,
+then validate real broker-fills separately from synthetic profit.
