@@ -71,7 +71,10 @@ def main() -> int:
     contract = None
     if args.execution_contract is not None:
         try:
-            contract = json.loads(args.execution_contract.read_text(encoding="utf-8"),\n                                  object_pairs_hook=_reject_duplicate_keys,\n                                  parse_constant=lambda value: (_ for _ in ()).throw(\n                                      ValueError(f"non-finite JSON constant: {value}")))
+            contract = json.loads(args.execution_contract.read_text(encoding="utf-8"),
+                                  object_pairs_hook=_reject_duplicate_keys,
+                                  parse_constant=lambda value: (_ for _ in ()).throw(
+                                      ValueError(f"non-finite JSON constant: {value}")))
         except (OSError, ValueError) as exc:
             parser.error(f"invalid execution contract: {exc}")
         if not isinstance(contract, dict):
