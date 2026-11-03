@@ -241,3 +241,15 @@ def test_real_pending_order_and_known_future_unknown_not_rejected():
         "Unknown future market events are excluded; use frozen UTC calendar"
     )
     assert audit_fac028(FROZEN, execution_contract=contract)["missing"] == []
+
+
+def test_partial_contract_reports_both_missing_and_duplicate_dimensions():
+    contract = distinct_contract()
+    contract["entry_bid_ask_rule"] = contract["position_exit_time_rule"]
+    contract["signal_timestamp_rule"] = "TBD"
+    result = audit_fac028(FROZEN, execution_contract=contract)
+    assert result["status"] == "BLOCKED_UNRESOLVED_EXECUTION_SEMANTICS"
+    assert result["missing"] == [
+        "signal_timestamp_rule", "position_exit_time_rule", "entry_bid_ask_rule"
+    ]
+    assert result["original_source_replays"] == 0
