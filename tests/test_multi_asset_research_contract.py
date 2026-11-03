@@ -170,3 +170,40 @@ def test_bad_robot_spec_and_duplicate_ids_fail_closed():
         robots_from_json([raw, raw])
     with pytest.raises(ValueError):
         robots_from_json([{**raw, "lookback": True}])
+
+
+@pytest.mark.parametrize("component", ("o", "h", "l", "c"))
+def test_oanda_data_ingress_rejects_any_crossed_bid_ask(component):
+    """Crossed highs/lows are as invalid as crossed open/close quotes."""
+    raw = candles(2)
+    bid = float(raw["candles"][0]["bid"][component])
+    # A small undercut preserves independent OHLC geometry for every field.
+    raw["candles"][0]["ask"][component] = str(bid - 0.0001)
+    with pytest.raises(ValueError, match="ASK below BID"):
+        parse_closed_m1(raw, "EUR_USD")
+
+
+@pytest.mark.parametrize("invalid", ("1e999", "1e-9999", "Infinity", "NaN"))
+def test_oanda_data_ingress_rejects_unrepresentable_floats(invalid):
+    from norisk_quant.oanda_readonly import decimal_price
+    with pytest.raises(ValueError):
+        decimal_price(invalid)
+
+
+def test_oanda_data_ingress_rejects_unaligned_m1_timestamp():
+    raw = candles(2)
+    raw["candles"][0]["time"] = (time(0) + pd.Timedelta(seconds=30)).isoformat()
+    with pytest.raises(ValueError, match="align"):
+        parse_closed_m1(raw, "EUR_USD")
+
+
+def test_oanda_data_ingress_bounded_offline_parser():
+    raw = {"instrument": "EUR_USD", "candles": [None] * 5001}
+    with pytest.raises(ValueError, match="bounded"):
+        parse_closed_m1(raw, "EUR_USD")
+
+
+def test_oanda_data_ingress_rejects_unaligned_practice_window():
+    with pytest.raises(ValueError, match="align"):
+        fetch_practice_m1("EUR_USD", time(0) + pd.Timedelta(seconds=1), time(2),
+                          bearer_token="NEVER_SENT")

@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from datetime import timedelta
 from decimal import Decimal, InvalidOperation
 import json
+import math
 import re
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
@@ -41,7 +42,11 @@ def decimal_price(value: object) -> float:
         raise ValueError("Invalid candle price") from exc
     if not number.is_finite() or number <= 0:
         raise ValueError("Nonpositive or nonfinite candle price")
-    return float(number)
+    # Decimal can be finite but overflow IEEE754 when converted to float.
+    price = float(number)
+    if not math.isfinite(price) or price <= 0:
+        raise ValueError("Candle price cannot be represented as finite float")
+    return price
 
 
 @dataclass(frozen=True)
@@ -80,11 +85,15 @@ def parse_closed_m1(payload: object, instrument: str) -> tuple[ClosedCandle, ...
         raise ValueError("Malformed OANDA candle document")
     if payload.get("instrument", instrument) != instrument:
         raise ValueError("OANDA instrument mismatch")
+    if len(payload["candles"]) > MAX_MINUTES:
+        raise ValueError("OANDA M1 candle count exceeds bounded window")
     result: list[ClosedCandle] = []
     for raw in payload["candles"]:
         if not isinstance(raw, dict) or raw.get("complete") is not True:
             raise ValueError("Incomplete or malformed OANDA candle")
         at = utc_timestamp(raw.get("time"))
+        if at != at.floor("min"):
+            raise ValueError("OANDA M1 candle timestamp must align to UTC minute")
         def component(side: str) -> tuple[float, float, float, float]:
             val = raw.get(side)
             if not isinstance(val, dict) or set(("o", "h", "l", "c")) - set(val):
@@ -95,8 +104,10 @@ def parse_closed_m1(payload: object, instrument: str) -> tuple[ClosedCandle, ...
                 raise ValueError("Invalid OANDA OHLC geometry")
             return values
         bid, ask = component("bid"), component("ask")
-        if ask[0] < bid[0] or ask[3] < bid[3]:
-            raise ValueError("ASK below BID at open/close")
+        # The high/low are separately aggregated but must still obey
+        # ASK >= BID because OANDA BA quotes are pointwise non-crossed.
+        if any(a < b for a, b in zip(ask, bid)):
+            raise ValueError("ASK below BID in OANDA M1 bar")
         vol = raw.get("volume")
         if type(vol) is not int or vol < 0:
             raise ValueError("Invalid OANDA candle volume")
@@ -118,6 +129,8 @@ def fetch_practice_m1(instrument: str, start: object, end: object, *,
     if not INSTRUMENT.fullmatch(instrument):
         raise ValueError("Invalid instrument")
     start, end = utc_timestamp(start), utc_timestamp(end)
+    if start != start.floor("min") or end != end.floor("min"):
+        raise ValueError("OANDA M1 request boundaries must align to UTC minutes")
     minutes = (end - start) / pd.Timedelta(minutes=1)
     if not 0 < minutes <= MAX_MINUTES:
         raise ValueError("Request must cover 1..5000 M1 minutes")
