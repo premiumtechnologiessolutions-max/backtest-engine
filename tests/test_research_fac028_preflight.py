@@ -80,7 +80,9 @@ def test_cli_rejects_json_array(tmp_path, monkeypatch):
 
 def test_generic_attestations_cannot_clear_review_gate():
     for generic in ("defined", "explicitly frozen", "specified", "yes", "ok"):
-        contract = {key: "UTC close of prior completed H1 bar, deterministic" for key in EXECUTION_KEYS}
+        # Isolate the generic attestation defect from the independent
+        # duplicate-rule defect introduced by the stricter preflight.
+        contract = distinct_contract()
         contract["signal_timestamp_rule"] = generic
         result = audit_fac028(FROZEN, execution_contract=contract)
         assert result["status"] == "BLOCKED_UNRESOLVED_EXECUTION_SEMANTICS"
