@@ -99,6 +99,7 @@ jobs:
       - name: Verify core wheel and source-platform package contents
         shell: bash
         run: |
+          python -m pip install -c constraints-ci.txt "setuptools>=68" wheel
           python - <<'PY'
           import os
           import tarfile
