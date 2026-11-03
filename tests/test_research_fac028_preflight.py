@@ -30,3 +30,12 @@ def test_empty_contract_value_remains_blocked():
     contract = {k: "defined" for k in EXECUTION_KEYS}
     contract["entry_bid_ask_rule"] = " "
     assert audit_fac028(FROZEN, execution_contract=contract)["missing"] == ["entry_bid_ask_rule"]
+
+
+@pytest.mark.parametrize("placeholder", ["TBD", "todo", "N/A", "pending", "?", "unknown"])
+def test_nonempty_placeholder_does_not_clear_execution_gate(placeholder):
+    contract = {k: "explicitly frozen" for k in EXECUTION_KEYS}
+    contract["signal_timestamp_rule"] = placeholder
+    result = audit_fac028(FROZEN, execution_contract=contract)
+    assert result["status"] == "BLOCKED_UNRESOLVED_EXECUTION_SEMANTICS"
+    assert result["missing"] == ["signal_timestamp_rule"]
