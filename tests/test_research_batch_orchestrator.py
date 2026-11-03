@@ -722,22 +722,31 @@ def _orphan_fixture(tmp_path, monkeypatch):
     return frozen, output, folder
 
 
-def test_opt_in_reconciles_completed_orphan_without_rerunning(tmp_path, monkeypatch):
+def test_opt_in_reconciles_orphan_only_after_fresh_source_replay(tmp_path, monkeypatch):
     frozen, output, folder = _orphan_fixture(tmp_path, monkeypatch)
+    replay_calls = []
 
-    def no_engine(*args, **kwargs):
-        pytest.fail("A verified orphan must not trigger a duplicate backtest")
+    def replay_engine(cmd, **kwargs):
+        replay_calls.append(cmd)
+        assert "--all-in-cost-per-ounce" in cmd
+        assert cmd[cmd.index("--all-in-cost-per-ounce") + 1] == "0.40"
+        target = Path(cmd[cmd.index("--out") + 1])
+        assert target != folder
+        make_report(target, source=frozen["source_sha256"])
+        return SimpleNamespace(returncode=0)
 
-    monkeypatch.setattr(lab.subprocess, "run", no_engine)
+    monkeypatch.setattr(lab.subprocess, "run", replay_engine)
     with pytest.raises(ValueError, match="Unknown existing run"):
         lab.run_plan(frozen, output)
     assert not (output / "batch_manifest.json").exists()
     result = lab.run_plan(frozen, output, recover_verified_orphans=True)
+    assert len(replay_calls) == 1
     assert result["executed_this_invocation"] == 0
     assert result["recovered_verified_orphans"] == 1
     record = lab.read_strict_json(output / "batch_manifest.json")["results"]["test-ema"]
     assert record == lab.audit_run(folder, spec(), frozen["source_sha256"], COMMIT)
     repeat = lab.run_plan(frozen, output, recover_verified_orphans=True)
+    assert len(replay_calls) == 1
     assert repeat["recovered_verified_orphans"] == 0
     assert repeat["executed_this_invocation"] == 0
 
@@ -883,6 +892,25 @@ def test_opt_in_orphan_recovery_does_not_promote_forged_execution(tmp_path, monk
         writer.writerows(rows)
     monkeypatch.setattr(lab.subprocess, "run", lambda *args, **kwargs:
                         pytest.fail("Corrupt orphan must never rerun automatically"))
+    with pytest.raises(ValueError, match="Orphaned run failed canonical evidence audit"):
+        lab.run_plan(frozen, output, recover_verified_orphans=True)
+    assert not (output / "batch_manifest.json").exists()
+
+
+def test_orphan_recovery_rejects_replayed_ledger_byte_drift(
+        tmp_path, monkeypatch):
+    frozen, output, folder = _orphan_fixture(tmp_path, monkeypatch)
+
+    def replay_engine(cmd, **kwargs):
+        target = Path(cmd[cmd.index("--out") + 1])
+        make_report(target, source=frozen["source_sha256"])
+        # An extra blank line leaves CSV accounting intact but breaks
+        # immutable replay parity, which must be checked before admission.
+        with (target / "trades.csv").open("ab") as handle:
+            handle.write(b"\\n")
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(lab.subprocess, "run", replay_engine)
     with pytest.raises(ValueError, match="Orphaned run failed canonical evidence audit"):
         lab.run_plan(frozen, output, recover_verified_orphans=True)
     assert not (output / "batch_manifest.json").exists()
