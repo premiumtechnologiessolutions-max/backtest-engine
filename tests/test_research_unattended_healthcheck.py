@@ -17,7 +17,9 @@ def root(tmp_path):
 def synthetic_process_liveness(monkeypatch):
     # Historic test fixture PID=42 is deliberately synthetic. Keep the
     # health state tests deterministic without ever probing a real PID 42.
+    real_probe = h._pid_exists
     monkeypatch.setattr(h, "_pid_exists", lambda pid: pid == 42)
+    return real_probe
 
 
 def write(root, state="RESEARCH_RUNNING", *, delta=0, **updates):
@@ -197,11 +199,10 @@ def test_recent_heartbeat_cannot_authenticate_nonexistent_worker_pid(root):
     assert report["state"] == "WORKER_PID_NOT_ALIVE"
 
 
-def test_real_pid_probe_detects_this_process_and_missing_pid(monkeypatch):
-    # Override the fixture's stub to exercise the production probe directly.
-    # os.kill(pid, 0) is non-destructive only on POSIX; Windows path uses
-    # OpenProcess/GetExitCodeProcess instead.
+def test_real_pid_probe_detects_this_process_and_missing_pid(
+        synthetic_process_liveness):
+    # The autouse fixture replaces liveness with a synthetic test-only PID.
+    # Call the saved production function without probing/damaging PID=42.
     import os
-    from scripts import research_unattended_healthcheck as h2
-    assert h2._pid_exists(os.getpid()) is True
-    assert h2._pid_exists(2147483647) is False
+    assert synthetic_process_liveness(os.getpid()) is True
+    assert synthetic_process_liveness(2147483647) is False
