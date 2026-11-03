@@ -276,3 +276,69 @@ def test_multiyear_universe_freeze_is_definition_only(hub, monkeypatch):
 def test_universe_rejects_invalid_year_selections(hub, years):
     with pytest.raises(ValueError):
         hub.freeze_research_universe(years)
+
+def test_status_distinguishes_batch_readiness_from_platform_certification(hub):
+    status = hub.status()
+    assert status["source_configured"] is True
+    assert status["source_verified_now"] is True
+    assert status["batch_runner_ready"] is True
+    assert status["platform_ready"] is False
+    assert status["platform_evidence"] == "UNVERIFIED_END_TO_END_NOT_OOS"
+    assert status["autonomous_research"]["state"] == "NOT_CONNECTED"
+    assert status["autonomous_research"]["healthy"] is False
+
+
+def test_changed_original_source_never_stays_green(hub, monkeypatch):
+    import hashlib
+    source = hub.configured_source()
+    source.write_bytes(b"tampered original source must become untrusted")
+    monkeypatch.setattr(app.lab, "file_sha", lambda path: hashlib.sha256(Path(path).read_bytes()).hexdigest())
+    status = hub.status()
+    assert status["source_configured"] is True
+    assert status["source_verified_now"] is False
+    assert status["source_sha256"] is None
+    assert status["batch_runner_ready"] is False
+    assert status["platform_ready"] is False
+
+
+def test_host_service_health_is_evaluated_not_inferred(tmp_path, monkeypatch):
+    from scripts import research_unattended_healthcheck as watchdog
+    root = tmp_path / "host_private"
+    root.mkdir()
+    calls = []
+    def check(path):
+        calls.append(path)
+        return 2, {"state": "PAUSED_DISK_BUDGET", "healthy": False}
+    monkeypatch.setattr(watchdog, "evaluate", check)
+    console = app.ResearchHub(tmp_path / "ui", autonomous_root=root)
+    health = console.status()["autonomous_research"]
+    assert calls == [root]
+    assert health == {"connected": True, "state": "PAUSED_DISK_BUDGET",
+                      "healthy": False, "evidence_code": 2,
+                      "independent_oos_proven": False}
+
+
+def test_autonomous_false_green_and_symlink_rejected(tmp_path, monkeypatch):
+    from scripts import research_unattended_healthcheck as watchdog
+    root = tmp_path / "private_host"
+    root.mkdir()
+    link = tmp_path / "alias"
+    link.symlink_to(root)
+    with pytest.raises(ValueError, match="non-symlinked"):
+        app.ResearchHub(tmp_path / "ui_a", autonomous_root=link)
+    with pytest.raises(ValueError, match="existing absolute"):
+        app.ResearchHub(tmp_path / "ui_b", autonomous_root=Path("relative"))
+    monkeypatch.setattr(watchdog, "evaluate", lambda _: (0, {"state": "FAKE", "healthy": False}))
+    console = app.ResearchHub(tmp_path / "ui_c", autonomous_root=root)
+    with pytest.raises(ValueError, match="Untrusted autonomous"):
+        console.autonomous_health()
+
+
+def test_missing_host_heartbeat_fails_closed(tmp_path):
+    root = tmp_path / "private_host"
+    root.mkdir()
+    console = app.ResearchHub(tmp_path / "ui", autonomous_root=root)
+    health = console.autonomous_health()
+    assert health["state"] == "MISSING_HEALTH"
+    assert health["healthy"] is False
+    assert health["evidence_code"] == 3

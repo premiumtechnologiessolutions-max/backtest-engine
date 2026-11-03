@@ -111,7 +111,17 @@ def decode_request_json(raw: bytes) -> object:
 
 
 class ResearchHub:
-    def __init__(self, workspace: Path):
+    def __init__(self, workspace: Path, *, autonomous_root: Path | None = None):
+        # Host supervision and the console have different process lifetimes.
+        # Link health read-only; never infer service success from a directory.
+        if autonomous_root is not None:
+            if (not isinstance(autonomous_root, Path)
+                    or not autonomous_root.is_absolute()
+                    or any(p.is_symlink() for p in
+                           (autonomous_root, *autonomous_root.parents))
+                    or not autonomous_root.is_dir()):
+                raise ValueError("Autonomous evidence root must be an existing absolute, non-symlinked directory")
+        self.autonomous_root = autonomous_root
         self.root = private_dir(workspace)
         self.plans = private_dir(self.root / "plans")
         self.runs = private_dir(self.root / "runs")
@@ -159,8 +169,33 @@ class ResearchHub:
             put_once(self.config_path, config)
         return {"configured": True, "source_name": source.name, "sha256": SOURCE_SHA}
 
+    def autonomous_health(self) -> dict:
+        """Read the independent host supervisor's existing health contract.
+
+        No host deployment, service restart, or certification is inferred.
+        Invalid/stale heartbeat evidence must never become a green UI flag.
+        """
+        if self.autonomous_root is None:
+            return {"connected": False, "state": "NOT_CONNECTED", "healthy": False,
+                    "evidence_code": None, "independent_oos_proven": False}
+        from scripts.research_unattended_healthcheck import evaluate
+        code, evidence = evaluate(self.autonomous_root)
+        if (type(code) is not int or code not in (0, 2, 3)
+                or type(evidence) is not dict
+                or type(evidence.get("state")) is not str
+                or type(evidence.get("healthy")) is not bool
+                or evidence["healthy"] != (code == 0)):
+            raise ValueError("Untrusted autonomous health response")
+        return {"connected": True, "state": evidence["state"],
+                "healthy": code == 0, "evidence_code": code,
+                "independent_oos_proven": False}
+
     def status(self) -> dict:
         source = self.configured_source()
+        # A saved source path is NOT current source provenance. Recheck bytes.
+        source_valid = bool(source is not None and not source.is_symlink()
+                            and source.is_file()
+                            and lab.file_sha(source) == SOURCE_SHA)
         try:
             revision = lab.checkout_commit()
             engine_ok = True
@@ -169,8 +204,9 @@ class ResearchHub:
         return {
             "product": "NO RISK FX QUANT LAB", "mode": "LOCAL_RESEARCH_ONLY",
             "source_configured": source is not None,
+            "source_verified_now": source_valid,
             "source_name": source.name if source else None,
-            "source_sha256": SOURCE_SHA if source else None,
+            "source_sha256": SOURCE_SHA if source_valid else None,
             "engine_revision": revision,
             "engine_verified_clean_checkout": engine_ok,
             "active_run": self._active,
@@ -181,7 +217,11 @@ class ResearchHub:
             "historical_exposed_not_oos": True,
             "broker_orders_enabled": False,
             "all_in_cost_per_ounce": .40,
-            "platform_ready": source is not None and engine_ok,
+            # Batch readiness does not certify an autonomous research platform.
+            "batch_runner_ready": source_valid and engine_ok,
+            "platform_ready": False,
+            "platform_evidence": "UNVERIFIED_END_TO_END_NOT_OOS",
+            "autonomous_research": self.autonomous_health(),
         }
 
     def _build(self, user: dict) -> tuple[dict, list]:
@@ -716,11 +756,13 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--workspace", type=Path, default=Path.home() / "NoRiskFX_QuantLab")
     parser.add_argument("--port", type=int, default=8766)
+    parser.add_argument("--autonomous-root", type=Path,
+                        help="Read-only host-service evidence directory; never launches the service")
     parser.add_argument("--open", action="store_true")
     args = parser.parse_args(argv)
     if not 0 <= args.port <= 65535:
         parser.error("Invalid local port")
-    hub = ResearchHub(args.workspace)
+    hub = ResearchHub(args.workspace, autonomous_root=args.autonomous_root)
     token = secrets.token_urlsafe(32)
     ui_file = Path(__file__).with_name("quantlab_desktop_ui.html")
     with ConsoleServer(("127.0.0.1", args.port), hub, ui_file, token) as server:
