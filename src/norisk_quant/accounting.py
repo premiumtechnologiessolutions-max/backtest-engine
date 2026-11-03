@@ -91,6 +91,29 @@ def validate_execution(result: Result, settings: Settings, *, atol: float = 1e-7
             raise ValueError("Overlapping trades in single-position execution")
         synthetic_count = int((trades["exit_reason"] == "end_of_data").sum())
 
+    # With forced end-of-data closure, every open position is represented in
+    # the closed-trade ledger. Reconstruct position occupancy at each M1 mark
+    # from [entry_at, closed_at). A same-minute exit is already realized in
+    # that mark, so the close boundary is exclusive. Reported floating P/L
+    # outside all open positions is impossible, even when realized+floating
+    # reconciles algebraically with the reported equity column.
+    #
+    # close_at_end=False may leave a genuinely open position absent from the
+    # closed-trade ledger; it requires a separate open-position inventory and
+    # cannot safely use this particular closed-trades-only invariant.
+    if settings.close_at_end:
+        changes = np.zeros(len(equity) + 1, dtype=np.int64)
+        if not trades.empty:
+            starts = equity.index.searchsorted(entry)
+            closes = equity.index.searchsorted(exit_time)
+            np.add.at(changes, starts, 1)
+            np.add.at(changes, closes, -1)
+        occupancy = np.cumsum(changes[:-1])
+        if ((occupancy < 0) | (occupancy > 1)).any():
+            raise ValueError("Invalid single-position occupancy in equity M1 marks")
+        if (np.abs(numeric_eq[occupancy == 0, 1]) > atol).any():
+            raise ValueError("Floating P/L without an open position")
+
     total = float(trades["net_pnl"].sum()) if not trades.empty else 0.0
     # Verify the entire realized P/L time series, not just the final total.
     # Otherwise a ledger could shift a loss to another week/month while
