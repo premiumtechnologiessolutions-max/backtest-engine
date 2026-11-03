@@ -177,6 +177,37 @@ def evaluate_robots(candles_by_instrument: dict[str, tuple[ClosedCandle, ...]],
             continue
         accepted.append(sorted(candidates, key=lambda x: x["robot_id"])[0])
         results["duplicate_same_direction_suppressed"] += len(candidates) - 1
+    def digest_input(value) -> str:
+        return hashlib.sha256(json.dumps(
+            value, sort_keys=True, separators=(",", ":"),
+            ensure_ascii=False, allow_nan=False, default=str,
+        ).encode("utf-8")).hexdigest()
+
+    # A report digest without its source quotes is not an experiment identity:
+    # two different price histories may produce identical intents and counters.
+    # Bind EVERY observed BA M1 OHLC, first-seen macro vintage, schedule
+    # revision and governing filter to this immutable research evidence.
+    quote_sources = {
+        instrument: [
+            [c.instrument, c.opened_at.isoformat(), c.bid_o, c.bid_h,
+             c.bid_l, c.bid_c, c.ask_o, c.ask_h, c.ask_l, c.ask_c,
+             c.volume]
+            for c in candles
+        ]
+        for instrument, candles in sorted(candles_by_instrument.items())
+    }
+    input_hashes = {
+        "closed_m1_bidask_sha256": digest_input(quote_sources),
+        "macro_vintages_sha256": digest_input([asdict(o) for o in observations]),
+        "news_revisions_sha256": digest_input([asdict(e) for e in schedules]),
+        "decision_policy_sha256": digest_input({
+            "news_before_minutes": news_before_minutes,
+            "news_after_minutes": news_after_minutes,
+            "max_intents": max_intents,
+            "robots": [asdict(r) for r in sorted(robots, key=lambda r: r.robot_id)],
+            "intent_engine_contract": "NRFX_MULTI_ASSET_RESEARCH_INTENTS_V1",
+        }),
+    }
     payload = {
         "schema": "NRFX_MULTI_ASSET_RESEARCH_INTENTS_V1",
         "status": STATUS, "broker_order_placement_enabled": False,
@@ -184,6 +215,7 @@ def evaluate_robots(candles_by_instrument: dict[str, tuple[ClosedCandle, ...]],
         "research_profitability_proven": False, "independent_oos_proven": False,
         "all_in_cost_model": "NOT_APPLIED_NO_TRADES",
         "instruments": sorted(candles_by_instrument),
+        "input_hashes": input_hashes,
         "robots": [asdict(r) for r in sorted(robots, key=lambda r: r.robot_id)],
         "counters": dict(sorted(results.items())),
         "intents": accepted,
