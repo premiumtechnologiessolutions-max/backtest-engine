@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from pathlib import Path
 
 REQUIRED = (
@@ -32,9 +33,27 @@ PLACEHOLDER_VALUES = frozenset({"tbd", "todo", "unknown", "n/a", "na", "pending"
                                 "placeholder", "?"})
 
 
+# A rule may be nonempty but still explicitly defer its definition.
+# Only reject leading placeholder labels, not substantive references to
+# a pending order or unknown future market event.
+_PLACEHOLDER_PREFIX = re.compile(
+    r"^(?:tbd|todo|to\s+be\s+defined|not\s+specified|"
+    r"unknown|undefined|pending|n/?a|placeholder)\s*(?::|[-–—]|\(|$)",
+    flags=re.IGNORECASE,
+)
+MAX_RULE_CHARS = 4096
+
+
 def _is_defined(value: object) -> bool:
-    return (isinstance(value, str) and bool(value.strip())
-            and value.strip().casefold() not in PLACEHOLDER_VALUES)
+    if not isinstance(value, str):
+        return False
+    rule = value.strip()
+    if not rule or len(rule) > MAX_RULE_CHARS:
+        return False
+    if any(ord(ch) < 32 or ord(ch) == 127 for ch in rule):
+        return False
+    return (rule.casefold() not in PLACEHOLDER_VALUES
+            and _PLACEHOLDER_PREFIX.match(rule) is None)
 
 
 def audit_fac028(text: str, *, execution_contract: dict | None = None) -> dict:

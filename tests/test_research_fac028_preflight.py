@@ -118,3 +118,35 @@ def test_two_copied_rules_block_only_affected_dimensions():
     result = audit_fac028(FROZEN, execution_contract=contract)
     assert result["status"] == "BLOCKED_UNRESOLVED_EXECUTION_SEMANTICS"
     assert set(result["missing"]) == {"entry_bid_ask_rule", "position_exit_time_rule"}
+
+@pytest.mark.parametrize("placeholder", [
+    "TBD: define later", "TODO - confirm broker feed", "Pending (owner)",
+    "not specified: waiting for data", "N/A — not decided",
+    "unknown: execution clock", "placeholder: sample text",
+])
+def test_prefixed_placeholder_is_not_a_frozen_rule(placeholder):
+    contract = distinct_contract()
+    contract["signal_timestamp_rule"] = placeholder
+    assert audit_fac028(FROZEN, execution_contract=contract)["missing"] == [
+        "signal_timestamp_rule"
+    ]
+
+
+@pytest.mark.parametrize("bad", [
+    "valid rule\\ninjected second rule", "valid rule\\tfake table",
+    "x" * 4097,
+])
+def test_control_characters_and_unbounded_rules_fail_closed(bad):
+    contract = distinct_contract()
+    contract["entry_bid_ask_rule"] = bad
+    assert audit_fac028(FROZEN, execution_contract=contract)["missing"] == [
+        "entry_bid_ask_rule"
+    ]
+
+
+def test_placeholder_word_inside_actual_execution_rule_is_not_false_positive():
+    contract = distinct_contract()
+    contract["position_exit_time_rule"] = (
+        "At UTC 22:00 exit any pending position at first available BID/ASK quote"
+    )
+    assert audit_fac028(FROZEN, execution_contract=contract)["missing"] == []
