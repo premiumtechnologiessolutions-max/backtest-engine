@@ -1,2 +1,6 @@
-recursive-include scripts *.py
+recursive-include scripts *.py *.html
 recursive-include docs *.md *.json
+recursive-include research *.md *.json
+recursive-include deploy *.service *.timer *.json *.ps1 *.md
+include constraints-ci.txt
+include start_quantlab.py
