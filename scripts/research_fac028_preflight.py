@@ -40,14 +40,21 @@ def _is_defined(value: object) -> bool:
 def audit_fac028(text: str, *, execution_contract: dict | None = None) -> dict:
     if not isinstance(text, str) or any(s not in text for s in REQUIRED):
         raise ValueError("FAC028 frozen protocol missing required safeguards")
+    if isinstance(execution_contract, dict):
+        unexpected = sorted(set(execution_contract) - set(EXECUTION_KEYS))
+        if unexpected:
+            raise ValueError(f"unexpected FAC028 execution keys: {unexpected}")
     missing = [key for key in EXECUTION_KEYS
                if not isinstance(execution_contract, dict)
                or not _is_defined(execution_contract.get(key))]
     # Repeating one generic sentence for unrelated semantics is not a contract.
     if isinstance(execution_contract, dict) and not missing:
         values = [execution_contract[key].strip().casefold() for key in EXECUTION_KEYS]
-        if len(set(values)) == 1:
-            missing = list(EXECUTION_KEYS)
+        if len(set(values)) != len(values):
+            # Any copied semantics across distinct execution dimensions need review.
+            duplicates = {value for value in values if values.count(value) > 1}
+            missing = [key for key, value in zip(EXECUTION_KEYS, values)
+                       if value in duplicates]
     return {"status": "BLOCKED_UNRESOLVED_EXECUTION_SEMANTICS" if missing
             else "READY_FOR_INDEPENDENT_CONTRACT_REVIEW_NOT_EXECUTION",
             "missing": missing, "grid_specs": 24,
