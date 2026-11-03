@@ -43,7 +43,12 @@ def audit_fac028(text: str, *, execution_contract: dict | None = None) -> dict:
     missing = [key for key in EXECUTION_KEYS
                if not isinstance(execution_contract, dict)
                or not _is_defined(execution_contract.get(key))]
-    # Repeating one generic sentence for unrelated semantics is not a contract.\n    if isinstance(execution_contract, dict) and not missing:\n        values = [execution_contract[key].strip().casefold() for key in EXECUTION_KEYS]\n        if len(set(values)) == 1:\n            missing = list(EXECUTION_KEYS)\n    return {"status": "BLOCKED_UNRESOLVED_EXECUTION_SEMANTICS" if missing
+    # Repeating one generic sentence for unrelated semantics is not a contract.
+    if isinstance(execution_contract, dict) and not missing:
+        values = [execution_contract[key].strip().casefold() for key in EXECUTION_KEYS]
+        if len(set(values)) == 1:
+            missing = list(EXECUTION_KEYS)
+    return {"status": "BLOCKED_UNRESOLVED_EXECUTION_SEMANTICS" if missing
             else "READY_FOR_INDEPENDENT_CONTRACT_REVIEW_NOT_EXECUTION",
             "missing": missing, "grid_specs": 24,
             "independent_hypotheses": 1, "original_source_replays": 0}
