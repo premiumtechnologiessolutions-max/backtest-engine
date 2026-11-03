@@ -62,3 +62,20 @@ def test_invalid_parameter_json_and_nonfinite_fee_rejected():
             identity(parameters=params)
     with pytest.raises(ValueError, match="Nonfinite"):
         identity(fee_all_in_per_ounce=float("inf"))
+
+
+def test_equivalent_numeric_parameter_inputs_share_frozen_identity():
+    assert fingerprint(identity(parameters={"stop_usd": 8})) == fingerprint(
+        identity(parameters={"stop_usd": 8.0}))
+
+
+def test_external_mutation_rejected_before_manifest_or_hash_changes():
+    original = {"risk": {"legs": [1, 2]}}
+    frozen = identity(parameters=original)
+    frozen_id = fingerprint(frozen)
+    original["risk"]["legs"].append(3)
+    with pytest.raises(ValueError, match="mutated"):
+        fingerprint(frozen)
+    with pytest.raises(ValueError, match="mutated"):
+        experiment_manifest(frozen)
+    assert frozen_id != ""
