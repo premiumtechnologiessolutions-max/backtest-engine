@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 import math
 
@@ -40,6 +41,11 @@ class ExperimentIdentity:
             raise ValueError("engine_commit must be an immutable full 40-char Git commit")
         if not self.strategy_id or not self.timeframe:
             raise ValueError("Missing strategy identity")
+        if (type(self.quantity_ounces) not in (int, float)
+                or type(self.fee_all_in_per_ounce) not in (int, float)
+                or not math.isfinite(self.quantity_ounces)
+                or not math.isfinite(self.fee_all_in_per_ounce)):
+            raise ValueError("Nonfinite or invalid quantity/fee")
         if self.quantity_ounces <= 0 or self.fee_all_in_per_ounce < 0:
             raise ValueError("Invalid quantity or fixed all-in fee")
         if self.execution_mode not in ("m1_conservative", "observed_tick_research"):
@@ -69,6 +75,19 @@ class ExperimentIdentity:
         if self.execution_mode == "observed_tick_research":
             # This prototype cannot run an observed tick event engine yet.
             raise ValueError("Observed tick execution is not implemented")
+        if type(self.parameters) is not dict:
+            raise ValueError("Parameters require finite JSON mapping")
+        try:
+            frozen = json.dumps(
+                self.parameters, sort_keys=True, separators=(",", ":"),
+                ensure_ascii=False, allow_nan=False,
+            )
+        except (ValueError, TypeError, OverflowError) as exc:
+            raise ValueError("Parameters require finite JSON values") from exc
+        # Frozen dataclass does not recursively freeze caller-owned mappings.
+        # Pin exact original bytes and reject later mutation before fingerprint
+        # or manifest generation instead of silently changing experiment ID.
+        object.__setattr__(self, "_frozen_parameters_json", frozen)
 
 
 def _checked_fields(identity: ExperimentIdentity) -> dict:
@@ -79,10 +98,39 @@ def _checked_fields(identity: ExperimentIdentity) -> dict:
     return fields
 
 
+def _numeric_canonical(value):
+    """Normalize equivalent JSON integer/float parameter values."""
+    if type(value) is dict:
+        return {key: _numeric_canonical(part) for key, part in value.items()}
+    if type(value) is list:
+        return [_numeric_canonical(part) for part in value]
+    if type(value) is float:
+        if not math.isfinite(value):
+            raise ValueError("Parameters require finite JSON values")
+        if value.is_integer() and abs(value) <= 2 ** 53:
+            return int(value)
+    return value
+
+
+def _ensure_frozen_parameters(identity: ExperimentIdentity) -> None:
+    try:
+        current = json.dumps(
+            identity.parameters, sort_keys=True, separators=(",", ":"),
+            ensure_ascii=False, allow_nan=False,
+        )
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise ValueError("Experiment parameters mutated or invalid") from exc
+    if current != identity._frozen_parameters_json:
+        raise ValueError("Experiment parameters mutated after freezing")
+
+
 def fingerprint(identity: ExperimentIdentity) -> str:
-    fields = _checked_fields(identity)
+    _ensure_frozen_parameters(identity)
+    fields = asdict(identity)
     # Editorial notes must not generate a new experiment ID.
     fields.pop("notes")
+    fields["parameters"] = _numeric_canonical(
+        json.loads(identity._frozen_parameters_json))
     canonical = json.dumps(
         fields, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
         allow_nan=False,
@@ -93,7 +141,7 @@ def fingerprint(identity: ExperimentIdentity) -> str:
 def experiment_manifest(identity: ExperimentIdentity) -> dict:
     return {
         "experiment_id": fingerprint(identity),
-        "identity": _checked_fields(identity),
+        "identity": asdict(identity),
         "execution_status": "DEFINED_ONLY",
         "independent_test_proven": False,
         "disclaimer": (
