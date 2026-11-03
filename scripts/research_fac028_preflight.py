@@ -27,6 +27,7 @@ EXECUTION_KEYS = (
 
 # A nonempty placeholder is not an executable, frozen definition.
 PLACEHOLDER_VALUES = frozenset({"tbd", "todo", "unknown", "n/a", "na", "pending",
+                                "defined", "explicitly frozen", "specified", "yes", "ok",
                                 "undefined", "to be defined", "not specified",
                                 "placeholder", "?"})
 
