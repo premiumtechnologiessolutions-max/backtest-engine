@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import csv
+from datetime import datetime, timedelta
 import hashlib
 import json
 from pathlib import Path
@@ -58,14 +59,32 @@ def make_report(folder: Path, source=SOURCE, commit=COMMIT, *, outcome=(3.0, -2.
             writer.writerow({"period": week, "net_pnl": gain,
                              "trades": 2, "total_cost": 0.8})
     with (folder / "trades.csv").open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=["net_pnl", "cost", "closed_at"])
+        writer = csv.DictWriter(handle, fieldnames=[
+            "net_pnl", "cost", "closed_at", "strategy", "signal_at",
+            "entry_at", "side", "entry_price", "exit_price", "stop",
+            "target", "ounces", "gross_pnl", "exit_reason", "gap_minutes",
+        ])
         writer.writeheader()
         for stamp, gain in zip(("2024-01-02T12:00:00+00:00", "2024-02-06T12:00:00+00:00"), outcome):
-            for _ in range(2):
-                writer.writerow({"net_pnl": gain / 2, "cost": 0.4,
-                                 "closed_at": stamp})
+            for number in range(2):
+                closed = datetime.fromisoformat(stamp) + timedelta(minutes=3 * number)
+                gross = gain / 2 + 0.4
+                entry_price, exit_price = 2000.0, 2000.0 + gross
+                winning = gross > 0
+                writer.writerow({
+                    "strategy": "ema", "side": 1, "signal_at": (closed - timedelta(minutes=2)).isoformat(),
+                    "entry_at": (closed - timedelta(minutes=1)).isoformat(),
+                    "closed_at": closed.isoformat(), "entry_price": entry_price,
+                    "exit_price": exit_price,
+                    "stop": 1999.0 if winning else exit_price,
+                    "target": exit_price if winning else 2010.0,
+                    "ounces": 1.0, "gross_pnl": gross, "net_pnl": gain / 2,
+                    "cost": 0.4, "exit_reason": "target" if winning else "stop",
+                    "gap_minutes": 0,
+                })
     summary = {
         "execution": "synthetic_same_reference_bid_ohlc_fixed_all_in_fee",
+        "accounting_checks": "PASSED",
         "settings": serialize_settings(Settings()),
         "source_fingerprints": {
             "source_file_sha256": source, "git_revision_env": commit,
