@@ -52,9 +52,11 @@ class ScheduledEvent:
     scheduled_at: pd.Timestamp
     impact: str
     source: str
+    cancelled: bool = False
 
     def __post_init__(self) -> None:
-        if (not isinstance(self.event_id, str) or not NAME.fullmatch(self.event_id)
+        if (type(self.cancelled) is not bool
+                or not isinstance(self.event_id, str) or not NAME.fullmatch(self.event_id)
                 or self.currency not in CURRENCIES
                 or self.impact not in ("low", "medium", "high")
                 or not isinstance(self.source, str) or not NAME.fullmatch(self.source)):
@@ -67,25 +69,37 @@ class ScheduledEvent:
 
 
 def as_of(observations: tuple[Observation, ...], decision_at: object) -> dict[str, Observation]:
-    """Last actually known vintage per series; never use a future revision."""
+    """Select the most recent *released* observation known at decision time.
+
+    A late import of an old observation cannot supersede a newer release.
+    Within one release, use the latest actually seen vintage; refuse
+    contradictory records with identical causal clocks rather than picking
+    an arbitrary lexical vintage.
+    """
     now = utc_timestamp(decision_at)
-    latest = {}
+    latest: dict[str, Observation] = {}
     for obs in observations:
         if not isinstance(obs, Observation):
             raise ValueError("Macro data must use validated Observation records")
         if obs.first_seen_at > now:
             continue
         previous = latest.get(obs.key)
-        if previous is None or (obs.first_seen_at, obs.vintage) > (
-                previous.first_seen_at, previous.vintage):
+        if previous is None:
             latest[obs.key] = obs
+            continue
+        rank = (obs.released_at, obs.first_seen_at)
+        previous_rank = (previous.released_at, previous.first_seen_at)
+        if rank > previous_rank:
+            latest[obs.key] = obs
+        elif rank == previous_rank and obs != previous:
+            raise ValueError("Contradictory macro vintages with identical causal clocks")
     return latest
 
 
 def news_blackout(schedules: tuple[ScheduledEvent, ...], instrument: str,
                   at: object, before_minutes: int = 15,
                   after_minutes: int = 15) -> tuple[str, ...]:
-    """Known-in-advance high-impact event veto, not an economic prediction."""
+    """Evaluate only the latest announced revision of each event known now."""
     if (type(before_minutes) is not int or type(after_minutes) is not int
             or not 0 <= before_minutes <= 1440
             or not 0 <= after_minutes <= 1440):
@@ -94,16 +108,25 @@ def news_blackout(schedules: tuple[ScheduledEvent, ...], instrument: str,
     if len(currencies) != 2 or any(c not in CURRENCIES for c in currencies):
         raise ValueError("Invalid instrument for macro calendar")
     now = utc_timestamp(at)
-    blocked = []
+    latest: dict[str, ScheduledEvent] = {}
     for event in schedules:
         if not isinstance(event, ScheduledEvent):
             raise ValueError("Invalid scheduled event")
-        if (event.impact == "high" and event.currency in currencies
-                and event.announced_at <= now
+        if event.announced_at > now:
+            continue
+        previous = latest.get(event.event_id)
+        if previous is None or event.announced_at > previous.announced_at:
+            latest[event.event_id] = event
+        elif event.announced_at == previous.announced_at and event != previous:
+            raise ValueError("Conflicting news revisions announced at identical time")
+    blocked = []
+    for event in latest.values():
+        if (not event.cancelled and event.impact == "high"
+                and event.currency in currencies
                 and event.scheduled_at - pd.Timedelta(minutes=before_minutes) <= now
                 <= event.scheduled_at + pd.Timedelta(minutes=after_minutes)):
             blocked.append(event.event_id)
-    return tuple(sorted(set(blocked)))
+    return tuple(sorted(blocked))
 
 
 def observations_from_json(items: object) -> tuple[Observation, ...]:
@@ -122,7 +145,9 @@ def schedules_from_json(items: object) -> tuple[ScheduledEvent, ...]:
         raise ValueError("News schedule requires bounded JSON list")
     result = []
     for entry in items:
-        if type(entry) is not dict or set(entry) != set(ScheduledEvent.__dataclass_fields__):
+        required = set(ScheduledEvent.__dataclass_fields__) - {"cancelled"}
+        if (type(entry) is not dict or not required.issubset(entry)
+                or not set(entry).issubset(required | {"cancelled"})):
             raise ValueError("News schedule needs announcement and event times")
         result.append(ScheduledEvent(**entry))
     return tuple(result)
