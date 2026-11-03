@@ -92,6 +92,12 @@ def parse_closed_m1(payload: object, instrument: str) -> tuple[ClosedCandle, ...
         raise ValueError("Malformed OANDA candle document")
     if payload.get("instrument", instrument) != instrument:
         raise ValueError("OANDA instrument mismatch")
+    # Offline files may predate explicit metadata, but a provider document
+    # declaring H1/M5 must never silently be reinterpreted as closed M1.
+    if payload.get("granularity", "M1") != "M1":
+        raise ValueError("OANDA candle granularity must be M1")
+    if payload.get("price", "BA") != "BA":
+        raise ValueError("OANDA candle price type must be BID/ASK")
     if len(payload["candles"]) > MAX_MINUTES:
         raise ValueError("OANDA M1 candle count exceeds bounded window")
     result: list[ClosedCandle] = []
