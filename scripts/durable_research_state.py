@@ -162,7 +162,7 @@ class DurableResearchState:
                        (attempt_id, row["request_id"], attempt_no, token, worker, now))
             self._event(db, row["request_id"], row["state"], "RUNNING", token, now)
             return {"request_id": row["request_id"], "attempt_id": attempt_id,
-                    "fencing_token": token, "worker": worker,
+                    "attempt_no": attempt_no, "fencing_token": token, "worker": worker,
                     "lease_until_ms": expires, "frozen_request": json.loads(row["frozen_json"])}
 
     def heartbeat(self, request_id: str, attempt_id: str, fencing_token: int,
