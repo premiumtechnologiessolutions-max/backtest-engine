@@ -35,3 +35,13 @@ def test_decision_policy_is_part_of_input_provenance():
     b = evaluate_robots({"XAU_USD": candles()}, (robot,), news_before_minutes=30)
     assert a["input_hashes"]["decision_policy_sha256"] != b["input_hashes"]["decision_policy_sha256"]
     assert a["manifest_sha256"] != b["manifest_sha256"]
+
+
+def test_report_provenance_includes_source_code_and_runtime_versions():
+    robot = RobotSpec("gold_trial", "XAU_USD", "momentum", 2, 0.5,
+                      2.0, 0, 10.0)
+    report = evaluate_robots({"XAU_USD": candles()}, (robot,))
+    hashes = report["input_hashes"]
+    assert len(hashes["engine_sources_sha256"]) == 64
+    assert len(hashes["runtime_versions_sha256"]) == 64
+    assert hashes["engine_sources_sha256"] != hashes["closed_m1_bidask_sha256"]
