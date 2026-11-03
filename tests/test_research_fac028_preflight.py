@@ -39,3 +39,29 @@ def test_nonempty_placeholder_does_not_clear_execution_gate(placeholder):
     result = audit_fac028(FROZEN, execution_contract=contract)
     assert result["status"] == "BLOCKED_UNRESOLVED_EXECUTION_SEMANTICS"
     assert result["missing"] == ["signal_timestamp_rule"]
+
+
+def test_cli_contract_json_review_only(tmp_path, monkeypatch, capsys):
+    import json
+    import sys
+    from scripts.research_fac028_preflight import main
+    protocol = tmp_path / "protocol.md"
+    protocol.write_text(FROZEN, encoding="utf-8")
+    contract = tmp_path / "contract.json"
+    contract.write_text(json.dumps({k: "explicitly frozen" for k in EXECUTION_KEYS}), encoding="utf-8")
+    monkeypatch.setattr(sys, "argv", ["fac028", str(protocol), "--execution-contract", str(contract)])
+    assert main() == 0
+    assert "READY_FOR_INDEPENDENT_CONTRACT_REVIEW_NOT_EXECUTION" in capsys.readouterr().out
+
+
+def test_cli_rejects_json_array(tmp_path, monkeypatch):
+    import sys
+    from scripts.research_fac028_preflight import main
+    protocol = tmp_path / "protocol.md"
+    protocol.write_text(FROZEN, encoding="utf-8")
+    contract = tmp_path / "contract.json"
+    contract.write_text("[]", encoding="utf-8")
+    monkeypatch.setattr(sys, "argv", ["fac028", str(protocol), "--execution-contract", str(contract)])
+    with pytest.raises(SystemExit) as exc:
+        main()
+    assert exc.value.code == 2
