@@ -46,13 +46,26 @@ def test_six_month_engine_report_is_audited_before_training_screen(tmp_path):
                         "synthetic_end_of_data_trades": 0})
         weekly.append({"period": f"{monday.isoformat()}/{sunday.isoformat()}",
                        "net_pnl": net, "trades": 1, "total_cost": 0.4})
-        trades.append({"closed_at": f"{day.isoformat()}T12:00:00+00:00",
-                       "net_pnl": net, "cost": 0.4})
+        gross = net + 0.4
+        exit_price = 2000.0 + gross
+        winning = gross > 0
+        trades.append({
+            "strategy": "ema", "side": 1, "signal_at": f"{day.isoformat()}T11:58:00+00:00",
+            "entry_at": f"{day.isoformat()}T11:59:00+00:00",
+            "closed_at": f"{day.isoformat()}T12:00:00+00:00",
+            "entry_price": 2000.0, "exit_price": exit_price,
+            "stop": 1999.0 if winning else exit_price,
+            "target": exit_price if winning else 2010.0,
+            "ounces": 1.0, "gross_pnl": gross, "net_pnl": net,
+            "cost": 0.4, "exit_reason": "target" if winning else "stop",
+            "gap_minutes": 0,
+        })
     write_csv(folder / "monthly.csv", list(monthly[0]), monthly)
     write_csv(folder / "weekly.csv", list(weekly[0]), weekly)
     write_csv(folder / "trades.csv", list(trades[0]), trades)
     summary = {
         "execution": "synthetic_same_reference_bid_ohlc_fixed_all_in_fee",
+        "accounting_checks": "PASSED",
         "settings": serialize_settings(Settings()),
         "source_fingerprints": {
             "source_file_sha256": source, "git_revision_env": commit,
