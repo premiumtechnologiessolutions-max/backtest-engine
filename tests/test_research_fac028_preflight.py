@@ -19,22 +19,33 @@ def test_missing_safeguard_rejected():
         audit_fac028(FROZEN.replace("stop-first", "target-first"))
 
 
+def distinct_contract():
+    return {key: f"Frozen UTC causal execution rule {index}: uses only completed prior bars" for index, key in enumerate(EXECUTION_KEYS)}
+
+
+def test_identical_copy_paste_contract_is_blocked():
+    contract = {key: "UTC close of prior completed H1 bar, deterministic" for key in EXECUTION_KEYS}
+    result = audit_fac028(FROZEN, execution_contract=contract)
+    assert result["status"] == "BLOCKED_UNRESOLVED_EXECUTION_SEMANTICS"
+    assert set(result["missing"]) == set(EXECUTION_KEYS)
+
+
 def test_complete_contract_only_enters_review_not_execution():
-    result = audit_fac028(FROZEN, execution_contract={k: "UTC close of prior completed H1 bar, deterministic" for k in EXECUTION_KEYS})
+    result = audit_fac028(FROZEN, execution_contract=distinct_contract())
     assert result["missing"] == []
     assert result["status"] == "READY_FOR_INDEPENDENT_CONTRACT_REVIEW_NOT_EXECUTION"
     assert result["independent_hypotheses"] == 1
 
 
 def test_empty_contract_value_remains_blocked():
-    contract = {k: "UTC close of prior completed H1 bar, deterministic" for k in EXECUTION_KEYS}
+    contract = distinct_contract()
     contract["entry_bid_ask_rule"] = " "
     assert audit_fac028(FROZEN, execution_contract=contract)["missing"] == ["entry_bid_ask_rule"]
 
 
 @pytest.mark.parametrize("placeholder", ["TBD", "todo", "N/A", "pending", "?", "unknown"])
 def test_nonempty_placeholder_does_not_clear_execution_gate(placeholder):
-    contract = {k: "UTC close of prior completed H1 bar, deterministic" for k in EXECUTION_KEYS}
+    contract = distinct_contract()
     contract["signal_timestamp_rule"] = placeholder
     result = audit_fac028(FROZEN, execution_contract=contract)
     assert result["status"] == "BLOCKED_UNRESOLVED_EXECUTION_SEMANTICS"
@@ -48,7 +59,7 @@ def test_cli_contract_json_review_only(tmp_path, monkeypatch, capsys):
     protocol = tmp_path / "protocol.md"
     protocol.write_text(FROZEN, encoding="utf-8")
     contract = tmp_path / "contract.json"
-    contract.write_text(json.dumps({k: "UTC close of prior completed H1 bar, deterministic" for k in EXECUTION_KEYS}), encoding="utf-8")
+    contract.write_text(json.dumps(distinct_contract()), encoding="utf-8")
     monkeypatch.setattr(sys, "argv", ["fac028", str(protocol), "--execution-contract", str(contract)])
     assert main() == 0
     assert "READY_FOR_INDEPENDENT_CONTRACT_REVIEW_NOT_EXECUTION" in capsys.readouterr().out
