@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 
 REQUIRED = (
@@ -50,8 +51,17 @@ def audit_fac028(text: str, *, execution_contract: dict | None = None) -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("frozen_protocol", type=Path)
+    parser.add_argument("--execution-contract", type=Path, help="Local JSON object of frozen execution semantics")
     args = parser.parse_args()
-    result = audit_fac028(args.frozen_protocol.read_text(encoding="utf-8"))
+    contract = None
+    if args.execution_contract is not None:
+        try:
+            contract = json.loads(args.execution_contract.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            parser.error(f"invalid execution contract: {exc}")
+        if not isinstance(contract, dict):
+            parser.error("execution contract must be a JSON object")
+    result = audit_fac028(args.frozen_protocol.read_text(encoding="utf-8"), execution_contract=contract)
     print(result)
     return 2 if result["missing"] else 0
 
