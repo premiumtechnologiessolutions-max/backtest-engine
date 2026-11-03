@@ -828,3 +828,61 @@ def test_frozen_qs01_policy_is_distinct_from_generic_one_ounce_policy():
     assert special["max_entry_delay_minutes"] == 0
     assert special["max_holding_minutes"] == 30
     assert lab.canonical(special) != lab.canonical(baseline)
+
+
+def test_strict_audit_rejects_failed_accounting_claim(tmp_path):
+    folder = tmp_path / "job"
+    make_report(folder)
+    summary = folder / "summary.json"
+    saved = json.loads(summary.read_text(encoding="utf-8"))
+    saved["accounting_checks"] = "FAILED"
+    summary.write_text(json.dumps(saved), encoding="utf-8")
+    with pytest.raises(ValueError, match="accounting checks did not pass"):
+        lab.audit_run(folder, spec(), SOURCE, COMMIT)
+
+
+@pytest.mark.parametrize("corruption", ["negative_entry", "forged_profit", "missing_entry"])
+def test_strict_audit_rejects_forged_execution_fields(tmp_path, corruption):
+    folder = tmp_path / "job"
+    make_report(folder)
+    file = folder / "trades.csv"
+    with file.open(newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        fields = list(reader.fieldnames)
+        rows = list(reader)
+    if corruption == "negative_entry":
+        rows[0]["entry_price"] = "-999999"
+        expected = "Nonpositive execution trade price"
+    elif corruption == "forged_profit":
+        rows[0]["gross_pnl"] = "999999"
+        expected = "Gross P/L differs"
+    else:
+        fields.remove("entry_price")
+        for row in rows:
+            row.pop("entry_price")
+        expected = "mandatory execution fields"
+    with file.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fields)
+        writer.writeheader()
+        writer.writerows(rows)
+    with pytest.raises(ValueError, match=expected):
+        lab.audit_run(folder, spec(), SOURCE, COMMIT)
+
+
+def test_opt_in_orphan_recovery_does_not_promote_forged_execution(tmp_path, monkeypatch):
+    frozen, output, folder = _orphan_fixture(tmp_path, monkeypatch)
+    file = folder / "trades.csv"
+    with file.open(newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        fields = reader.fieldnames
+        rows = list(reader)
+    rows[0]["entry_price"] = "-999999"
+    with file.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fields)
+        writer.writeheader()
+        writer.writerows(rows)
+    monkeypatch.setattr(lab.subprocess, "run", lambda *args, **kwargs:
+                        pytest.fail("Corrupt orphan must never rerun automatically"))
+    with pytest.raises(ValueError, match="Orphaned run failed canonical evidence audit"):
+        lab.run_plan(frozen, output, recover_verified_orphans=True)
+    assert not (output / "batch_manifest.json").exists()
