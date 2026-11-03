@@ -907,7 +907,7 @@ def test_orphan_recovery_rejects_replayed_ledger_byte_drift(
         # An extra blank line leaves CSV accounting intact but breaks
         # immutable replay parity, which must be checked before admission.
         with (target / "trades.csv").open("ab") as handle:
-            handle.write(b"\\n")
+            handle.write(b"\n")
         return SimpleNamespace(returncode=0)
 
     monkeypatch.setattr(lab.subprocess, "run", replay_engine)
