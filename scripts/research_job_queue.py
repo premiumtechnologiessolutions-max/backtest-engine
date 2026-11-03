@@ -13,6 +13,7 @@ import os
 from pathlib import Path, PurePosixPath
 import re
 import stat
+import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 FAMILY = re.compile(r"NRF-FAC-[0-9]{3}[A-Z]?\Z")
@@ -170,18 +171,29 @@ def _read_job_bytes(path: Path) -> bytes:
         return stream.read(8193)
 
 
+def _fsync_queue_directory(directory: Path) -> None:
+    """Persist directory entry publication where POSIX directory fsync exists."""
+    if os.name == "posix":
+        fd = os.open(directory, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+        try:
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+
+
 def enqueue(root: Path, request: dict) -> dict:
-    """Atomic, idempotent, owner-only intake; deliberately no worker."""
+    """Write fully before publishing final name, without overwriting any job.
+
+    A crash while writing can leave only an internal staging file. A consumer
+    never observes a partial final *.json entry. Existing committed jobs are
+    idempotent only when their bytes match the frozen request exactly.
+    """
     record = _verify(request, request["fingerprint"] + ".json")
     directory = _queue_directory(root, create=True)
     target = directory / (record["fingerprint"] + ".json")
-    payload = _canonical(record) + b"\n"
-    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
-    if hasattr(os, "O_NOFOLLOW"):
-        flags |= os.O_NOFOLLOW
-    try:
-        fd = os.open(target, flags, 0o600)
-    except FileExistsError:
+    payload = _canonical(record) + b"\\n"
+
+    def verify_existing() -> dict:
         try:
             existing = _read_job_bytes(target)
         except (ValueError, OSError) as exc:
@@ -189,15 +201,32 @@ def enqueue(root: Path, request: dict) -> dict:
         if existing != payload:
             raise ValueError("Existing queue entry differs from frozen request")
         return record
+
+    if target.exists() or target.is_symlink():
+        return verify_existing()
+    fd, temporary = tempfile.mkstemp(prefix=".research-job-", suffix=".tmp",
+                                     dir=directory)
+    staging = Path(temporary)
     try:
         with os.fdopen(fd, "wb") as stream:
             stream.write(payload)
             stream.flush()
             os.fsync(stream.fileno())
-    except BaseException:
-        target.unlink(missing_ok=True)
-        raise
-    return record
+        try:
+            if os.name == "nt":
+                # Windows rename does not replace an existing destination.
+                os.rename(staging, target)
+            else:
+                # Hard-link creates a final directory entry atomically and
+                # fails with EEXIST; os.replace would overwrite another writer.
+                os.link(staging, target, follow_symlinks=False)
+        except FileExistsError:
+            return verify_existing()
+        _fsync_queue_directory(directory)
+        return record
+    finally:
+        staging.unlink(missing_ok=True)
+        _fsync_queue_directory(directory)
 
 
 def list_jobs(root: Path) -> list[dict]:
@@ -215,6 +244,13 @@ def list_jobs(root: Path) -> list[dict]:
             info = file.stat()
             if os.name == "posix" and (info.st_uid != os.getuid() or info.st_mode & 0o077):
                 raise ValueError("Monthly-plan queue subdirectory must be owner-only")
+            continue
+        # Staging is never a committed queue record. An abrupt exit can
+        # strand one; it is intentionally excluded from the reader and a
+        # subsequent enqueue can safely retry without reusing staged bytes.
+        if file.name.startswith(".research-job-") and file.name.endswith(".tmp"):
+            if file.is_symlink() or not file.is_file():
+                raise ValueError("Unsafe queue staging entry")
             continue
         if file.suffix != ".json":
             raise ValueError("Unexpected queue entry")
