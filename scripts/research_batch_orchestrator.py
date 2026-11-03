@@ -4,7 +4,7 @@ from __future__ import annotations
 import argparse
 from contextlib import contextmanager
 import csv
-from datetime import date
+from datetime import date, datetime, timedelta
 import hashlib
 from html import escape
 from itertools import product
@@ -29,6 +29,7 @@ except ImportError:
     msvcrt = None
 
 from norisk_quant.evidence_reconciliation import verify_exit_periods
+from norisk_quant.persisted_trade_integrity import FIELDS as EXECUTION_TRADE_FIELDS
 from norisk_quant.model import Settings, serialize_settings
 from norisk_quant.quote_stress import qs01_settings
 
@@ -302,6 +303,82 @@ def read_ledger_csv(path: Path) -> list[dict[str, str]]:
     return rows
 
 
+
+def verify_trade_execution_evidence(rows: list[dict[str, str]], settings: dict) -> None:
+    """Fail closed on forged execution fields before promoting a batch result.
+
+    Checks exported trade geometry, chronology and price-derived one-ounce P/L.
+    This does NOT independently replay original M1 prices or authenticate the
+    research worker. Full source replay remains a separate acceptance gate.
+    """
+    if not rows:
+        return
+    required = set(EXECUTION_TRADE_FIELDS)
+    previous_exit = None
+    reasons = {
+        "stop", "ambiguous_stop_first", "target", "open_target",
+        "open_stop", "gap_stop", "entry_open_beyond_stop",
+        "time_exit", "end_of_data",
+    }
+    for row in rows:
+        if not required.issubset(row):
+            raise ValueError("Trade ledger missing mandatory execution fields")
+        if row["side"] not in ("1", "-1"):
+            raise ValueError("Invalid execution trade side")
+        side = int(row["side"])
+        if not row["strategy"] or row["exit_reason"] not in reasons:
+            raise ValueError("Invalid execution strategy or exit reason")
+        count(row["gap_minutes"])
+        prices = {name: finite(row[name]) for name in
+                  ("entry_price", "exit_price", "stop", "target")}
+        if any(price <= 0 for price in prices.values()):
+            raise ValueError("Nonpositive execution trade price")
+        entry_price, exit_price = prices["entry_price"], prices["exit_price"]
+        stop, target = prices["stop"], prices["target"]
+        if ((side == 1 and not stop < entry_price < target)
+                or (side == -1 and not target < entry_price < stop)):
+            raise ValueError("Invalid execution stop/target geometry")
+        ounces = finite(row["ounces"])
+        gross = finite(row["gross_pnl"])
+        cost = finite(row["cost"], nonnegative=True)
+        net = finite(row["net_pnl"])
+        if not same(ounces, finite(settings["ounces"])) or ounces <= 0:
+            raise ValueError("Frozen execution trade volume mismatch")
+        if not same(cost, ounces * finite(settings["roundtrip_cost_per_ounce"])):
+            raise ValueError("Frozen execution trade cost mismatch")
+        if not same(gross, side * (exit_price - entry_price) * ounces):
+            raise ValueError("Gross P/L differs from recorded trade prices")
+        if not same(net, gross - cost):
+            raise ValueError("Net P/L differs from trade gross less cost")
+        timestamps = []
+        for field in ("signal_at", "entry_at", "closed_at"):
+            try:
+                stamp = datetime.fromisoformat(row[field])
+            except (TypeError, ValueError, OverflowError) as exc:
+                raise ValueError("Invalid UTC execution trade timestamp") from exc
+            if stamp.tzinfo is None or stamp.utcoffset() != timedelta(0):
+                raise ValueError("Execution trade time must be timezone-aware UTC")
+            timestamps.append(stamp)
+        signal, entry, closed = timestamps
+        if not signal <= entry <= closed:
+            raise ValueError("Invalid execution trade chronology")
+        if previous_exit is not None and entry < previous_exit:
+            raise ValueError("Overlapping trades in single-position execution")
+        previous_exit = closed
+        reason = row["exit_reason"]
+        if reason in ("stop", "ambiguous_stop_first") and not same(exit_price, stop):
+            raise ValueError("Stop execution price differs from protective stop")
+        if reason in ("target", "open_target") and not same(exit_price, target):
+            raise ValueError("Target execution price differs from target")
+        if (reason in ("open_stop", "gap_stop", "entry_open_beyond_stop")
+                and side * (exit_price - stop) > 1e-6):
+            raise ValueError("Adverse stop opening cannot improve the stop fill")
+        if reason == "time_exit":
+            hold = settings.get("max_holding_minutes")
+            if hold is None or closed - entry < timedelta(minutes=hold):
+                raise ValueError("Time exit without a reached holding deadline")
+
+
 def audit_run(folder: Path, spec: dict, source_sha: str, engine_sha: str) -> dict:
     """Reconcile actual engine output without certifying broker execution."""
     summary_path = folder / "summary.json"
@@ -311,6 +388,8 @@ def audit_run(folder: Path, spec: dict, source_sha: str, engine_sha: str) -> dic
     rows = read_ledger_csv(folder / "monthly.csv")
     if not isinstance(summary, dict) or not rows:
         raise ValueError("Missing evidence")
+    if summary.get("accounting_checks") != "PASSED":
+        raise ValueError("Execution accounting checks did not pass")
     if summary.get("execution") != "synthetic_same_reference_bid_ohlc_fixed_all_in_fee":
         raise ValueError("Unknown execution mode")
     settings = summary.get("settings")
@@ -347,6 +426,7 @@ def audit_run(folder: Path, spec: dict, source_sha: str, engine_sha: str) -> dic
     # Three independently emitted ledgers must reconcile before promotion.
     weekly = read_ledger_csv(folder / "weekly.csv")
     individual = read_ledger_csv(folder / "trades.csv")
+    verify_trade_execution_evidence(individual, settings)
     if not weekly:
         raise ValueError("Weekly evidence missing")
     pnl, trades, fees, gaps, forced = {}, 0, 0.0, 0, 0
@@ -360,6 +440,8 @@ def audit_run(folder: Path, spec: dict, source_sha: str, engine_sha: str) -> dic
         forced += count(row.get("synthetic_end_of_data_trades"))
     if gaps > trades or forced > trades:
         raise ValueError("Gap or forced-close counts exceed executed trades")
+    if forced != sum(row["exit_reason"] == "end_of_data" for row in individual):
+        raise ValueError("Synthetic forced-close counts disagree with executed trades")
     weekly_pnl = sum(finite(row.get("net_pnl")) for row in weekly)
     weekly_fees = sum(finite(row.get("total_cost"), nonnegative=True) for row in weekly)
     weekly_trades = sum(count(row.get("trades")) for row in weekly)
