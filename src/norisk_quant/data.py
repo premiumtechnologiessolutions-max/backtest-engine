@@ -17,7 +17,7 @@ PRICE_COLUMNS = ("o", "h", "l", "c", "ao", "ah", "al", "ac")
 
 
 def _require_numeric_quote_columns(frame: pd.DataFrame, *, context: str) -> None:
-    """Reject bool/object quote dtypes before float coercion can hide schema drift.
+    """Reject bool/object/complex quote dtypes before float coercion can hide drift.
 
     Ingested JSON/CSV text is converted by normalize() first; a cached
     Parquet frame and a fingerprint input must already contain true numeric
@@ -29,6 +29,7 @@ def _require_numeric_quote_columns(frame: pd.DataFrame, *, context: str) -> None
         if name in frame.columns and (
             not pd.api.types.is_numeric_dtype(frame[name].dtype)
             or pd.api.types.is_bool_dtype(frame[name].dtype)
+            or pd.api.types.is_complex_dtype(frame[name].dtype)
         )
     ]
     if invalid:
@@ -48,6 +49,11 @@ def _reject_raw_boolean_cells(raw: pd.DataFrame) -> None:
     """
     for name in RAW_COLUMNS:
         series = raw[name]
+        if pd.api.types.is_complex_dtype(series.dtype):
+            raise ValueError(f"Source M1 requires real timestamp/BID/ASK values: complex {name} cells")
+        if (pd.api.types.is_object_dtype(series.dtype)
+                and series.map(lambda value: isinstance(value, (complex, np.complexfloating))).any()):
+            raise ValueError(f"Source M1 requires real timestamp/BID/ASK values: complex {name} cells")
         if pd.api.types.is_bool_dtype(series.dtype):
             raise ValueError(f"Source M1 requires numeric non-boolean timestamp/BID/ASK values: boolean {name} cells")
         if (pd.api.types.is_object_dtype(series.dtype)
@@ -96,6 +102,7 @@ def normalize(raw: pd.DataFrame, *, strict: bool = True) -> pd.DataFrame:
 
 def quality(frame: pd.DataFrame) -> dict:
     """Report observations without assuming every missing minute is bad data."""
+    _require_numeric_quote_columns(frame, context="Quality M1")
     if frame.empty:
         return {"rows": 0, "status": "empty"}
     deltas = frame.index.to_series().diff().dt.total_seconds().dropna()
