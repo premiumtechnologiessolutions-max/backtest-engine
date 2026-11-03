@@ -37,7 +37,7 @@ def dashboard_model(registry: dict) -> dict:
         report = batch.get("report")
         if report is not None and (
             type(report) is not str or not SAFE_REPORT.fullmatch(report)
-            or ".." in Path(report).parts
+            or any(part in ("", ".", "..") for part in report.split("/"))
         ):
             raise ValueError(f"Unsafe report path: {ident}")
         active = batch.get("active_annual_replays",
