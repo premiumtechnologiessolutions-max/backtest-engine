@@ -152,6 +152,12 @@ def execute(gold_zip: Path, years: list[int], destination: Path) -> dict:
         # Recheck before publishing: a concurrent writer may have populated
         # the destination while the multi-year replay was running.
         validate_output_destination(destination)
+        # POSIX allows renaming a directory over an empty directory, but
+        # Windows rejects that operation with WinError 5. Remove ONLY an
+        # existing verified-empty destination on Windows; rmdir itself fails
+        # closed if another writer has populated it in the meantime.
+        if os.name == "nt" and destination.exists():
+            destination.rmdir()
         os.replace(staging, destination)
         return combined
     finally:
