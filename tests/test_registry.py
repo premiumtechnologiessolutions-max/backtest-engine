@@ -42,3 +42,23 @@ def test_invalid_data_provenance_and_tick_execution_rejected():
         identity(engine_commit="main")
     with pytest.raises(ValueError, match="not implemented"):
         identity(execution_mode="observed_tick_research")
+
+
+def test_frozen_identity_rejects_nested_parameter_mutation():
+    params = {"rr": 2, "nested": {"window": [3, 5]}}
+    item = identity(parameters=params)
+    original = fingerprint(item)
+    params["nested"]["window"].append(8)
+    with pytest.raises(ValueError, match="mutated"):
+        fingerprint(item)
+    with pytest.raises(ValueError, match="mutated"):
+        experiment_manifest(item)
+    assert original != ""
+
+
+def test_invalid_parameter_json_and_nonfinite_fee_rejected():
+    for params in ({"rr": float("nan")}, {"rr": complex(1, 2)}, {"rr": {1, 2}}):
+        with pytest.raises(ValueError, match="finite JSON"):
+            identity(parameters=params)
+    with pytest.raises(ValueError, match="Nonfinite"):
+        identity(fee_all_in_per_ounce=float("inf"))
