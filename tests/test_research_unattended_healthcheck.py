@@ -13,6 +13,13 @@ def root(tmp_path):
     return tmp_path
 
 
+@pytest.fixture(autouse=True)
+def synthetic_process_liveness(monkeypatch):
+    # Historic test fixture PID=42 is deliberately synthetic. Keep the
+    # health state tests deterministic without ever probing a real PID 42.
+    monkeypatch.setattr(h, "_pid_exists", lambda pid: pid == 42)
+
+
 def write(root, state="RESEARCH_RUNNING", *, delta=0, **updates):
     now = datetime(2026, 11, 2, 12, 0, tzinfo=timezone.utc)
     data = {
@@ -181,3 +188,20 @@ def test_forged_director_market_edge_claim_rejected(root):
     code, report = h.evaluate(root, now=now)
     assert code == 3
     assert report["state"] == "INVALID_HEALTH_EVIDENCE"
+
+
+def test_recent_heartbeat_cannot_authenticate_nonexistent_worker_pid(root):
+    now = write(root, worker_pid=2147483647)
+    code, report = h.evaluate(root, now=now)
+    assert code == 3
+    assert report["state"] == "WORKER_PID_NOT_ALIVE"
+
+
+def test_real_pid_probe_detects_this_process_and_missing_pid(monkeypatch):
+    # Override the fixture's stub to exercise the production probe directly.
+    # os.kill(pid, 0) is non-destructive only on POSIX; Windows path uses
+    # OpenProcess/GetExitCodeProcess instead.
+    import os
+    from scripts import research_unattended_healthcheck as h2
+    assert h2._pid_exists(os.getpid()) is True
+    assert h2._pid_exists(2147483647) is False
