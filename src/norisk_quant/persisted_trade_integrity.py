@@ -130,5 +130,9 @@ def verify_persisted_trade_ledger(executed: pd.DataFrame, exported: pd.DataFrame
                 # improve the fill relative to that stop in this simulator.
                 if row.side * (row.exit_price - row.stop) > 1e-7:
                     raise ValueError(f"{label} adverse open exit improved beyond stop")
-            elif reason != "end_of_data":
+            elif reason in ("end_of_data", "time_exit"):
+                # A holding deadline is checked by the execution/settings
+                # validator; this parity helper has no holding-policy argument.
+                pass
+            else:
                 raise ValueError(f"{label} trade has unknown exit reason")
