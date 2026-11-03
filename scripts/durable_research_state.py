@@ -260,14 +260,24 @@ class DurableResearchState:
             self._event(db, request_id, "CANCEL_REQUESTED", "CANCELLED",
                         fencing_token, now)
 
-    def finalize_expired_cancel(self, request_id: str, *, process_exit_confirmed: bool = False,\n                                now_ms: int | None = None) -> bool:
+    def finalize_expired_cancel(self, request_id: str, *, process_exit_confirmed: bool = False,
+                                now_ms: int | None = None) -> bool:
         """Retire an expired cancellation after supervisor confirms process exit.
 
         Callers MUST first establish that the former worker process is dead;
         lease expiry alone does not terminate a process. This method is not a
         process killer and cannot publish research results.
         """
-        if process_exit_confirmed is not True:\n            raise ValueError("Supervisor must confirm worker process exit")\n        now = _now_ms() if now_ms is None else now_ms\n        if type(now) is not int or now < 0:\n            raise ValueError("Invalid UTC lease clock")\n        with self._write() as db:\n            row = db.execute("SELECT * FROM jobs WHERE request_id=?", (request_id,)).fetchone()\n            if row is None:\n                raise ValueError("Unknown research request")\n            if row["state"] == "CANCELLED":
+        if process_exit_confirmed is not True:
+            raise ValueError("Supervisor must confirm worker process exit")
+        now = _now_ms() if now_ms is None else now_ms
+        if type(now) is not int or now < 0:
+            raise ValueError("Invalid UTC lease clock")
+        with self._write() as db:
+            row = db.execute("SELECT * FROM jobs WHERE request_id=?", (request_id,)).fetchone()
+            if row is None:
+                raise ValueError("Unknown research request")
+            if row["state"] == "CANCELLED":
                 return False
             if (row["state"] != "CANCEL_REQUESTED"
                     or row["lease_until_ms"] is None
