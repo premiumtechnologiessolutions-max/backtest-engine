@@ -70,7 +70,8 @@ def test_expired_worker_cannot_heartbeat_reconcile_or_quarantine(tmp_path):
     assert store.claim_next("worker-B", lease_seconds=1, now_ms=1500) is None
     b = store.claim_next("worker-B", lease_seconds=10, now_ms=2001)
     assert b["fencing_token"] == a["fencing_token"] + 1
-    assert b["attempt_no"] == a["attempt_no"] if "attempt_no" in a else 2
+    assert a["attempt_no"] == 1
+    assert b["attempt_no"] == 2
     assert b["attempt_id"] != a["attempt_id"]
     for action in (
         lambda: store.heartbeat(request_id, a["attempt_id"], a["fencing_token"],
