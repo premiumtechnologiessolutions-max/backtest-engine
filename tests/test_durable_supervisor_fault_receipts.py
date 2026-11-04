@@ -93,7 +93,7 @@ def test_stale_or_outdated_claim_cannot_publish_duplicate_success(tmp_path):
     output = supervised_synthetic_fault_probe(
         store, claim, now_ms=1200, fault="digest")
     stale = dict(claim, fencing_token=claim["fencing_token"] + 1)
-    with pytest.raises(ValueError, match="Stale"):
+    with pytest.raises(ValueError, match="fenced claim"):
         stage_supervisor_fault_receipt(store, stale, output, now_ms=1300)
     with pytest.raises(ValueError, match="Stale"):
         stage_supervisor_fault_receipt(store, claim, output, now_ms=11001)
