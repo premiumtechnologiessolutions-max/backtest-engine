@@ -22,3 +22,8 @@
 	path = vendor/upstream/finrl
 	url = https://github.com/AI4Finance-Foundation/FinRL.git
 	shallow = true
+
+[submodule "vendor/upstream/openbb"]
+	path = vendor/upstream/openbb
+	url = https://github.com/openbq-org/OpenBB.git
+	shallow = true
