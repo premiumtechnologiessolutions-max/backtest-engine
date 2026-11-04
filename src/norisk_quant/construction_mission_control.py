@@ -48,6 +48,8 @@ def construction_snapshot(
             "cross_engine_discrepancy_fields": probed.get("cross_engine_parity", {}).get("discrepancy_fields"),
             "native_source_manifests": probed.get("native_source_evidence", {}).get("reports"),
             "native_vendor_exports": probed.get("native_source_evidence", {}).get("vendor_exports"),
+            "unverified_fill_audits": probed.get("native_source_evidence", {}).get("fill_event_reports"),
+            "synthetic_fill_events_checked": probed.get("native_source_evidence", {}).get("fill_events_checked"),
             "supervisor_fault_reports": probed.get("supervisor_faults", {}).get("reports"),
             "synthetic_supervisor_failures": probed.get("supervisor_faults", {}).get("faults"),
         }

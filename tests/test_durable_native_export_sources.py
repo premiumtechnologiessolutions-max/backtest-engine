@@ -385,3 +385,21 @@ def test_fill_stage_fails_closed_when_second_write_is_injected_to_fail(tmp_path)
             fill_events_by_engine=synthetic_vendor_fills())
     assert audit_unverified_cross_engine_parity(state)["reports"] == 0
     assert audit_native_source_evidence(state)["reports"] == 0
+
+
+def test_fill_event_counts_flow_through_mission_control_status(tmp_path):
+    from norisk_quant.construction_mission_control import construction_snapshot
+    from norisk_quant.campaign_sharding import freeze_sharded_campaign
+    state, claim, blueprint, ledger, vendor = setup(tmp_path)
+    stage_native_source_evidence(
+        state, claim, blueprint, ledger, vendor, now_ms=1200,
+        fill_events_by_engine=synthetic_vendor_fills())
+    # Mission control requires a sharded design, not a flat vendor blueprint.
+    frozen = freeze_sharded_campaign(blueprint["normalized_spec"])
+    shown = construction_snapshot(
+        frozen, database=state.database, now_ms=1300)
+    health = shown["operational_health"]
+    assert health["unverified_fill_audits"] == 1
+    assert health["synthetic_fill_events_checked"] == 3
+    assert shown["market_research_authorized"] is False
+    assert shown["engineering_acceptance_passed"] is False

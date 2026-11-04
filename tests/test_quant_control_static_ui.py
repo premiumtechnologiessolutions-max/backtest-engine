@@ -104,3 +104,11 @@ def test_synthetic_supervisor_faults_visible_and_never_marked_live():
     assert 'id="supervisor-reports"' in page
     assert 'id="supervisor-failures"' in page
     assert "SYNTHETIC WORKER FAILURES" in page
+
+
+def test_fill_event_counts_are_unverified_on_quant_dashboard():
+    page = DASHBOARD.read_text(encoding="utf-8")
+    assert 'id="fill-audits"' in page
+    assert 'id="fill-events"' in page
+    assert "UNVERIFIED FILL AUDITS" in page
+    assert "SUPPLIED FILL EVENTS CHECKED" in page
