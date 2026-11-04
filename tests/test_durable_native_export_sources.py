@@ -150,3 +150,31 @@ def test_invalid_native_source_poisoned_control_plane(tmp_path):
             ("0" * 64, claim["attempt_id"]))
     code, report = evaluate(state.database, now_ms=1300)
     assert code == 3 and report["status"] == "INVALID"
+
+
+def test_vendor_source_receipts_survive_wal_backup_and_review_only_restore(tmp_path):
+    from scripts.durable_backup_attestation import (
+        backup_durable_state, restore_durable_backup, verify_durable_backup)
+    from scripts.durable_operations_gate import evaluate
+    state, claim, blueprint, ledger, vendors = setup(tmp_path)
+    stage_native_source_evidence(
+        state, claim, blueprint, ledger, vendors, now_ms=1200)
+    root = tmp_path / "backups"
+    root.mkdir()
+    saved = backup_durable_state(
+        state.database, root, "native_source_backup", now_ms=1300)
+    assert saved["worker_started"] is False
+    verified = verify_durable_backup(root / "native_source_backup")
+    assert verified["resume_automatically_authorized"] is False
+    target = tmp_path / "recovered.sqlite3"
+    restored = restore_durable_backup(
+        root / "native_source_backup", target)
+    assert restored["automatic_resume"] is False
+    recovered = DurableResearchState(target)
+    source_audit = audit_native_source_evidence(recovered)
+    assert source_audit["reports"] == 1
+    assert source_audit["vendor_exports"] == 1
+    assert recovered.status(claim["request_id"])["state"] == "RECONCILING"
+    code, report = evaluate(recovered.database, now_ms=1300)
+    assert code == 2
+    assert report["native_source_evidence"]["accepted"] == 0
