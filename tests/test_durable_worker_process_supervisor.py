@@ -148,36 +148,33 @@ def test_linux_stat_parser_handles_complex_command_name():
     assert (state, pgrp, start) == ("S", 8080, 12345)
 
 
-def test_kernel_group_presence_prevents_false_exit_after_leader_zombie(
-    tmp_path, monkeypatch,
+def test_kernel_group_presence_prevents_false_exit_when_leader_missing(
+    monkeypatch,
 ):
     import sys
     if not sys.platform.startswith("linux"):
-        pytest.skip("Linux-only /proc evidence")
+        pytest.skip("Linux-only kernel process-group evidence")
     from scripts import durable_worker_process_supervisor as module
-    root = tmp_path / "proc"
-    (root / "5001").mkdir(parents=True)
-    (root / "5001" / "stat").write_text(
-        "5001 (fixed synthetic child) " +
-        " ".join(["Z", "1", "5001"] + ["0"] * 16 + ["9000"] + ["0"] * 5),
-        encoding="utf-8",
-    )
-    inspector = module.LinuxProcInspector(root)
+    # A deliberately nonexistent real /proc PID. This test models the
+    # production kernel path with an injected signal-zero group probe,
+    # rather than creating a synthetic proc tree (which uses fixture mode).
+    inspector = module.LinuxProcInspector()
     monkeypatch.setattr(inspector, "boot", lambda: BOOT)
+    absent_pid = 1_999_999_999
+    identity = module.ProcessIdentity(BOOT, absent_pid, absent_pid, 9000)
     calls = []
     def live_group(group, signal_number):
         calls.append((group, signal_number))
         return None
     monkeypatch.setattr(module.os, "killpg", live_group)
-    identity = module.ProcessIdentity(BOOT, 5001, 5001, 9000)
     assert inspector.observe_exit(identity) == "ACTIVE"
-    assert calls == [(5001, 0)]
+    assert calls == [(absent_pid, 0)]
     def missing_group(group, signal_number):
         calls.append((group, signal_number))
         raise ProcessLookupError("ESRCH")
     monkeypatch.setattr(module.os, "killpg", missing_group)
     assert inspector.observe_exit(identity) == "EXITED_SAME_BOOT_NO_GROUP_MEMBERS"
-    assert calls[-1] == (5001, 0)
+    assert calls[-1] == (absent_pid, 0)
 
 
 def test_same_identity_live_leader_does_not_depend_on_other_proc_access(
