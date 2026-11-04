@@ -266,3 +266,122 @@ def test_atomic_manifest_and_parity_are_frozen_to_same_attempt(tmp_path):
     assert row["pa"] == row["sa"] == claim["attempt_id"]
     assert row["ph"] == row["sh"] == result["parity_report_sha256"]
     assert row["pt"] == row["st"] == claim["fencing_token"]
+
+
+
+def synthetic_vendor_fills():
+    return {"lean": [
+        {
+            "fill_id": "L-E1", "trade_id": "T001",
+            "at": "2026-01-02T10:01:00Z", "action": "BUY",
+            "phase": "ENTRY", "quantity": 0.25, "price": 2000.0,
+            "fee_usd": 0.05,
+        },
+        {
+            "fill_id": "L-E2", "trade_id": "T001",
+            "at": "2026-01-02T10:01:00Z", "action": "BUY",
+            "phase": "ENTRY", "quantity": 0.75, "price": 2000.0,
+            "fee_usd": 0.15,
+        },
+        {
+            "fill_id": "L-X1", "trade_id": "T001",
+            "at": "2026-01-02T10:05:00Z", "action": "SELL",
+            "phase": "EXIT", "quantity": 1.0, "price": 2003.0,
+            "fee_usd": 0.2,
+        },
+    ]}
+
+
+def test_fill_reconciliation_is_part_of_same_fenced_atomic_source_receipt(tmp_path):
+    from scripts.durable_cross_engine_parity import audit_unverified_cross_engine_parity
+    state, claim, blueprint, ledger, vendor = setup(tmp_path)
+    result = stage_native_source_evidence(
+        state, claim, blueprint, ledger, vendor, now_ms=1200,
+        fill_events_by_engine=synthetic_vendor_fills())
+    assert result["atomic_two_receipt_commit"] is True
+    assert result["fill_event_accounting_checked"] is True
+    assert result["fill_event_origin_authenticated"] is False
+    assert audit_unverified_cross_engine_parity(state)["reports"] == 1
+    audit = audit_native_source_evidence(state)
+    assert audit["reports"] == 1
+    assert audit["fill_event_reports"] == 1
+    assert audit["fill_events_checked"] == 3
+    assert audit["accepted"] == 0
+    assert stage_native_source_evidence(
+        state, claim, blueprint, ledger, vendor, now_ms=1201,
+        fill_events_by_engine=synthetic_vendor_fills()
+    )["status"] == "ALREADY_STAGED_UNVERIFIED"
+
+
+def test_partial_fill_mismatch_rejects_both_receipts_before_db_write(tmp_path):
+    from scripts.durable_cross_engine_parity import audit_unverified_cross_engine_parity
+    state, claim, blueprint, ledger, vendor = setup(tmp_path)
+    fills = synthetic_vendor_fills()
+    fills["lean"][1]["quantity"] = 0.5
+    with pytest.raises(ValueError, match="quantities"):
+        stage_native_source_evidence(
+            state, claim, blueprint, ledger, vendor, now_ms=1200,
+            fill_events_by_engine=fills)
+    assert audit_native_source_evidence(state)["reports"] == 0
+    assert audit_unverified_cross_engine_parity(state)["reports"] == 0
+
+
+def test_forged_fill_metadata_fails_audit_even_if_outer_sha_is_recomputed(tmp_path):
+    import json
+    import hashlib
+    state, claim, blueprint, ledger, vendor = setup(tmp_path)
+    stage_native_source_evidence(
+        state, claim, blueprint, ledger, vendor, now_ms=1200,
+        fill_events_by_engine=synthetic_vendor_fills())
+    with state._write() as db:
+        original = db.execute(
+            "SELECT manifest_json FROM unverified_native_export_sources"
+        ).fetchone()["manifest_json"]
+        body = json.loads(original)
+        body["fill_event_report"]["per_vendor"]["lean"]["validated_fill_events"] = 4
+        payload = json.dumps(
+            body, sort_keys=True, separators=(",", ":"),
+            ensure_ascii=True, allow_nan=False)
+        checksum = hashlib.sha256(payload.encode("ascii")).hexdigest()
+        db.execute(
+            "UPDATE unverified_native_export_sources "
+            "SET manifest_json=?, manifest_sha256=? WHERE attempt_id=?",
+            (payload, checksum, claim["attempt_id"]))
+    with pytest.raises(ValueError, match="fill audit"):
+        audit_native_source_evidence(state)
+
+
+def test_hash_only_fills_do_not_masquerade_as_real_vendor_execution(tmp_path):
+    state, claim, blueprint, ledger, vendor = setup(tmp_path)
+    stage_native_source_evidence(
+        state, claim, blueprint, ledger, vendor, now_ms=1200,
+        fill_events_by_engine=synthetic_vendor_fills())
+    with state._connection() as db:
+        body = db.execute(
+            "SELECT manifest_json FROM unverified_native_export_sources"
+        ).fetchone()["manifest_json"]
+    assert "2000" not in body and "2003" not in body
+    assert '"fill_event_origin_authenticated":false' in body
+    assert '"vendor_execution_attested":false' in body
+    assert '"research_result_accepted":false' in body
+
+
+def test_fill_stage_fails_closed_when_second_write_is_injected_to_fail(tmp_path):
+    import sqlite3
+    from scripts.durable_native_export_sources import _schema as source_schema
+    from scripts.durable_cross_engine_parity import (
+        _table as parity_schema, audit_unverified_cross_engine_parity)
+    state, claim, blueprint, ledger, vendor = setup(tmp_path)
+    with state._write() as db:
+        source_schema(db)
+        parity_schema(db)
+        db.execute(
+            "CREATE TRIGGER simulated_fill_source_failure "
+            "BEFORE INSERT ON unverified_native_export_sources "
+            "BEGIN SELECT RAISE(ABORT, 'source write aborted'); END")
+    with pytest.raises(sqlite3.IntegrityError, match="source write aborted"):
+        stage_native_source_evidence(
+            state, claim, blueprint, ledger, vendor, now_ms=1200,
+            fill_events_by_engine=synthetic_vendor_fills())
+    assert audit_unverified_cross_engine_parity(state)["reports"] == 0
+    assert audit_native_source_evidence(state)["reports"] == 0
