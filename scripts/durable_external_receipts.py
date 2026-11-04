@@ -99,6 +99,16 @@ def stage_external_receipt(
             attempt["worker"] != worker,
         )):
             raise ValueError("Durable attempt history drift")
+        from scripts.durable_receipt_consistency import (
+            metadata_projection, expect_mirror,
+        )
+        expect_mirror(
+            metadata_projection(db, attempt_id), request_id=request_id,
+            attempt_id=attempt_id, fencing_token=token,
+            binding_sha256=frozen_binding["binding_sha256"],
+            receipt_sha256=frozen_receipt["receipt_sha256"],
+            artifact_sha256=digest,
+        )
         _ensure_table(db)
         prior = db.execute(
             "SELECT * FROM external_receipt_inbox WHERE attempt_id=?",

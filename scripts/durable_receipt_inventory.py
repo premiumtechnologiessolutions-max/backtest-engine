@@ -110,6 +110,8 @@ def audit_all_external_receipts(store: DurableResearchState) -> dict:
     with store._connection() as db:
         metadata_only = _legacy_rows(db)
         evidence = audit_staged_external_receipts(store)
+        from scripts.durable_receipt_consistency import mirror_inventory
+        mirrors = mirror_inventory(db)
     count = metadata_only + evidence["unverified_receipts"]
     return {
         "schema": SCHEMA,
@@ -117,5 +119,7 @@ def audit_all_external_receipts(store: DurableResearchState) -> dict:
         "metadata_only_unverified": metadata_only,
         "byte_backed_unverified": evidence["unverified_receipts"],
         "accepted_results": 0,
+        "logical_unverified_attempts": mirrors["logical_unverified_attempts"],
+        "mirrored_attempts": mirrors["mirrored_attempts"],
         "operator_attention": count > 0,
     }

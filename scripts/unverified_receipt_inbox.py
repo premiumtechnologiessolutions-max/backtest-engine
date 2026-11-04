@@ -73,6 +73,17 @@ class UnverifiedReceiptInbox:
             )
             if row["state"] != "RECONCILING":
                 raise ValueError("Receipt requires RECONCILING state")
+            from scripts.durable_receipt_consistency import (
+                byte_projection, expect_mirror,
+            )
+            expect_mirror(
+                byte_projection(db, claim["attempt_id"]),
+                request_id=claim["request_id"], attempt_id=claim["attempt_id"],
+                fencing_token=claim["fencing_token"],
+                binding_sha256=verified["binding_sha256"],
+                receipt_sha256=receipt["receipt_sha256"],
+                artifact_sha256=actual_artifact_sha256,
+            )
             existing = db.execute(
                 "SELECT receipt_sha256, payload_json FROM unverified_receipts "
                 "WHERE request_id=? AND attempt_id=?",
