@@ -1,0 +1,24 @@
+[submodule "vendor/upstream/lean"]
+	path = vendor/upstream/lean
+	url = https://github.com/QuantConnect/Lean.git
+	shallow = true
+
+[submodule "vendor/upstream/nautilus_trader"]
+	path = vendor/upstream/nautilus_trader
+	url = https://github.com/nautechsystems/nautilus_trader.git
+	shallow = true
+
+[submodule "vendor/upstream/rd_agent"]
+	path = vendor/upstream/rd_agent
+	url = https://github.com/microsoft/RD-Agent.git
+	shallow = true
+
+[submodule "vendor/upstream/tradingagents"]
+	path = vendor/upstream/tradingagents
+	url = https://github.com/TauricResearch/TradingAgents.git
+	shallow = true
+
+[submodule "vendor/upstream/finrl"]
+	path = vendor/upstream/finrl
+	url = https://github.com/AI4Finance-Foundation/FinRL.git
+	shallow = true
