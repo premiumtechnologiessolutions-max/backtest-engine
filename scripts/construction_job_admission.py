@@ -2,9 +2,9 @@
 import re
 
 _ALLOWED = frozenset({'static_audit', 'synthetic_unit_test', 'synthetic_contract_test'})
-_SHA = re.compile(r'[0-9a-f]{40}\\Z')
-_NAME = re.compile(r'[a-z][a-z0-9_]{0,63}\\Z')
-_FIXTURE = re.compile(r'tests/fixtures/synthetic/[A-Za-z0-9_-]+\\.json\\Z')
+_SHA = re.compile(r'[0-9a-f]{40}\Z')
+_NAME = re.compile(r'[a-z][a-z0-9_]{0,63}\Z')
+_FIXTURE = re.compile(r'tests/fixtures/synthetic/[A-Za-z0-9_-]+\.json\Z')
 
 
 def admit(spec):
