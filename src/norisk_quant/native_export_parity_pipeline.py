@@ -125,7 +125,7 @@ def _canonical_sha(value: object) -> str:
     ).encode("ascii")).hexdigest()
 
 
-def normalize_and_compare_native_exports(
+def _build_native_export_parity(
     blueprint: dict,
     nrfx_ledger: pd.DataFrame,
     vendor_exports: dict[str, NativeExport],
@@ -190,4 +190,14 @@ def normalize_and_compare_native_exports(
         "external_engine_started": False,
         "research_result_accepted": False,
     }
-    return {**result, "pipeline_sha256": _canonical_sha(result)}
+    return {**result, "pipeline_sha256": _canonical_sha(result)}, ledgers
+
+
+def normalize_and_compare_native_exports(
+    blueprint: dict,
+    nrfx_ledger: pd.DataFrame,
+    vendor_exports: dict[str, NativeExport],
+) -> dict:
+    """Return only serializable audit metadata, never raw trade rows."""
+    report, _ = _build_native_export_parity(blueprint, nrfx_ledger, vendor_exports)
+    return report
