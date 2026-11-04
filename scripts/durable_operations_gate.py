@@ -36,9 +36,11 @@ def evaluate(database: Path, *, now_ms: int | None = None) -> tuple[int, dict]:
             if check is None or check[0] != "ok":
                 raise ValueError("SQLite integrity check failed")
             db.execute("PRAGMA query_only=ON")
-            # The existing audit/snapshot use the class's _connection helper;
-            # route those calls through read-only connections without invoking
-            # its initializing constructor.
+            # Pin audit and inventory to ONE SQLite read transaction. Separate
+            # connections can observe different commits between checks, making
+            # a healthy audit appear to certify an unaudited newer snapshot.
+            # BEGIN starts the snapshot at the first subsequent SELECT.
+            db.execute("BEGIN")
             class ReadOnly(DurableResearchState):
                 def __init__(self):
                     self.database = path
@@ -47,18 +49,15 @@ def evaluate(database: Path, *, now_ms: int | None = None) -> tuple[int, dict]:
                     from contextlib import contextmanager
                     @contextmanager
                     def connect():
-                        conn = sqlite3.connect(uri, uri=True, timeout=5)
-                        try:
-                            conn.row_factory = sqlite3.Row
-                            conn.execute("PRAGMA query_only=ON")
-                            yield conn
-                        finally:
-                            conn.close()
+                        yield db
                     return connect()
 
             probe = ReadOnly()
-            audit = probe.audit_integrity()
-            snapshot = probe.operational_snapshot(now_ms=now_ms)
+            try:
+                audit = probe.audit_integrity()
+                snapshot = probe.operational_snapshot(now_ms=now_ms)
+            finally:
+                db.execute("ROLLBACK")
         # Never interpret a boolean success of the audit as a trading result.
         if not isinstance(audit, dict) or not isinstance(snapshot, dict):
             raise ValueError("Unexpected operations audit shape")
