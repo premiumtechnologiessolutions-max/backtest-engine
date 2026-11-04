@@ -56,19 +56,23 @@ def evaluate(database: Path, *, now_ms: int | None = None) -> tuple[int, dict]:
             try:
                 audit = probe.audit_integrity()
                 snapshot = probe.operational_snapshot(now_ms=now_ms)
+                from scripts.durable_external_receipts import audit_staged_external_receipts
+                receipt_audit = audit_staged_external_receipts(probe)
             finally:
                 db.execute("ROLLBACK")
         # Never interpret a boolean success of the audit as a trading result.
         if not isinstance(audit, dict) or not isinstance(snapshot, dict):
             raise ValueError("Unexpected operations audit shape")
         payload = {"schema": SCHEMA, "status": "HEALTHY", "audit": audit,
-                   "operations": snapshot, "research_edge_proven": False}
+                   "operations": snapshot, "receipt_inbox": receipt_audit,
+                   "research_edge_proven": False}
         # Operational snapshot's action-required signal is authoritative.
         # Also examine status counts for cancellation regardless of clock.
         counts = snapshot.get("by_state", {})
         if not isinstance(counts, dict):
             counts = {}
-        action = (bool(snapshot.get("requires_operator_attention"))
+        action = bool(receipt_audit["unverified_receipts"]) or (
+            bool(snapshot.get("requires_operator_attention"))
                   or bool(snapshot.get("operator_attention"))
                   or any(counts.get(s, 0) for s in ("CANCEL_REQUESTED", "QUARANTINED")))
         # Some snapshots expose a list of actionable expired leases.
