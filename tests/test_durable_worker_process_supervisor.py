@@ -146,3 +146,60 @@ def test_linux_stat_parser_handles_complex_command_name():
     state, pgrp, start = LinuxProcInspector._stat(
         "8080 (complex (name) with spaces) " + " ".join(fields))
     assert (state, pgrp, start) == ("S", 8080, 12345)
+
+
+def test_kernel_group_presence_prevents_false_exit_after_leader_zombie(
+    tmp_path, monkeypatch,
+):
+    import sys
+    if not sys.platform.startswith("linux"):
+        pytest.skip("Linux-only /proc evidence")
+    from scripts import durable_worker_process_supervisor as module
+    root = tmp_path / "proc"
+    (root / "5001").mkdir(parents=True)
+    (root / "5001" / "stat").write_text(
+        "5001 (fixed synthetic child) " +
+        " ".join(["Z", "1", "5001"] + ["0"] * 16 + ["9000"] + ["0"] * 5),
+        encoding="utf-8",
+    )
+    inspector = module.LinuxProcInspector(root)
+    monkeypatch.setattr(inspector, "boot", lambda: BOOT)
+    calls = []
+    def live_group(group, signal_number):
+        calls.append((group, signal_number))
+        return None
+    monkeypatch.setattr(module.os, "killpg", live_group)
+    identity = module.ProcessIdentity(BOOT, 5001, 5001, 9000)
+    assert inspector.observe_exit(identity) == "ACTIVE"
+    assert calls == [(5001, 0)]
+    def missing_group(group, signal_number):
+        calls.append((group, signal_number))
+        raise ProcessLookupError("ESRCH")
+    monkeypatch.setattr(module.os, "killpg", missing_group)
+    assert inspector.observe_exit(identity) == "EXITED_SAME_BOOT_NO_GROUP_MEMBERS"
+    assert calls[-1] == (5001, 0)
+
+
+def test_same_identity_live_leader_does_not_depend_on_other_proc_access(
+    tmp_path, monkeypatch,
+):
+    import sys
+    if not sys.platform.startswith("linux"):
+        pytest.skip("Linux-only /proc evidence")
+    from scripts import durable_worker_process_supervisor as module
+    root = tmp_path / "proc"
+    (root / "5001").mkdir(parents=True)
+    (root / "5001" / "stat").write_text(
+        "5001 (fixed synthetic child) " +
+        " ".join(["S", "1", "5001"] + ["0"] * 16 + ["9000"] + ["0"] * 5),
+        encoding="utf-8",
+    )
+    inspector = module.LinuxProcInspector(root)
+    monkeypatch.setattr(inspector, "boot", lambda: BOOT)
+    def forbidden_group_probe(group, signal_number):
+        raise AssertionError("Living group leader needs no full /proc scan")
+    monkeypatch.setattr(module.os, "killpg", forbidden_group_probe)
+    identity = module.ProcessIdentity(BOOT, 5001, 5001, 9000)
+    assert inspector.observe_exit(identity) == "ACTIVE"
+    monkeypatch.setattr(inspector, "boot", lambda: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+    assert inspector.observe_exit(identity) == "UNKNOWN_BOOT_CHANGED"
