@@ -127,16 +127,22 @@ def test_partial_overfill_refused_even_if_close_trade_accounting_matches():
 
 def test_order_may_not_be_cancelled_then_filled():
     orders = order_events()
-    orders.insert(2, order("ENTRY1", 25, "CANCEL",
+    orders.insert(2, order("ENTRY1", 3, "CANCEL",
                            "2026-01-02T10:00:00Z", "ENTRY", "BUY"))
+    orders[3]["sequence"] = 6
+    orders[4]["sequence"] = 7
+    allocation = allocations()
+    allocation[0]["sequence"] = 4
+    allocation[1]["sequence"] = 5
+    allocation[2]["sequence"] = 8
     with pytest.raises(ValueError, match="before acknowledgement or after order terminal"):
-        run(order_stream=orders)
+        run(order_stream=orders, allocation=allocation)
 
 
 def test_duplicate_ack_refused():
     orders = order_events()
     orders.insert(2, order("ENTRY1", 20, "ACK",
-                           "2026-01-02T10:00:00Z", "ENTRY", "BUY"))
+                           "2026-01-02T10:05:00Z", "ENTRY", "BUY"))
     with pytest.raises(ValueError, match="Duplicate or late"):
         run(order_stream=orders)
 
