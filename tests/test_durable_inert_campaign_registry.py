@@ -64,7 +64,7 @@ def test_mutated_node_or_deleted_dependency_cannot_pass_audit(tmp_path):
         db.execute("UPDATE construction_nodes SET node_json='{}' "
                    "WHERE campaign_sha=? AND node_id=(SELECT MIN(node_id) "
                    "FROM construction_nodes WHERE campaign_sha=?)", (sha,sha))
-    with pytest.raises(ValueError, match="differs"):
+    with pytest.raises(ValueError, match="differ"):
         audit_inert_campaign(store, sha)
 
 
@@ -77,9 +77,9 @@ def test_removed_node_is_detected_and_cannot_be_silently_rebuilt(tmp_path):
         db.execute("DELETE FROM construction_nodes WHERE campaign_sha=? "
                    "AND node_id=(SELECT MIN(node_id) FROM construction_nodes "
                    "WHERE campaign_sha=?)", (sha, sha))
-    with pytest.raises(ValueError, match="differs"):
+    with pytest.raises(ValueError, match="differ"):
         register_inert_campaign(store, design)
-    with pytest.raises(ValueError, match="differs"):
+    with pytest.raises(ValueError, match="differ"):
         audit_inert_registry(store)
 
 
