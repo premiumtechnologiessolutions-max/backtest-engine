@@ -124,3 +124,29 @@ def test_vendor_source_manifest_does_not_store_prices(tmp_path):
         ).fetchone()[0]
     assert "2000" not in data and "2003" not in data
     assert "entryPrice" not in data
+
+
+def test_control_plane_inspects_new_native_sources(tmp_path):
+    from scripts.durable_operations_gate import evaluate
+    state, claim, blueprint, ledger, vendors = setup(tmp_path)
+    stage_native_source_evidence(
+        state, claim, blueprint, ledger, vendors, now_ms=1200)
+    code, report = evaluate(state.database, now_ms=1300)
+    assert code == 2
+    assert report["native_source_evidence"]["reports"] == 1
+    assert report["native_source_evidence"]["vendor_exports"] == 1
+    assert report["native_source_evidence"]["accepted"] == 0
+
+
+def test_invalid_native_source_poisoned_control_plane(tmp_path):
+    from scripts.durable_operations_gate import evaluate
+    state, claim, blueprint, ledger, vendors = setup(tmp_path)
+    stage_native_source_evidence(
+        state, claim, blueprint, ledger, vendors, now_ms=1200)
+    with state._write() as db:
+        db.execute(
+            "UPDATE unverified_native_export_sources "
+            "SET manifest_sha256=? WHERE attempt_id=?",
+            ("0" * 64, claim["attempt_id"]))
+    code, report = evaluate(state.database, now_ms=1300)
+    assert code == 3 and report["status"] == "INVALID"

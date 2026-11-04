@@ -90,3 +90,10 @@ def test_dashboard_displays_parity_as_unverified_not_approved():
     assert 'id="parity-differences"' in page
     assert "UNVERIFIED PARITY REPORTS" in page
     assert "NOT READY FOR MARKET RUNS" in page
+
+
+def test_native_vendor_manifest_status_is_not_presented_as_accepted():
+    page = DASHBOARD.read_text(encoding="utf-8")
+    assert 'id="native-manifests"' in page
+    assert 'id="vendor-exports"' in page
+    assert "UNVERIFIED NATIVE MANIFESTS" in page
