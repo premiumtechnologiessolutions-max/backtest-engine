@@ -314,3 +314,22 @@ def test_integrity_audit_rejects_claim_timestamp_drift(tmp_path, target):
                        "WHERE request_id=? AND to_state='RUNNING'", (ident,))
     with pytest.raises(ValueError, match="claim/event timestamp mismatch"):
         store.audit_integrity()
+
+
+@pytest.mark.parametrize("after_requeue", [False, True])
+def test_integrity_audit_rejects_stale_queued_attempt_identity(tmp_path, after_requeue):
+    store = state.DurableResearchState(tmp_path / "state.sqlite3")
+    ident = store.ingest_record(frozen_request())
+    if after_requeue:
+        first = store.claim_next("worker-A", lease_seconds=1, now_ms=1000)
+        store.requeue_expired(ident, process_exit_confirmed=True, now_ms=2001)
+        stale_attempt = first["attempt_id"]
+    else:
+        stale_attempt = "forged-owner"
+    assert store.status(ident)["state"] == "QUEUED"
+    assert store.audit_integrity()["checked_jobs"] == 1
+    with store._write() as db:
+        db.execute("UPDATE jobs SET attempt_id=? WHERE request_id=?",
+                   (stale_attempt, ident))
+    with pytest.raises(ValueError, match="stale attempt identity"):
+        store.audit_integrity()
