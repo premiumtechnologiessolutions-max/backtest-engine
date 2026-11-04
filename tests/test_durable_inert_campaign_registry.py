@@ -61,7 +61,7 @@ def test_mutated_node_or_deleted_dependency_cannot_pass_audit(tmp_path):
     register_inert_campaign(store, design)
     sha = design["sharded_blueprint_sha256"]
     with store._write() as db:
-        db.execute("UPDATE construction_nodes SET state='ACCEPTED' "
+        db.execute("UPDATE construction_nodes SET node_json='{}' "
                    "WHERE campaign_sha=? AND node_id=(SELECT MIN(node_id) "
                    "FROM construction_nodes WHERE campaign_sha=?)", (sha,sha))
     with pytest.raises(ValueError, match="differs"):
