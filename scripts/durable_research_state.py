@@ -300,3 +300,39 @@ class DurableResearchState:
             if row is None:
                 raise ValueError("Unknown research request")
             return dict(row)
+
+    def operational_snapshot(self, *, now_ms: int | None = None) -> dict:
+        """Read-only control-plane inventory; no claims of execution success.
+
+        An expired RUNNING lease is not proof its worker died. Expose it as
+        attention-required, never as automatically recovered or completed.
+        """
+        now = _now_ms() if now_ms is None else now_ms
+        if type(now) is not int or now < 0:
+            raise ValueError("Invalid UTC snapshot clock")
+        with self._connection() as db:
+            rows = db.execute(
+                "SELECT state, COUNT(*) AS count FROM jobs GROUP BY state"
+            ).fetchall()
+            states = {row["state"]: row["count"] for row in rows}
+            expired = db.execute(
+                "SELECT COUNT(*) FROM jobs "
+                "WHERE state IN ('RUNNING', 'RECONCILING', 'CANCEL_REQUESTED') "
+                "AND lease_until_ms IS NOT NULL AND lease_until_ms<=?",
+                (now,),
+            ).fetchone()[0]
+            attempts = db.execute("SELECT COUNT(*) FROM attempts").fetchone()[0]
+            total = db.execute("SELECT COUNT(*) FROM jobs").fetchone()[0]
+        return {
+            "schema": "NRFX_DURABLE_OPERATIONS_SNAPSHOT_V1",
+            "status": "CONTROL_PLANE_METADATA_ONLY_NOT_EXECUTION_EVIDENCE",
+            "observed_at_ms": now,
+            "total_jobs": total,
+            "total_attempts": attempts,
+            "by_state": dict(sorted(states.items())),
+            "expired_active_or_cancel_leases": expired,
+            "requires_operator_attention": expired > 0
+                or states.get("QUARANTINED", 0) > 0,
+            "accepted_results": "NOT_IMPLEMENTED",
+            "broker_order_placement_enabled": False,
+        }
