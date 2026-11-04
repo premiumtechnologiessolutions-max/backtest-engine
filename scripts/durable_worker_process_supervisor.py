@@ -101,6 +101,32 @@ class LinuxProcInspector:
         try:
             if self.boot() != identity.boot_id:
                 return _UNKNOWN_BOOT
+            if self.root != Path("/proc"):
+                # Explicit non-production synthetic /proc fixture mode.
+                # Never use fixture scanning to prove exit of a real worker:
+                # the production default uses the kernel's group-existence
+                # probe below and does not enumerate unrelated processes.
+                try:
+                    for entry in self.root.iterdir():
+                        if not entry.name.isdigit():
+                            continue
+                        try:
+                            state, group, ticks = self._stat(
+                                (entry / "stat").read_text())
+                        except FileNotFoundError:
+                            continue
+                        except (OSError, UnicodeError, ValueError):
+                            return _UNKNOWN_PROC
+                        pid = int(entry.name)
+                        if (pid == identity.pid and ticks == identity.start_ticks
+                                and state not in {"Z", "X", "x"}):
+                            return _ACTIVE
+                        if (group == identity.process_group
+                                and state not in {"Z", "X", "x"}):
+                            return _ACTIVE
+                    return _EXIT
+                except (OSError, UnicodeError, ValueError):
+                    return _UNKNOWN_PROC
             try:
                 state, group, ticks = self._stat(
                     (self.root / str(identity.pid) / "stat").read_text())
