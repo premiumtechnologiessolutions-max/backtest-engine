@@ -98,3 +98,23 @@ def test_stale_or_outdated_claim_cannot_publish_duplicate_success(tmp_path):
     with pytest.raises(ValueError, match="Stale"):
         stage_supervisor_fault_receipt(store, claim, output, now_ms=11001)
     assert audit_supervisor_fault_receipts(store)["reports"] == 0
+
+
+def test_fault_receipt_readonly_health_gate_and_tamper(tmp_path):
+    from scripts.durable_operations_gate import evaluate
+    store, claim, record = case(tmp_path)
+    report = supervised_synthetic_fault_probe(
+        store, claim, now_ms=1200, fault="nonzero")
+    stage_supervisor_fault_receipt(store, claim, report, now_ms=1300)
+    code, healthy_data = evaluate(store.database, now_ms=1300)
+    assert code == 2 and healthy_data["status"] == "OPERATOR_ATTENTION"
+    assert healthy_data["supervisor_faults"]["reports"] == 1
+    assert healthy_data["supervisor_faults"]["faults"] == 1
+    assert healthy_data["supervisor_faults"]["accepted"] == 0
+    with store._write() as db:
+        db.execute(
+            "UPDATE unverified_supervisor_fault_receipts "
+            "SET report_sha256=? WHERE attempt_id=?",
+            ("0" * 64, claim["attempt_id"]))
+    broken, failed_data = evaluate(store.database, now_ms=1300)
+    assert broken == 3 and failed_data["status"] == "INVALID"

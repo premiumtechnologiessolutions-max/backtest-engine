@@ -123,6 +123,8 @@
           <div class="datum"><span class="label">PARITY FIELD DISAGREEMENTS</span><span class="content" id="parity-differences">—</span></div>
           <div class="datum"><span class="label">UNVERIFIED NATIVE MANIFESTS</span><span class="content" id="native-manifests">—</span></div>
           <div class="datum"><span class="label">VENDOR SOURCE EXPORTS</span><span class="content" id="vendor-exports">—</span></div>
+          <div class="datum"><span class="label">SUPERVISOR TEST REPORTS</span><span class="content" id="supervisor-reports">—</span></div>
+          <div class="datum"><span class="label">SYNTHETIC WORKER FAILURES</span><span class="content" id="supervisor-failures">—</span></div>
         </div>
         <div class="line"></div>
         <h2>Verified local backups</h2>
@@ -219,6 +221,8 @@ function loadSnapshot(value) {
   setText('parity-differences', format(value.operational_health.cross_engine_discrepancy_fields));
   setText('native-manifests', format(value.operational_health.native_source_manifests));
   setText('vendor-exports', format(value.operational_health.native_vendor_exports));
+  setText('supervisor-reports', format(value.operational_health.supervisor_fault_reports));
+  setText('supervisor-failures', format(value.operational_health.synthetic_supervisor_failures));
   const b = value.backup_health || {};
   setText('backup-status', String(b.status || 'NOT_CONFIGURED'));
   setText('backup-jobs', format(b.jobs_observed));
@@ -238,7 +242,7 @@ function loadSnapshot(value) {
   setText("load-state", "Local construction snapshot loaded. No external engines were started.");
 }
 function reset() {
-  for (const id of ["strategy-count","task-count","shard-count","dataset","commit","workers","ram","backup-jobs","backup-attempts","registered-campaigns","registered-nodes","unverified-parity","parity-differences","native-manifests","vendor-exports"]) setText(id,"—");
+  for (const id of ["strategy-count","task-count","shard-count","dataset","commit","workers","ram","backup-jobs","backup-attempts","registered-campaigns","registered-nodes","unverified-parity","parity-differences","native-manifests","vendor-exports","supervisor-reports","supervisor-failures"]) setText(id,"—");
   setText("health","UNKNOWN");
   setText("backup-status","UNKNOWN");
   setText("load-state","No status file loaded. Displayed figures are placeholders, not results.");

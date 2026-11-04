@@ -97,3 +97,10 @@ def test_native_vendor_manifest_status_is_not_presented_as_accepted():
     assert 'id="native-manifests"' in page
     assert 'id="vendor-exports"' in page
     assert "UNVERIFIED NATIVE MANIFESTS" in page
+
+
+def test_synthetic_supervisor_faults_visible_and_never_marked_live():
+    page = DASHBOARD.read_text(encoding="utf-8")
+    assert 'id="supervisor-reports"' in page
+    assert 'id="supervisor-failures"' in page
+    assert "SYNTHETIC WORKER FAILURES" in page
