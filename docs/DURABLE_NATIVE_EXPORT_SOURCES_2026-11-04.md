@@ -28,3 +28,24 @@ historical partial source records are not automatically migrated.
 This removes the partial-publication gap, but it does NOT independently
 authenticate vendor execution, sidecar preregistration, raw fill events,
 or real price provenance. Those remain production acceptance blockers.
+
+## Optional partial-fill proof (construction-only)
+
+The same atomic stage API now accepts `fill_events_by_engine` in memory.
+If supplied, ALL planned vendor engines must provide complete per-fill
+event streams; the new strict reconciliation checks quantity, entry/exit
+VWAP, USD/oz fees, event chronology, identities and declared exit prices.
+The resulting bounded SHA report is stored inside the same immutable
+vendor source manifest as the closed-trade parity receipt. Missing or
+incorrect fills cause zero receipts to be inserted.
+
+The read-only manifest audit checks the nested fill report's SHA256,
+cross-vendor completeness, source commit, per-engine normalized ledger
+hashes, event counts and explicit no-attestation/no-acceptance flags.
+It still cannot authenticate actual vendor runtime origin, source-side
+event signatures or true market prints without a future external
+supervisor. A checked fill ledger is **not** a market-research result.
+
+Without this optional evidence, the source receipt explicitly records
+`fill_event_accounting_checked=false`; this is not silently treated as
+a complete event-level audit.
