@@ -484,7 +484,9 @@ def write_portfolio_report(result: PortfolioResult, settings: PortfolioSettings,
     eq.to_csv(dest / "equity_m1.csv")
     tr.to_csv(dest / "trades.csv", index=False)
     peak = eq["equity"].cummax().clip(lower=0)
+    from .observed_risk_evidence import observed_risk_evidence
     summary = {**audit,
+        "observed_risk_evidence": observed_risk_evidence(eq),
         "fixed_all_in_usd_per_ounce": 0.40,
         "max_open_positions_allowed": settings.max_open_positions,
         "max_total_ounces_allowed": settings.max_total_ounces,
