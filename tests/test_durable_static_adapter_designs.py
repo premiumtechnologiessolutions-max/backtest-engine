@@ -108,3 +108,36 @@ def test_reordered_batch_is_not_a_duplicate(tmp_path):
     with pytest.raises(ValueError, match="already belongs"):
         stage_static_adapter_designs(state, list(reversed(original)))
     assert audit_static_adapter_designs(state)["batches"] == 1
+
+
+def test_missing_index_table_fails_closed_without_recreating_it(tmp_path):
+    state = store(tmp_path)
+    stage_static_adapter_designs(state, batch())
+    with state._write() as db:
+        db.execute("DROP TABLE static_adapter_request_ids")
+    with pytest.raises(ValueError, match="Incomplete static design tables"):
+        audit_static_adapter_designs(state)
+    with state._connection() as db:
+        assert db.execute(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' "
+            "AND name='static_adapter_request_ids'"
+        ).fetchone()[0] == 0
+
+
+def test_empty_audit_does_not_create_index_or_design_tables(tmp_path):
+    state = store(tmp_path)
+    audit_static_adapter_designs(state)
+    with state._connection() as db:
+        assert db.execute(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' "
+            "AND name IN ('static_adapter_designs','static_adapter_request_ids')"
+        ).fetchone()[0] == 0
+
+
+def test_index_table_only_is_corruption_not_empty_store(tmp_path):
+    state = store(tmp_path)
+    with state._write() as db:
+        db.execute("CREATE TABLE static_adapter_request_ids ("
+                   "request_id TEXT PRIMARY KEY, batch_sha256 TEXT NOT NULL)")
+    with pytest.raises(ValueError, match="Incomplete static design tables"):
+        audit_static_adapter_designs(state)
