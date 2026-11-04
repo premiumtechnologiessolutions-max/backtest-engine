@@ -118,3 +118,32 @@ def test_fault_receipt_readonly_health_gate_and_tamper(tmp_path):
             ("0" * 64, claim["attempt_id"]))
     broken, failed_data = evaluate(store.database, now_ms=1300)
     assert broken == 3 and failed_data["status"] == "INVALID"
+
+
+def test_worker_fault_evidence_survives_wal_backup_and_readonly_health(tmp_path):
+    from scripts.durable_backup_attestation import (
+        backup_durable_state, verify_durable_backup, restore_durable_backup)
+    from scripts.durable_operations_gate import evaluate
+    store, claim, record = case(tmp_path)
+    failed = supervised_synthetic_fault_probe(
+        store, claim, now_ms=1200, fault="stderr")
+    assert failed["result"] == "FAILED_NONZERO_EXIT"
+    stage_supervisor_fault_receipt(store, claim, failed, now_ms=1300)
+    root = tmp_path / "snapshots"
+    root.mkdir()
+    saved = backup_durable_state(
+        store.database, root, "fault_001", now_ms=1400)
+    assert saved["worker_started"] is False
+    verified = verify_durable_backup(root / "fault_001")
+    assert verified["resume_automatically_authorized"] is False
+    restored_file = tmp_path / "recovered.sqlite3"
+    restored = restore_durable_backup(root / "fault_001", restored_file)
+    assert restored["automatic_resume"] is False
+    reopened = DurableResearchState(restored_file)
+    reports = audit_supervisor_fault_receipts(reopened)
+    assert reports["reports"] == 1 and reports["faults"] == 1
+    assert reopened.status(record["fingerprint"])["state"] == "RUNNING"
+    code, health = evaluate(reopened.database, now_ms=1400)
+    assert code == 2
+    assert health["supervisor_faults"]["reports"] == 1
+    assert health["supervisor_faults"]["accepted"] == 0
