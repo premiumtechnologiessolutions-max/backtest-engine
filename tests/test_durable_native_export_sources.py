@@ -403,3 +403,35 @@ def test_fill_event_counts_flow_through_mission_control_status(tmp_path):
     assert health["synthetic_fill_events_checked"] == 3
     assert shown["market_research_authorized"] is False
     assert shown["engineering_acceptance_passed"] is False
+
+
+
+def test_fill_event_evidence_survives_wal_backup_without_resuming_workers(tmp_path):
+    from scripts.durable_backup_attestation import (
+        backup_durable_state, restore_durable_backup, verify_durable_backup)
+    from scripts.durable_operations_gate import evaluate
+    state, claim, blueprint, ledger, vendors = setup(tmp_path)
+    stage_native_source_evidence(
+        state, claim, blueprint, ledger, vendors, now_ms=1200,
+        fill_events_by_engine=synthetic_vendor_fills())
+    root = tmp_path / "protected_snapshots"
+    root.mkdir()
+    saved = backup_durable_state(
+        state.database, root, "fills_001", now_ms=1300)
+    assert saved["worker_started"] is False
+    verified = verify_durable_backup(root / "fills_001")
+    assert verified["resume_automatically_authorized"] is False
+    restored_path = tmp_path / "restored-fill-ledger.sqlite3"
+    recovered_result = restore_durable_backup(
+        root / "fills_001", restored_path)
+    assert recovered_result["automatic_resume"] is False
+    recovered = DurableResearchState(restored_path)
+    proof = audit_native_source_evidence(recovered)
+    assert proof["fill_event_reports"] == 1
+    assert proof["fill_events_checked"] == 3
+    assert proof["accepted"] == 0
+    assert recovered.status(claim["request_id"])["state"] == "RECONCILING"
+    code, health = evaluate(recovered.database, now_ms=1300)
+    assert code == 2
+    assert health["native_source_evidence"]["fill_event_reports"] == 1
+    assert health["native_source_evidence"]["accepted"] == 0
