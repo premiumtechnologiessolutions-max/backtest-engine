@@ -10,6 +10,8 @@ with OS permissions and add externally anchored signatures before production.
 """
 from __future__ import annotations
 
+from contextlib import closing
+
 import hashlib
 import json
 import os
@@ -133,9 +135,9 @@ def backup_durable_state(database: Path, backup_root: Path, snapshot_id: str,
     try:
         copy = temp / "state.sqlite3"
         uri = "file:" + urllib.parse.quote(str(database.resolve())) + "?mode=ro"
-        with sqlite3.connect(uri, uri=True, timeout=30) as origin:
+        with closing(sqlite3.connect(uri, uri=True, timeout=30)) as origin:
             origin.execute("PRAGMA query_only=ON")
-            with sqlite3.connect(str(copy), timeout=30) as destination:
+            with closing(sqlite3.connect(str(copy), timeout=30)) as destination:
                 origin.backup(destination, pages=256, sleep=0.05)
                 destination.commit()
         # Close all SQLite handles before checksum and complete integrity audit.
