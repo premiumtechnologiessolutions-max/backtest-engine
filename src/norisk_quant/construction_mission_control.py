@@ -46,6 +46,8 @@ def construction_snapshot(
             "registered_dag_nodes": probed.get("construction_registry", {}).get("planned_nodes"),
             "unverified_parity_reports": probed.get("cross_engine_parity", {}).get("reports"),
             "cross_engine_discrepancy_fields": probed.get("cross_engine_parity", {}).get("discrepancy_fields"),
+            "native_source_manifests": probed.get("native_source_evidence", {}).get("reports"),
+            "native_vendor_exports": probed.get("native_source_evidence", {}).get("vendor_exports"),
         }
     if backup_snapshot_dir is None:
         backup = {"status": "NOT_CONFIGURED", "automatic_resume": False,
