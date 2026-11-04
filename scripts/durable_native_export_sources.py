@@ -17,6 +17,7 @@ from norisk_quant.native_export_parity_pipeline import (
     NativeExport, _build_native_export_parity,
 )
 from norisk_quant.upstream_trade_normalizers import PINNED_VENDOR
+from norisk_quant.external_fill_event_reconciliation import reconcile_vendor_fill_events
 from scripts.durable_cross_engine_parity import (
     _table as _parity_table, _MAX_REPORT_BYTES,
 )
@@ -52,6 +53,7 @@ def stage_native_source_evidence(
     state: DurableResearchState, claim: dict, blueprint: dict,
     native_ledger: pd.DataFrame, vendor_exports: dict[str, NativeExport], *,
     now_ms: int,
+    fill_events_by_engine: dict[str, list[dict]] | None = None,
 ) -> dict:
     """Atomically stage parity + native source identities; NEVER accept.
 
@@ -70,8 +72,12 @@ def stage_native_source_evidence(
             or type(now_ms) is not int or now_ms < 0):
         raise ValueError("Invalid durable vendor stage request")
     frozen = verify_blueprint(blueprint)
-    bundle, _ = _build_native_export_parity(
+    bundle, ledgers = _build_native_export_parity(
         frozen, native_ledger, vendor_exports)
+    fill_report = (
+        None if fill_events_by_engine is None else
+        reconcile_vendor_fill_events(frozen, ledgers, fill_events_by_engine)
+    )
     report = bundle["parity_diagnostic"]
     comparison_payload = _canonical(report)
     if not 0 < len(comparison_payload) <= _MAX_REPORT_BYTES:
@@ -93,6 +99,9 @@ def stage_native_source_evidence(
         "vendor_execution_attested": False,
         "sidecar_freeze_attested": False,
         "research_result_accepted": False,
+        "fill_event_report": fill_report,
+        "fill_event_accounting_checked": fill_report is not None,
+        "fill_event_origin_authenticated": False,
         "state": "UNVERIFIED",
     }
     payload = _canonical(manifest)
@@ -167,6 +176,8 @@ def stage_native_source_evidence(
         "accepted": False, "execution_authorized": False,
         "atomic_two_receipt_commit": True,
         "vendor_runtime_attested": False,
+        "fill_event_accounting_checked": fill_report is not None,
+        "fill_event_origin_authenticated": False,
     }
 
 def audit_native_source_evidence(state: DurableResearchState) -> dict:
@@ -189,6 +200,8 @@ def audit_native_source_evidence(state: DurableResearchState) -> dict:
             "ON p.attempt_id=s.attempt_id"
         ).fetchall()
         exports = 0
+        event_reports = 0
+        fill_events = 0
         for row in rows:
             if (row["state"] != "UNVERIFIED"
                     or row["request_id"] != row["a_request"]
@@ -211,12 +224,18 @@ def audit_native_source_evidence(state: DurableResearchState) -> dict:
                         "schema", "blueprint_sha256", "pipeline_sha256",
                         "parity_diagnostic_sha256", "vendors",
                         "vendor_execution_attested", "sidecar_freeze_attested",
-                        "research_result_accepted", "state"}
+                        "research_result_accepted", "state",
+                        "fill_event_report", "fill_event_accounting_checked",
+                        "fill_event_origin_authenticated"}
                     or payload["schema"] != SCHEMA
                     or payload["state"] != "UNVERIFIED"
                     or payload["vendor_execution_attested"] is not False
                     or payload["sidecar_freeze_attested"] is not False
                     or payload["research_result_accepted"] is not False
+                    or payload["fill_event_origin_authenticated"] is not False
+                    or type(payload["fill_event_accounting_checked"]) is not bool
+                    or (payload["fill_event_accounting_checked"] is not
+                        (payload["fill_event_report"] is not None))
                     or payload["parity_diagnostic_sha256"] != parity["diagnostic_sha256"]
                     or payload["blueprint_sha256"] != parity["blueprint_sha256"]
                     or type(payload["vendors"]) is not dict
@@ -240,6 +259,77 @@ def audit_native_source_evidence(state: DurableResearchState) -> dict:
                     if type(entry.get(key)) is not str or not _HEX.fullmatch(entry[key]):
                         raise ValueError("Invalid native source checksum")
                 exports += 1
+            fill = payload["fill_event_report"]
+            if fill is not None:
+                if (type(fill) is not dict
+                        or set(fill) != {
+                            "schema", "frozen_blueprint_sha256", "per_vendor",
+                            "total_vendor_fill_events",
+                            "total_reconstructed_vendor_trades", "status",
+                            "fixed_total_fee_usd_per_ounce",
+                            "all_vendor_events_supplied_for_each_ledger_trade",
+                            "vendor_process_execution_attested",
+                            "vendor_fill_origin_authenticated",
+                            "quote_or_broker_fill_reality_verified",
+                            "independent_oos_proven",
+                            "strategy_research_accepted", "market_data_opened",
+                            "worker_started", "reconciliation_sha256"}
+                        or fill["schema"] != "NRFX_VENDOR_FILL_LEVEL_RECONCILIATION_V1"
+                        or fill["frozen_blueprint_sha256"] != payload["blueprint_sha256"]
+                        or fill["vendor_process_execution_attested"] is not False
+                        or fill["vendor_fill_origin_authenticated"] is not False
+                        or fill["quote_or_broker_fill_reality_verified"] is not False
+                        or fill["independent_oos_proven"] is not False
+                        or fill["strategy_research_accepted"] is not False
+                        or fill["market_data_opened"] is not False
+                        or fill["worker_started"] is not False
+                        or fill["all_vendor_events_supplied_for_each_ledger_trade"] is not True
+                        or fill["fixed_total_fee_usd_per_ounce"] != 0.4
+                        or type(fill["per_vendor"]) is not dict
+                        or set(fill["per_vendor"]) != set(payload["vendors"])):
+                    raise ValueError("Unverified fill source manifest contains false claims")
+                claimed_hash = fill["reconciliation_sha256"]
+                without_hash = dict(fill)
+                del without_hash["reconciliation_sha256"]
+                if (type(claimed_hash) is not str
+                        or not _HEX.fullmatch(claimed_hash)
+                        or _digest(_canonical(without_hash)) != claimed_hash):
+                    raise ValueError("Tampered canonical vendor fill audit")
+                counted_fills = 0
+                counted_trades = 0
+                for engine, summary in fill["per_vendor"].items():
+                    if (type(summary) is not dict
+                            or set(summary) != {
+                                "engine", "frozen_upstream_commit",
+                                "canonical_ledger_sha256", "fill_stream_sha256",
+                                "reconstructed_trade_count", "validated_fill_events"}
+                            or summary["engine"] != engine
+                            or summary["frozen_upstream_commit"] != PINNED_VENDOR[engine]
+                            or summary["canonical_ledger_sha256"] !=
+                            parity["normalized_ledger_sha256"].get(engine)
+                            or type(summary["fill_stream_sha256"]) is not str
+                            or not _HEX.fullmatch(summary["fill_stream_sha256"])
+                            or type(summary["reconstructed_trade_count"]) is not int
+                            or type(summary["validated_fill_events"]) is not int
+                            or summary["reconstructed_trade_count"] < 0
+                            or not 0 <= summary["validated_fill_events"] <= 250000
+                            or summary["reconstructed_trade_count"] !=
+                            parity["per_engine_trade_count"].get(engine)):
+                        raise ValueError("Vendor fill audit drifted from canonical ledger")
+                    counted_fills += summary["validated_fill_events"]
+                    counted_trades += summary["reconstructed_trade_count"]
+                if (type(fill["total_vendor_fill_events"]) is not int
+                        or type(fill["total_reconstructed_vendor_trades"]) is not int
+                        or fill["total_vendor_fill_events"] != counted_fills
+                        or fill["total_reconstructed_vendor_trades"] != counted_trades
+                        or fill["status"] != (
+                            "ZERO_TRADES_UNVERIFIED" if counted_trades == 0
+                            else "SUPPLIED_FILL_LEDGER_CONSISTENCY_UNVERIFIED")):
+                    raise ValueError("Vendor fill count or no-acceptance status drift")
+                event_reports += 1
+                fill_events += counted_fills
     return {"schema": SCHEMA, "reports": len(rows),
             "vendor_exports": exports, "accepted": 0,
+            "fill_event_reports": event_reports,
+            "fill_events_checked": fill_events,
             "externally_authenticated": False}
