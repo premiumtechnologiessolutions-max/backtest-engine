@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; connect-src 'none'; img-src 'none'">
+  <title>No Risk FX | Quant Engine Mission Control</title>
+  <style>
+    :root {color-scheme:dark; --bg:#0a121f; --panel:#121e30; --line:#26354a; --ink:#eef3f9; --muted:#9eafc2; --gold:#e6bb68; --teal:#55c4b4; --danger:#f4a38c}
+    * {box-sizing:border-box}
+    body {margin:0; background:var(--bg); color:var(--ink); font:14px/1.55 Inter,system-ui,-apple-system,Segoe UI,sans-serif}
+    .wrap {max-width:1320px; margin:auto; padding:30px 28px 55px}
+    .top {display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:24px; padding-bottom:26px; border-bottom:1px solid var(--line)}
+    .eyebrow {text-transform:uppercase; letter-spacing:.17em; font-size:10px; font-weight:800; color:var(--gold)}
+    h1 {font-size:30px; line-height:1.15; letter-spacing:-.035em; margin:9px 0 8px; font-weight:750}
+    p {margin:5px 0; color:var(--muted)}
+    .brand {font-weight:700; letter-spacing:.08em; font-size:12px; color:var(--gold)}
+    .top-actions {display:flex; gap:10px; align-items:center; flex-wrap:wrap}
+    button,.upload {border:1px solid var(--line); border-radius:9px; padding:10px 14px; color:var(--ink); background:var(--panel); cursor:pointer; font:inherit; font-weight:600}
+    .upload {display:inline-flex; align-items:center; border-color:#b48c4d; color:#f7ddb2; background:#2b261e}
+    button:hover,.upload:hover {border-color:var(--gold)}
+    button:focus-visible,.upload:focus-within {outline:2px solid var(--gold); outline-offset:3px}
+    #file {position:absolute; width:1px; height:1px; opacity:0}
+    .notice {display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px; padding:16px 0; border-bottom:1px solid var(--line)}
+    .notice strong {color:var(--gold)}
+    .notice .status {display:inline-flex; padding:6px 10px; border-radius:50px; border:1px solid #765f3a; color:#f3d28a; background:#2d271d; font-weight:750; font-size:11px; letter-spacing:.05em}
+    .alert {display:none; margin-top:18px; padding:12px 16px; border:1px solid #8e564f; border-radius:8px; background:#382522; color:#ffbaad}
+    .alert.show {display:block}
+    .stats {display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; margin:25px 0}
+    .stat,.panel {border:1px solid var(--line); border-radius:13px; background:var(--panel)}
+    .stat {padding:18px 20px; min-height:113px}
+    .stat .label {font-size:11px; color:var(--muted); font-weight:600; letter-spacing:.03em}
+    .stat .value {display:block; font-size:30px; font-weight:720; letter-spacing:-.035em; padding-top:11px}
+    .tabs {display:flex; gap:10px; padding:8px 0 20px; flex-wrap:wrap}
+    .tabs button[aria-selected="true"] {background:#25364c; border-color:#547a9c}
+    .layout {display:grid; grid-template-columns:minmax(0,1.65fr) minmax(285px,1fr); gap:17px}
+    .panel {padding:20px 22px; min-width:0}
+    .panel h2 {font-size:15px; margin:0 0 5px; font-weight:700}
+    .sub {color:var(--muted); font-size:12px; margin-bottom:20px}
+    .pipeline {display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px}
+    .stage {padding:15px; border:1px solid #33445b; border-radius:10px; background:#17253a}
+    .stage .step {color:var(--gold); font-size:11px; font-weight:700; letter-spacing:.12em}
+    .stage h3 {font-size:13px; margin:7px 0 6px}
+    .stage p {font-size:11px}
+    .stage .flag {font-size:10px; color:#f3d28a; font-weight:700}
+    .line {height:1px; background:var(--line); margin:20px 0}
+    .small-grid {display:grid; grid-template-columns:1fr 1fr; gap:12px}
+    .datum {background:#0d1828; border:1px solid var(--line); border-radius:9px; padding:13px}
+    .datum .label {font-size:10px; color:var(--muted); display:block}
+    .datum .content {display:block; font-weight:700; padding-top:6px; overflow-wrap:anywhere}
+    ul {padding-left:20px; margin:10px 0}
+    li {padding:6px 0; color:#dce4ef}
+    .empty {color:var(--muted); font-style:italic; font-size:12px}
+    .provider {display:flex; justify-content:space-between; gap:12px; border-bottom:1px solid var(--line); padding:12px 0}
+    .provider span:last-child {font-size:10px; color:#f3d28a; text-align:right}
+    .footer {margin-top:28px; color:var(--muted); font-size:12px; border-top:1px solid var(--line); padding-top:17px}
+    .mono {font:12px ui-monospace,SFMono-Regular,Consolas,monospace; overflow-wrap:anywhere}
+    section[hidden] {display:none !important}
+    @media(max-width:890px) {.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.layout{grid-template-columns:1fr}.pipeline{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media(max-width:520px) {.wrap{padding:22px 15px 45px}.stats{grid-template-columns:1fr 1fr}.stat .value{font-size:24px}.pipeline,.small-grid{grid-template-columns:1fr}h1{font-size:25px}}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="brand">NO RISK FX / QUANT RESEARCH</div>
+      <div class="eyebrow" style="margin-top:16px">Engineering mission control</div>
+      <h1>One engine. Every research layer.</h1>
+      <p>Construction evidence, frozen research design and missing integrations — without running the engine.</p>
+    </div>
+    <div class="top-actions">
+      <label for="file" class="upload">Load local status JSON<input id="file" type="file" accept=".json,application/json"></label>
+      <button id="clear" type="button">Clear</button>
+    </div>
+  </header>
+  <div class="notice" aria-live="polite">
+    <div><strong>ENGINE CONSTRUCTION ONLY</strong><p id="load-state">No status file loaded. Displayed figures are placeholders, not results.</p></div>
+    <span class="status">NOT READY FOR MARKET RUNS</span>
+  </div>
+  <div class="alert" id="error" role="alert"></div>
+  <div class="stats">
+    <div class="stat"><span class="label">STRATEGIES DESIGNED</span><span class="value" id="strategy-count">—</span></div>
+    <div class="stat"><span class="label">DAG TASKS DESIGNED</span><span class="value" id="task-count">—</span></div>
+    <div class="stat"><span class="label">FROZEN SHARDS</span><span class="value" id="shard-count">—</span></div>
+    <div class="stat"><span class="label">SQLITE CONTROL-PLANE HEALTH</span><span class="value" id="health" style="font-size:17px">UNKNOWN</span></div>
+  </div>
+  <nav class="tabs" aria-label="Dashboard sections">
+    <button type="button" class="tab" data-tab="overview" aria-selected="true">Architecture</button>
+    <button type="button" class="tab" data-tab="integrations" aria-selected="false">Integrations</button>
+    <button type="button" class="tab" data-tab="gates" aria-selected="false">Missing gates</button>
+  </nav>
+  <section id="overview">
+    <div class="layout">
+      <article class="panel">
+        <h2>Quant engine research pipeline</h2>
+        <p class="sub">Dependencies have a design contract. No pipeline stage has been executed by this dashboard.</p>
+        <div class="pipeline">
+          <div class="stage"><span class="step">01 / DATA</span><h3>Source integrity</h3><p>Original BID/ASK manifests, hash checks, temporal alignment.</p><span class="flag">DESIGN / VALIDATION REQUIRED</span></div>
+          <div class="stage"><span class="step">02 / IDEAS</span><h3>Strategy compilation</h3><p>Frozen hypotheses, reproducible parameters and candidate identities.</p><span class="flag">DESIGNED / NOT RUN</span></div>
+          <div class="stage"><span class="step">03 / CORE</span><h3>Reference engines</h3><p>NRFX simulator with optional LEAN and Nautilus comparison.</p><span class="flag">RUNTIME NOT ATTESTED</span></div>
+          <div class="stage"><span class="step">04 / AUDIT</span><h3>Execution reconciliation</h3><p>Fill semantics, quote integrity, cost and receipt parity.</p><span class="flag">INDEPENDENT AUDIT MISSING</span></div>
+          <div class="stage"><span class="step">05 / RISK</span><h3>Portfolio and risk</h3><p>Shared exposure, observed drawdown and source gaps.</p><span class="flag">MODEL / NOT BROKER VALIDATED</span></div>
+          <div class="stage"><span class="step">06 / FEEDBACK</span><h3>AI research and reports</h3><p>Failure hypotheses, comparisons and complete research evidence.</p><span class="flag">PROPOSAL ONLY</span></div>
+        </div>
+      </article>
+      <aside class="panel">
+        <h2>Current source contract</h2>
+        <p class="sub">Declared fingerprints are not independent proof of the source bytes.</p>
+        <div class="small-grid">
+          <div class="datum"><span class="label">DATASET</span><span class="content" id="dataset">—</span></div>
+          <div class="datum"><span class="label">SOURCE COMMIT</span><span class="content mono" id="commit">—</span></div>
+          <div class="datum"><span class="label">MAX WORKERS (DESIGN)</span><span class="content" id="workers">—</span></div>
+          <div class="datum"><span class="label">MAX RAM (DESIGN)</span><span class="content" id="ram">—</span></div>
+        </div>
+        <div class="line"></div>
+        <h2>Readiness classification</h2>
+        <ul>
+          <li>Source code and designed stages are not the same as production integrations.</li>
+          <li>Passing CI does not prove market edge, live fills or OOS validity.</li>
+          <li>Owner approval is required after all engineering acceptance gates.</li>
+        </ul>
+      </aside>
+    </div>
+  </section>
+  <section id="integrations" hidden>
+    <div class="layout">
+      <article class="panel">
+        <h2>Reference engines in the frozen design</h2>
+        <p class="sub">Source-linked integrations still require isolated runtime verification.</p>
+        <div id="engines"><p class="empty">Load a verified construction snapshot to inspect configured engines.</p></div>
+      </article>
+      <article class="panel">
+        <h2>AI research reviewers in the frozen design</h2>
+        <p class="sub">AI outputs cannot promote trading results to accepted status.</p>
+        <div id="reviewers"><p class="empty">No snapshot loaded.</p></div>
+      </article>
+    </div>
+  </section>
+  <section id="gates" hidden>
+    <div class="layout">
+      <article class="panel">
+        <h2>System-wide gates still open</h2>
+        <p class="sub">Engineering acceptance requires evidence beyond successful synthetic tests.</p>
+        <ul id="missing"><li class="empty">No snapshot loaded.</li></ul>
+      </article>
+      <article class="panel">
+        <h2>Safety decision</h2>
+        <p class="sub">The design is intentionally inert.</p>
+        <div class="datum"><span class="label">MARKET RESEARCH</span><span class="content">NOT AUTHORIZED</span></div>
+        <div class="datum" style="margin-top:12px"><span class="label">LIVE TRADING</span><span class="content">NOT AUTHORIZED</span></div>
+        <div class="datum" style="margin-top:12px"><span class="label">INDEPENDENT OOS EVIDENCE</span><span class="content">NOT CLAIMED</span></div>
+      </article>
+    </div>
+  </section>
+  <footer class="footer">Read-only local page. No network calls, market data, credentials or broker access. The UI displays a checked construction snapshot, not a completed quantitative trading system.</footer>
+</div>
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const format = (value) => Number.isSafeInteger(value) && value >= 0
+  ? new Intl.NumberFormat("en-US").format(value) : "—";
+function setText(id, value) { $(id).textContent = String(value); }
+function replaceRows(id, records) {
+  const element = $(id);
+  element.replaceChildren();
+  if (!Array.isArray(records) || records.length === 0) {
+    const p = document.createElement("p"); p.className = "empty";
+    p.textContent = "No entries in this design.";
+    element.append(p); return;
+  }
+  for (const record of records) {
+    const div = document.createElement("div"); div.className = "provider";
+    const name = document.createElement("strong");
+    name.textContent = String(record.name || "Unknown");
+    const state = document.createElement("span");
+    state.textContent = record.runtime_integrated_and_verified === false
+      ? "PLANNED / UNVERIFIED" : "UNSUPPORTED STATUS";
+    div.append(name, state); element.append(div);
+  }
+}
+function loadSnapshot(value) {
+  if (!value || value.schema !== "NRFX_QUANT_CONSTRUCTION_MISSION_CONTROL_V1"
+      || value.phase !== "ENGINE_CONSTRUCTION_ONLY"
+      || value.engine_completely_built !== false
+      || value.market_research_authorized !== false
+      || value.live_trading_authorized !== false
+      || !value.design || !value.operational_health
+      || !Array.isArray(value.missing_system_wide_gates))
+    throw Error("File is not a safe No Risk FX construction snapshot.");
+  const d = value.design;
+  setText("strategy-count", format(d.strategies_designed));
+  setText("task-count", format(d.nodes_designed));
+  setText("shard-count", format(d.shards_designed));
+  setText("health", String(value.operational_health.status || "UNKNOWN"));
+  setText("dataset", String(d.dataset_id || "—"));
+  setText("commit", String(d.source_commit || "—").slice(0,12));
+  setText("workers", format(d.resource_limits && d.resource_limits.max_workers));
+  setText("ram", format(d.resource_limits && d.resource_limits.max_ram_mb) + " MB");
+  replaceRows("engines", d.reference_engines);
+  replaceRows("reviewers", d.ai_reviewers);
+  const missing = $("missing"); missing.replaceChildren();
+  for (const gate of value.missing_system_wide_gates) {
+    const li = document.createElement("li");
+    li.textContent = String(gate).replaceAll("_", " ");
+    missing.append(li);
+  }
+  setText("load-state", "Local construction snapshot loaded. No external engines were started.");
+}
+function reset() {
+  for (const id of ["strategy-count","task-count","shard-count","dataset","commit","workers","ram"]) setText(id,"—");
+  setText("health","UNKNOWN");
+  setText("load-state","No status file loaded. Displayed figures are placeholders, not results.");
+  $("engines").replaceChildren();
+  $("reviewers").replaceChildren();
+  $("missing").replaceChildren();
+  $("file").value = "";
+  $("error").classList.remove("show");
+}
+$("clear").addEventListener("click", reset);
+$("file").addEventListener("change", async function(event) {
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+  try {
+    if (file.size > 2 * 1024 * 1024) throw Error("Status JSON exceeds the 2 MB local display limit.");
+    const parsed = JSON.parse(await file.text());
+    loadSnapshot(parsed);
+    $("error").classList.remove("show");
+  } catch (error) {
+    reset();
+    $("error").textContent = "Cannot load status file: " + String(error.message || error);
+    $("error").classList.add("show");
+  }
+});
+for (const button of document.querySelectorAll("[data-tab]")) {
+  button.addEventListener("click", function() {
+    const selected = button.getAttribute("data-tab");
+    for (const tab of document.querySelectorAll("[data-tab]")) {
+      tab.setAttribute("aria-selected", String(tab === button));
+    }
+    for (const id of ["overview", "integrations", "gates"]) {
+      $(id).hidden = id !== selected;
+    }
+  });
+}
+</script>
+</body>
+</html>
