@@ -438,6 +438,14 @@ class DurableResearchState:
                         raise ValueError("Invalid durable research event chain")
                     if event["to_state"] == "RUNNING":
                         observed_fence += 1
+                        # Claim attempt and event are written in one transaction
+                        # with the same timestamp. Reject forged/misaligned
+                        # claim evidence, not just valid-looking fence numbers.
+                        if (observed_fence > len(attempts)
+                                or type(event["created_ms"]) is not int
+                                or type(attempts[observed_fence - 1]["claimed_ms"]) is not int
+                                or event["created_ms"] != attempts[observed_fence - 1]["claimed_ms"]):
+                            raise ValueError("Durable research claim/event timestamp mismatch")
                     if event["fencing_token"] != observed_fence:
                         raise ValueError("Durable research event fencing mismatch")
                     previous = event["to_state"]
