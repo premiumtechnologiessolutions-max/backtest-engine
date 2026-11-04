@@ -68,6 +68,12 @@ def test_expired_worker_cannot_heartbeat_reconcile_or_quarantine(tmp_path):
     request_id = store.ingest_record(frozen_request())
     a = store.claim_next("worker-A", lease_seconds=1, now_ms=1000)
     assert store.claim_next("worker-B", lease_seconds=1, now_ms=1500) is None
+    assert store.claim_next("worker-B", lease_seconds=10, now_ms=2001) is None
+    with pytest.raises(ValueError, match="confirm worker process exit"):
+        store.requeue_expired(request_id, now_ms=2001)
+    with pytest.raises(ValueError, match="not eligible"):
+        store.requeue_expired(request_id, process_exit_confirmed=True, now_ms=1999)
+    assert store.requeue_expired(request_id, process_exit_confirmed=True, now_ms=2001)
     b = store.claim_next("worker-B", lease_seconds=10, now_ms=2001)
     assert b["fencing_token"] == a["fencing_token"] + 1
     assert a["attempt_no"] == 1
@@ -190,3 +196,32 @@ def test_operations_snapshot_distinguishes_expired_lease_from_success(tmp_path):
     assert pending["broker_order_placement_enabled"] is False
     with pytest.raises(ValueError, match="snapshot clock"):
         store.operational_snapshot(now_ms=True)
+
+
+def test_expired_reconciling_attempt_cannot_be_reclaimed_without_supervisor(tmp_path):
+    store = state.DurableResearchState(tmp_path / "state.sqlite3")
+    ident = store.ingest_record(frozen_request())
+    a = store.claim_next("worker-A", lease_seconds=1, now_ms=1000)
+    store.start_reconciliation(ident, a["attempt_id"], a["fencing_token"],
+                               "worker-A", now_ms=1500)
+    assert store.claim_next("worker-B", now_ms=2001) is None
+    assert store.operational_snapshot(now_ms=2001)["requires_operator_attention"]
+    assert store.requeue_expired(ident, process_exit_confirmed=True, now_ms=2001)
+    b = store.claim_next("worker-B", now_ms=2001)
+    assert b["fencing_token"] == 2
+    with pytest.raises(ValueError, match="Stale or unauthorized"):
+        store.quarantine(ident, a["attempt_id"], a["fencing_token"],
+                         "worker-A", now_ms=2001)
+
+
+def test_expired_requeue_refuses_cancelled_and_live_leases(tmp_path):
+    store = state.DurableResearchState(tmp_path / "state.sqlite3")
+    ident = store.ingest_record(frozen_request())
+    with pytest.raises(ValueError, match="not eligible"):
+        store.requeue_expired(ident, process_exit_confirmed=True, now_ms=1000)
+    store.claim_next("worker-A", lease_seconds=10, now_ms=1000)
+    with pytest.raises(ValueError, match="not eligible"):
+        store.requeue_expired(ident, process_exit_confirmed=True, now_ms=1500)
+    store.cancel(ident)
+    with pytest.raises(ValueError, match="not eligible"):
+        store.requeue_expired(ident, process_exit_confirmed=True, now_ms=20000)
