@@ -297,3 +297,20 @@ def test_integrity_audit_rejects_missing_claim_transition(tmp_path):
                    "AND to_state='RUNNING'", (ident,))
     with pytest.raises(ValueError, match="event chain"):
         store.audit_integrity()
+
+
+@pytest.mark.parametrize("target", ["attempt", "event"])
+def test_integrity_audit_rejects_claim_timestamp_drift(tmp_path, target):
+    store = state.DurableResearchState(tmp_path / "state.sqlite3")
+    ident = store.ingest_record(frozen_request())
+    store.claim_next("worker-A", lease_seconds=10, now_ms=1000)
+    assert store.audit_integrity()["checked_jobs"] == 1
+    with store._write() as db:
+        if target == "attempt":
+            db.execute("UPDATE attempts SET claimed_ms=claimed_ms+1 "
+                       "WHERE request_id=?", (ident,))
+        else:
+            db.execute("UPDATE events SET created_ms=created_ms+1 "
+                       "WHERE request_id=? AND to_state='RUNNING'", (ident,))
+    with pytest.raises(ValueError, match="claim/event timestamp mismatch"):
+        store.audit_integrity()
