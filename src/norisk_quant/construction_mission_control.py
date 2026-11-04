@@ -7,6 +7,7 @@ treats successful CI as permission to run historical market jobs.
 from __future__ import annotations
 
 from pathlib import Path
+import sqlite3
 
 from norisk_quant.campaign_sharding import verify_sharded_campaign
 from scripts.durable_operations_gate import evaluate as evaluate_sqlite
@@ -17,6 +18,7 @@ SCHEMA = "NRFX_QUANT_CONSTRUCTION_MISSION_CONTROL_V1"
 def construction_snapshot(
     design: dict, *, database: Path | None = None,
     now_ms: int | None = None,
+    backup_snapshot_dir: Path | None = None,
 ) -> dict:
     """Return a small structured feed ready for a later dashboard API.
 
@@ -41,6 +43,23 @@ def construction_snapshot(
             "unverified_receipts": probed.get("receipt_inbox", {}).get(
                 "logical_unverified_attempts"),
         }
+    if backup_snapshot_dir is None:
+        backup = {"status": "NOT_CONFIGURED", "automatic_resume": False,
+                  "manifest_verified": False}
+    else:
+        try:
+            from scripts.durable_backup_attestation import verify_durable_backup
+            verified = verify_durable_backup(Path(backup_snapshot_dir))
+            backup = {"status": "VERIFIED_REVIEW_ONLY",
+                      "jobs_observed": verified["jobs_observed"],
+                      "attempts_observed": verified["attempts_observed"],
+                      "snapshot_sha256": verified["snapshot_sha256"],
+                      "automatic_resume": False, "manifest_verified": True,
+                      "external_signature_verified": False}
+        except (ValueError, OSError, TypeError, KeyError, sqlite3.Error):
+            backup = {"status": "INVALID",
+                      "reason": "backup_integrity_gate_failed",
+                      "automatic_resume": False, "manifest_verified": False}
     return {
         "schema": SCHEMA,
         "project": "NO_RISK_FX_QUANT_ENGINE",
@@ -75,6 +94,7 @@ def construction_snapshot(
             ],
         },
         "operational_health": health,
+        "backup_health": backup,
         "operational_health_exit_code": health_code,
         "missing_system_wide_gates": [
             "actual_provider_runner_isolation",

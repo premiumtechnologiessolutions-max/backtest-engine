@@ -36,11 +36,13 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--design", type=Path, required=True)
     parser.add_argument("--database", type=Path)
+    parser.add_argument("--backup-dir", type=Path)
     parser.add_argument("--now-ms", type=int)
     args = parser.parse_args(argv)
     output = construction_snapshot(
         _read_frozen(args.design),
-        database=args.database, now_ms=args.now_ms)
+        database=args.database, now_ms=args.now_ms,
+        backup_snapshot_dir=args.backup_dir)
     print(json.dumps(output, indent=2, sort_keys=True, allow_nan=False))
     return 0
 
