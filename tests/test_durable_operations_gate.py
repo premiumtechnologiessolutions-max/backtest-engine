@@ -3,7 +3,21 @@ import sqlite3
 
 from scripts.durable_operations_gate import evaluate
 from scripts.durable_research_state import DurableResearchState
-from tests.test_durable_research_state import frozen_request
+import hashlib
+
+from scripts.research_job_queue import _canonical
+
+
+def frozen_request():
+    body = {
+        "schema_version": 1, "mode": "OFFLINE_RESEARCH_ONLY",
+        "family": "NRF-FAC-028", "frozen_spec": "research/frozen-contract.md",
+        "frozen_spec_sha256": "1" * 64, "registry_sha256": "2" * 64,
+        "source_commit": "a" * 40, "evaluation_start": "2026-01-01",
+        "evaluation_end": "2026-01-31", "status": "QUEUED_NOT_EXECUTED",
+    }
+    return {**body, "fingerprint": hashlib.sha256(_canonical(body)).hexdigest()}
+
 
 
 def test_missing_db_does_not_get_created(tmp_path):
