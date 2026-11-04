@@ -76,3 +76,33 @@ def test_quarantined_job_is_not_reported_as_healthy(tmp_path):
     code, result = evaluate(path, now_ms=1002)
     assert code == 2
     assert result["operations"]["by_state"]["QUARANTINED"] == 1
+
+
+def test_gate_audit_and_inventory_share_one_consistent_wal_snapshot(tmp_path, monkeypatch):
+    """A concurrent committed change cannot enter the inventory unaudited."""
+    path = tmp_path / "state.sqlite3"
+    store = DurableResearchState(path)
+    ident = store.ingest_record(frozen_request())
+    original = DurableResearchState.audit_integrity
+    observed = []
+
+    def concurrent_writer_after_audit(self):
+        result = original(self)
+        # A second connection can commit while the read-only gate is open
+        # because this database uses WAL. It must not change the gate's
+        # already established read snapshot.
+        with sqlite3.connect(path, timeout=5) as writer:
+            writer.execute("UPDATE jobs SET state='QUARANTINED' WHERE request_id=?",
+                           (ident,))
+            writer.commit()
+        observed.append("committed")
+        return result
+
+    monkeypatch.setattr(DurableResearchState, "audit_integrity",
+                        concurrent_writer_after_audit)
+    code, payload = evaluate(path, now_ms=1000)
+    assert observed == ["committed"]
+    assert code == 0
+    assert payload["operations"]["by_state"] == {"QUEUED": 1}
+    # The external writer did commit; only the gate's consistent view is old.
+    assert store.status(ident)["state"] == "QUARANTINED"
