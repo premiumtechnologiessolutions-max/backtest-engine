@@ -108,7 +108,16 @@ def stage_static_adapter_designs(state: DurableResearchState,
             or len(encoded_envelopes.encode("utf-8")) > _MAX_BYTES):
         raise ValueError("Oversized static design batch")
     with state._write() as db:
-        _schema(db)
+        existing = {
+            row["name"] for row in db.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' "
+                "AND name IN ('static_adapter_designs','static_adapter_request_ids')"
+            ).fetchall()
+        }
+        if existing and existing != {"static_adapter_designs", "static_adapter_request_ids"}:
+            raise ValueError("Incomplete static design tables; refusing implicit repair")
+        if not existing:
+            _schema(db)
         _audit(db)
         current = db.execute(
             "SELECT manifest_json,envelopes_json FROM static_adapter_designs "
@@ -159,6 +168,12 @@ def audit_static_adapter_designs(state: DurableResearchState) -> dict:
             "AND name='static_adapter_designs'"
         ).fetchone()
         if exists is None:
+            orphan = db.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' "
+                "AND name='static_adapter_request_ids'"
+            ).fetchone()
+            if orphan is not None:
+                raise ValueError("Incomplete static design tables; refusing implicit repair")
             return {"schema": SCHEMA, "batches": 0, "requests": 0,
                     "state": "DESIGN_ONLY_DISABLED",
                     "execution_authorized": False, "results_verified": False,
