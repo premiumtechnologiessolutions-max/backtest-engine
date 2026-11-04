@@ -178,3 +178,91 @@ def test_vendor_source_receipts_survive_wal_backup_and_review_only_restore(tmp_p
     code, report = evaluate(recovered.database, now_ms=1300)
     assert code == 2
     assert report["native_source_evidence"]["accepted"] == 0
+
+
+
+def test_atomic_native_source_failure_rolls_back_parity_and_source(tmp_path):
+    """An injected failure in write #2 MUST roll back write #1."""
+    import sqlite3
+    from scripts.durable_cross_engine_parity import _table as parity_table
+    from scripts.durable_native_export_sources import _schema as source_table
+    state, claim, blueprint, ledger, vendors = setup(tmp_path)
+    with state._write() as db:
+        parity_table(db)
+        source_table(db)
+        db.execute(
+            "CREATE TRIGGER synthetic_source_disk_failure "
+            "BEFORE INSERT ON unverified_native_export_sources "
+            "BEGIN SELECT RAISE(ABORT, 'injected source write failure'); END"
+        )
+    with pytest.raises(sqlite3.IntegrityError, match="injected source"):
+        stage_native_source_evidence(
+            state, claim, blueprint, ledger, vendors, now_ms=1200)
+    with state._connection() as db:
+        assert db.execute(
+            "SELECT COUNT(*) FROM unverified_cross_engine_parity"
+        ).fetchone()[0] == 0
+        assert db.execute(
+            "SELECT COUNT(*) FROM unverified_native_export_sources"
+        ).fetchone()[0] == 0
+    assert state.status(claim["request_id"])["state"] == "RECONCILING"
+
+
+def test_preexisting_parity_without_vendor_source_requires_manual_review(tmp_path):
+    from scripts.durable_cross_engine_parity import (
+        stage_unverified_cross_engine_parity,
+        audit_unverified_cross_engine_parity,
+    )
+    from norisk_quant.native_export_parity_pipeline import _build_native_export_parity
+    state, claim, blueprint, ledger, vendors = setup(tmp_path)
+    _, ledgers = _build_native_export_parity(blueprint, ledger, vendors)
+    stage_unverified_cross_engine_parity(
+        state, claim, blueprint, ledgers, now_ms=1200)
+    with pytest.raises(ValueError, match="Incomplete existing parity/source"):
+        stage_native_source_evidence(
+            state, claim, blueprint, ledger, vendors, now_ms=1201)
+    assert audit_unverified_cross_engine_parity(state)["reports"] == 1
+    assert audit_native_source_evidence(state)["reports"] == 0
+
+
+def test_concurrent_atomic_native_stage_is_single_winner(tmp_path):
+    from concurrent.futures import ThreadPoolExecutor
+    from scripts.durable_cross_engine_parity import audit_unverified_cross_engine_parity
+    state, claim, blueprint, ledger, vendors = setup(tmp_path)
+    def stage(_):
+        return stage_native_source_evidence(
+            state, claim, blueprint, ledger, vendors, now_ms=1200)["status"]
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        results = list(pool.map(stage, range(8)))
+    assert results.count("STAGED_UNVERIFIED") == 1
+    assert results.count("ALREADY_STAGED_UNVERIFIED") == 7
+    assert audit_unverified_cross_engine_parity(state)["reports"] == 1
+    assert audit_native_source_evidence(state)["reports"] == 1
+
+
+def test_expired_fenced_native_attempt_does_not_write_either_receipt(tmp_path):
+    from scripts.durable_cross_engine_parity import audit_unverified_cross_engine_parity
+    state, claim, blueprint, ledger, vendors = setup(tmp_path)
+    with pytest.raises(ValueError, match="Stale or unauthorized"):
+        stage_native_source_evidence(
+            state, claim, blueprint, ledger, vendors, now_ms=11001)
+    assert audit_unverified_cross_engine_parity(state)["reports"] == 0
+    assert audit_native_source_evidence(state)["reports"] == 0
+
+
+def test_atomic_manifest_and_parity_are_frozen_to_same_attempt(tmp_path):
+    state, claim, blueprint, ledger, vendors = setup(tmp_path)
+    result = stage_native_source_evidence(
+        state, claim, blueprint, ledger, vendors, now_ms=1200)
+    assert result["atomic_two_receipt_commit"] is True
+    with state._connection() as db:
+        row = db.execute(
+            "SELECT p.attempt_id AS pa,s.attempt_id AS sa,"
+            "p.report_sha256 AS ph,s.parity_sha256 AS sh,"
+            "p.fencing_token AS pt,s.fencing_token AS st "
+            "FROM unverified_cross_engine_parity p JOIN "
+            "unverified_native_export_sources s ON s.attempt_id=p.attempt_id"
+        ).fetchone()
+    assert row["pa"] == row["sa"] == claim["attempt_id"]
+    assert row["ph"] == row["sh"] == result["parity_report_sha256"]
+    assert row["pt"] == row["st"] == claim["fencing_token"]
