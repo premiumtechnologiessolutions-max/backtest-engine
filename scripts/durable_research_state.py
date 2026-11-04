@@ -464,6 +464,11 @@ class DurableResearchState:
                         raise ValueError("Active durable research attempt identity mismatch")
                 elif row["worker"] is not None or row["lease_until_ms"] is not None:
                     raise ValueError("Inactive durable research job retains worker lease")
+                # A QUEUED job must not advertise a previous attempt as its
+                # current owner. Requeue deliberately clears attempt_id while
+                # preserving historical rows in attempts for provenance.
+                if row["state"] == "QUEUED" and row["attempt_id"] is not None:
+                    raise ValueError("Queued durable research job retains stale attempt identity")
             return {
                 "schema": "NRFX_DURABLE_METADATA_AUDIT_V1",
                 "status": "METADATA_INTEGRITY_ONLY_NOT_EXECUTION_VALIDATION",
