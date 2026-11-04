@@ -157,7 +157,7 @@ def test_mutating_submitted_order_terms_refused():
 def test_wrong_order_side_and_orphan_refused():
     allocation = allocations()
     allocation[2]["order_id"] = "ENTRY1"
-    with pytest.raises(ValueError, match="wrong trade or order side"):
+    with pytest.raises(ValueError, match="before acknowledgement or after order terminal"):
         run(allocation=allocation)
     allocation = allocations()
     allocation[2]["order_id"] = "NOT_SUBMITTED"
