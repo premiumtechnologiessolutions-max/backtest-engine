@@ -40,3 +40,10 @@ def test_fingerprint_is_order_independent_but_content_sensitive():
     assert audit_contract(dict(reversed(list(data.items()))))["fingerprint_sha256"] == digest
     data[FIELDS[2]] += " revised"
     assert audit_contract(data)["fingerprint_sha256"] != digest
+
+
+def test_duplicate_semantic_rules_rejected_even_with_different_case():
+    data = valid()
+    data[FIELDS[1]] = data[FIELDS[0]].upper()
+    with pytest.raises(ValueError, match="distinct executable rules"):
+        audit_contract(data)
