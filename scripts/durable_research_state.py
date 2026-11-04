@@ -367,3 +367,86 @@ class DurableResearchState:
             "accepted_results": "NOT_IMPLEMENTED",
             "broker_order_placement_enabled": False,
         }
+
+
+    def audit_integrity(self) -> dict:
+        """Fail-closed metadata integrity audit; never certify trade results.
+
+        Checks database structure and state/attempt/event consistency. Intended
+        for operator health gates before intake or recovery. Does not prove
+        worker death, source quote authenticity, or research profitability.
+        """
+        with self._connection() as db:
+            if db.execute("PRAGMA quick_check").fetchone()[0] != "ok":
+                raise ValueError("Durable research database failed quick_check")
+            if db.execute("PRAGMA foreign_key_check").fetchall():
+                raise ValueError("Durable research database has broken foreign keys")
+            jobs = db.execute("SELECT * FROM jobs ORDER BY request_id").fetchall()
+            for row in jobs:
+                ident = row["request_id"]
+                try:
+                    frozen = json.loads(row["frozen_json"])
+                    _verify(frozen, ident + ".json")
+                except (ValueError, TypeError, KeyError) as exc:
+                    raise ValueError("Frozen durable research request is invalid") from exc
+                if _canonical(frozen) != row["frozen_json"]:
+                    raise ValueError("Noncanonical durable research request")
+                if (type(row["version"]) is not int or row["version"] < 0
+                        or type(row["attempt_no"]) is not int or row["attempt_no"] < 0
+                        or type(row["fencing_token"]) is not int
+                        or row["fencing_token"] < row["attempt_no"]):
+                    raise ValueError("Invalid durable research version or fence")
+                attempts = db.execute(
+                    "SELECT * FROM attempts WHERE request_id=? ORDER BY attempt_no",
+                    (ident,),
+                ).fetchall()
+                if len(attempts) != row["attempt_no"]:
+                    raise ValueError("Missing durable research attempt history")
+                for number, attempt in enumerate(attempts, 1):
+                    if (attempt["attempt_no"] != number
+                            or attempt["fencing_token"] != number
+                            or not attempt["attempt_id"] or not attempt["worker"]):
+                        raise ValueError("Invalid durable research attempt sequence")
+                if row["fencing_token"] != row["attempt_no"]:
+                    raise ValueError("Durable research fencing sequence drift")
+                events = db.execute(
+                    "SELECT * FROM events WHERE request_id=? ORDER BY event_id",
+                    (ident,),
+                ).fetchall()
+                if not events or events[0]["from_state"] is not None:
+                    raise ValueError("Missing durable research admission event")
+                previous = None
+                allowed = {
+                    None: {"QUEUED"},
+                    "QUEUED": {"RUNNING", "CANCELLED"},
+                    "RUNNING": {"RECONCILING", "QUARANTINED", "CANCEL_REQUESTED", "QUEUED"},
+                    "RECONCILING": {"QUARANTINED", "CANCEL_REQUESTED", "QUEUED"},
+                    "CANCEL_REQUESTED": {"CANCELLED"},
+                    "CANCELLED": set(),
+                    "QUARANTINED": set(),
+                }
+                for event in events:
+                    if (event["from_state"] != previous
+                            or event["to_state"] not in allowed.get(previous, set())
+                            or event["fencing_token"] < 0):
+                        raise ValueError("Invalid durable research event chain")
+                    previous = event["to_state"]
+                if previous != row["state"] or row["version"] != len(events) - 1:
+                    # Heartbeats increment version without creating transition events;
+                    # therefore only enforce a lower bound on version.
+                    if previous != row["state"] or row["version"] < len(events) - 1:
+                        raise ValueError("Durable research state/event mismatch")
+                active = row["state"] in {"RUNNING", "RECONCILING", "CANCEL_REQUESTED"}
+                if active:
+                    if (not attempts or row["attempt_id"] != attempts[-1]["attempt_id"]
+                            or row["worker"] != attempts[-1]["worker"]
+                            or row["lease_until_ms"] is None):
+                        raise ValueError("Active durable research attempt identity mismatch")
+                elif row["worker"] is not None or row["lease_until_ms"] is not None:
+                    raise ValueError("Inactive durable research job retains worker lease")
+            return {
+                "schema": "NRFX_DURABLE_METADATA_AUDIT_V1",
+                "status": "METADATA_INTEGRITY_ONLY_NOT_EXECUTION_VALIDATION",
+                "checked_jobs": len(jobs),
+                "accepted_results": "NOT_IMPLEMENTED",
+            }
