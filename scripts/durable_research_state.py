@@ -425,12 +425,24 @@ class DurableResearchState:
                     "CANCELLED": set(),
                     "QUARANTINED": set(),
                 }
+                # Each RUNNING transition must correspond to the next
+                # durable attempt; all other transitions retain that fence.
+                # Checking only monotonicity would miss forged events with
+                # an impossible token, including a fake later owner.
+                observed_fence = 0
                 for event in events:
                     if (event["from_state"] != previous
                             or event["to_state"] not in allowed.get(previous, set())
+                            or type(event["fencing_token"]) is not int
                             or event["fencing_token"] < 0):
                         raise ValueError("Invalid durable research event chain")
+                    if event["to_state"] == "RUNNING":
+                        observed_fence += 1
+                    if event["fencing_token"] != observed_fence:
+                        raise ValueError("Durable research event fencing mismatch")
                     previous = event["to_state"]
+                if observed_fence != row["attempt_no"]:
+                    raise ValueError("Durable research event/attempt count mismatch")
                 if previous != row["state"] or row["version"] != len(events) - 1:
                     # Heartbeats increment version without creating transition events;
                     # therefore only enforce a lower bound on version.
