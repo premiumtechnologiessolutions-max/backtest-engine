@@ -87,32 +87,48 @@ class LinuxProcInspector:
         return ProcessIdentity(self.boot(), pid, group, ticks)
 
     def observe_exit(self, identity: ProcessIdentity) -> str:
+        """Observe the exact Linux process identity and its dedicated group.
+
+        /proc enumeration is not a reliable exit proof when unrelated
+        processes are unreadable or churn rapidly. A same-boot direct PID
+        check establishes whether the recorded leader is still the *same*
+        living process. A kernel process-group existence probe (signal 0,
+        never a kill) then checks for surviving group members even when the
+        leader already exited. EPERM and unknown OS errors fail closed.
+        """
         if not isinstance(identity, ProcessIdentity):
             raise ValueError("Unknown process identity type")
         try:
             if self.boot() != identity.boot_id:
                 return _UNKNOWN_BOOT
-            entries = list(self.root.iterdir())
-            for entry in entries:
-                if not entry.name.isdigit():
-                    continue
-                try:
-                    state, group, ticks = self._stat(
-                        (entry / "stat").read_text())
-                except FileNotFoundError:
-                    continue  # Short-lived process disappeared mid-snapshot.
-                except (OSError, UnicodeError, ValueError):
+            try:
+                state, group, ticks = self._stat(
+                    (self.root / str(identity.pid) / "stat").read_text())
+            except FileNotFoundError:
+                state = group = ticks = None
+            except (OSError, UnicodeError, ValueError):
+                return _UNKNOWN_PROC
+            if ticks == identity.start_ticks:
+                if group != identity.process_group:
+                    # Escape from isolated group may leave live work behind.
                     return _UNKNOWN_PROC
-                pid = int(entry.name)
-                if (pid == identity.pid and ticks == identity.start_ticks
-                        and state not in {"Z", "X", "x"}):
+                if state not in {"Z", "X", "x"}:
                     return _ACTIVE
-                if group == identity.process_group and state not in {"Z", "X", "x"}:
-                    return _ACTIVE
+            # The original leader has exited/reaped, become zombie, or its
+            # PID was reused. The group may STILL contain live descendants.
+            # os.killpg(group, 0) asks the kernel whether it exists; signal
+            # zero does NOT terminate or modify the group's processes.
+            try:
+                os.killpg(identity.process_group, 0)
+            except ProcessLookupError:
+                return _EXIT
+            except PermissionError:
+                return _ACTIVE  # Could be alive under a different UID.
+            except OSError:
+                return _UNKNOWN_PROC
+            return _ACTIVE
         except (OSError, UnicodeError, ValueError):
             return _UNKNOWN_PROC
-        return _EXIT
-
 
 def _clock(value: int | None) -> int:
     now = time.time_ns() // 1_000_000 if value is None else value
