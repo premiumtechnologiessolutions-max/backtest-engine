@@ -129,7 +129,11 @@ class DurableResearchState:
 
     def claim_next(self, worker: str, *, lease_seconds: int = 120,
                    now_ms: int | None = None) -> dict | None:
-        """Atomically assign one due request and strictly increment its fence."""
+        """Claim only queued work; expired leases require supervisor-confirmed exit.
+
+        An expired lease does NOT prove the old worker stopped executing.
+        Never run two attempts concurrently against the same source/output.
+        """
         if type(worker) is not str or not _WORKER.fullmatch(worker):
             raise ValueError("Invalid worker ID")
         if type(lease_seconds) is not int or not 1 <= lease_seconds <= 3600:
@@ -140,9 +144,7 @@ class DurableResearchState:
         with self._write() as db:
             row = db.execute(
                 "SELECT * FROM jobs WHERE state='QUEUED' "
-                "OR (state IN ('RUNNING', 'RECONCILING') "
-                "AND lease_until_ms<=?) ORDER BY created_ms, request_id LIMIT 1",
-                (now,),
+                "ORDER BY created_ms, request_id LIMIT 1",
             ).fetchone()
             if row is None:
                 return None
@@ -164,6 +166,35 @@ class DurableResearchState:
             return {"request_id": row["request_id"], "attempt_id": attempt_id,
                     "attempt_no": attempt_no, "fencing_token": token, "worker": worker,
                     "lease_until_ms": expires, "frozen_request": json.loads(row["frozen_json"])}
+
+    def requeue_expired(self, request_id: str, *, process_exit_confirmed: bool = False,
+                        now_ms: int | None = None) -> bool:
+        """Requeue an expired attempt only after its process is confirmed dead.
+
+        Supervisor identity/process-exit evidence must be checked externally.
+        Requeue never accepts or publishes research results.
+        """
+        if process_exit_confirmed is not True:
+            raise ValueError("Supervisor must confirm worker process exit")
+        if type(request_id) is not str or not _HEX64.fullmatch(request_id):
+            raise ValueError("Invalid request ID")
+        now = _now_ms() if now_ms is None else now_ms
+        if type(now) is not int or now < 0:
+            raise ValueError("Invalid UTC lease clock")
+        with self._write() as db:
+            row = db.execute("SELECT * FROM jobs WHERE request_id=?", (request_id,)).fetchone()
+            if row is None:
+                raise ValueError("Unknown research request")
+            if (row["state"] not in {"RUNNING", "RECONCILING"}
+                    or row["lease_until_ms"] is None
+                    or row["lease_until_ms"] > now):
+                raise ValueError("Research attempt is not eligible for safe requeue")
+            db.execute("UPDATE jobs SET state='QUEUED', version=version+1, "
+                       "worker=NULL, attempt_id=NULL, lease_until_ms=NULL, "
+                       "updated_ms=? WHERE request_id=?", (now, request_id))
+            self._event(db, request_id, row["state"], "QUEUED",
+                        row["fencing_token"], now)
+            return True
 
     def heartbeat(self, request_id: str, attempt_id: str, fencing_token: int,
                   worker: str, *, lease_seconds: int = 120,
