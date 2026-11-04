@@ -12,11 +12,14 @@ import re
 
 import pandas as pd
 
+from norisk_quant.campaign_blueprint import verify_blueprint
 from norisk_quant.native_export_parity_pipeline import (
     NativeExport, _build_native_export_parity,
 )
 from norisk_quant.upstream_trade_normalizers import PINNED_VENDOR
-from scripts.durable_cross_engine_parity import stage_unverified_cross_engine_parity
+from scripts.durable_cross_engine_parity import (
+    _table as _parity_table, _MAX_REPORT_BYTES,
+)
 from scripts.durable_research_state import DurableResearchState
 
 SCHEMA = "NRFX_NATIVE_SOURCE_INBOX_V1"
@@ -50,21 +53,38 @@ def stage_native_source_evidence(
     native_ledger: pd.DataFrame, vendor_exports: dict[str, NativeExport], *,
     now_ms: int,
 ) -> dict:
-    """Stage only full-source hashes; every result stays UNVERIFIED.
+    """Atomically stage parity + native source identities; NEVER accept.
 
-    Parity and provenance are written in two fenced transactions. A failed
-    source write leaves existing parity quarantined, never accepted.
+    Both reports are computed and fully size-checked before acquiring
+    SQLite's write lock. A single BEGIN IMMEDIATE transaction then checks
+    frozen lease, exact request/blueprint identity, both existing receipt
+    identities, and either commits BOTH records or rolls back everything.
+
+    Incomplete pre-existing parity-only records are refused for manual
+    review: this API does not silently associate a separate earlier write
+    with newly submitted vendor bytes. The original parity-only staging API
+    remains available for engineering-only comparator diagnostics.
     """
     if (not isinstance(state, DurableResearchState)
             or type(claim) is not dict
             or type(now_ms) is not int or now_ms < 0):
         raise ValueError("Invalid durable vendor stage request")
-    bundle, ledgers = _build_native_export_parity(
-        blueprint, native_ledger, vendor_exports)
-    report = stage_unverified_cross_engine_parity(
-        state, claim, blueprint, ledgers, now_ms=now_ms)
-    if report["diagnostic_sha256"] != bundle["parity_diagnostic"]["diagnostic_sha256"]:
-        raise ValueError("Stored comparison diverges from vendor export")
+    frozen = verify_blueprint(blueprint)
+    bundle, _ = _build_native_export_parity(
+        frozen, native_ledger, vendor_exports)
+    report = bundle["parity_diagnostic"]
+    comparison_payload = _canonical(report)
+    if not 0 < len(comparison_payload) <= _MAX_REPORT_BYTES:
+        raise ValueError("Bounded cross-engine diagnostic exceeded")
+    comparison_sha = _digest(comparison_payload)
+    request = claim.get("frozen_request")
+    spec = frozen["normalized_spec"]
+    if (type(request) is not dict
+            or request.get("source_commit") != spec["source_commit"]
+            or request.get("evaluation_start") != spec["evaluation"]["start"]
+            or request.get("evaluation_end") != spec["evaluation"]["end"]
+            or request.get("fingerprint") != claim.get("request_id")):
+        raise ValueError("Frozen parity campaign does not match durable request")
     manifest = {
         "schema": SCHEMA, "blueprint_sha256": bundle["blueprint_sha256"],
         "pipeline_sha256": bundle["pipeline_sha256"],
@@ -76,53 +96,78 @@ def stage_native_source_evidence(
         "state": "UNVERIFIED",
     }
     payload = _canonical(manifest)
-    if len(payload) > _MAX:
+    if not 0 < len(payload) <= _MAX:
         raise ValueError("Vendor source manifest exceeds bound")
     checksum = _digest(payload)
     with state._write() as db:
         row = state._owned(
             db, claim["request_id"], claim["attempt_id"],
             claim["fencing_token"], claim["worker"], now_ms)
-        if row["state"] != "RECONCILING" or row["attempt_no"] != claim["attempt_no"]:
-            raise ValueError("Only owned reconciling attempts can stage vendor source")
+        if (row["state"] != "RECONCILING"
+                or row["attempt_no"] != claim["attempt_no"]
+                or row["frozen_json"] != _canonical(request)):
+            raise ValueError("Only exact reconciling frozen attempts can stage vendor source")
+        _parity_table(db)
         _schema(db)
-        stored_report = db.execute(
-            "SELECT report_sha256 FROM unverified_cross_engine_parity "
-            "WHERE attempt_id=? AND request_id=? AND fencing_token=?",
-            (claim["attempt_id"], claim["request_id"], claim["fencing_token"]),
+
+        parity_identity = (
+            claim["request_id"], claim["fencing_token"], claim["worker"],
+            frozen["blueprint_sha256"], comparison_sha, comparison_payload,
+        )
+        source_identity = (
+            claim["request_id"], claim["fencing_token"],
+            claim["worker"], comparison_sha, checksum, payload,
+        )
+        current_parity = db.execute(
+            "SELECT * FROM unverified_cross_engine_parity WHERE attempt_id=?",
+            (claim["attempt_id"],),
         ).fetchone()
-        if stored_report is None or stored_report["report_sha256"] != report["report_sha256"]:
-            raise ValueError("Unmatched cross-engine comparison identity")
-        existing = db.execute(
+        current_source = db.execute(
             "SELECT * FROM unverified_native_export_sources WHERE attempt_id=?",
             (claim["attempt_id"],),
         ).fetchone()
-        values = (claim["request_id"], claim["fencing_token"],
-                  claim["worker"], report["report_sha256"], checksum, payload)
-        if existing:
-            if (tuple(existing[k] for k in (
-                    "request_id", "fencing_token", "worker", "parity_sha256",
-                    "manifest_sha256", "manifest_json")) != values
-                    or existing["state"] != "UNVERIFIED"):
-                raise ValueError("Immutable native source evidence conflict")
-            action = "ALREADY_STAGED_UNVERIFIED"
-        else:
+
+        if (current_parity is None) != (current_source is None):
+            raise ValueError(
+                "Incomplete existing parity/source evidence; manual review required")
+        if current_parity is None:
             db.execute(
-                "INSERT INTO unverified_native_export_sources "
-                "(attempt_id,request_id,fencing_token,worker,"
+                "INSERT INTO unverified_cross_engine_parity("
+                "attempt_id,request_id,fencing_token,worker,blueprint_sha256,"
+                "report_sha256,report_json,staged_ms,state)"
+                " VALUES(?,?,?,?,?,?,?,?, 'UNVERIFIED_ONLY')",
+                (claim["attempt_id"], *parity_identity, now_ms),
+            )
+            db.execute(
+                "INSERT INTO unverified_native_export_sources("
+                "attempt_id,request_id,fencing_token,worker,"
                 "parity_sha256,manifest_sha256,manifest_json,state)"
                 " VALUES (?,?,?,?,?,?,?,'UNVERIFIED')",
-                (claim["attempt_id"], *values),
+                (claim["attempt_id"], *source_identity),
             )
             action = "STAGED_UNVERIFIED"
+        else:
+            stored_parity = tuple(current_parity[k] for k in (
+                "request_id", "fencing_token", "worker",
+                "blueprint_sha256", "report_sha256", "report_json"))
+            stored_source = tuple(current_source[k] for k in (
+                "request_id", "fencing_token", "worker",
+                "parity_sha256", "manifest_sha256", "manifest_json"))
+            if (stored_parity != parity_identity
+                    or current_parity["state"] != "UNVERIFIED_ONLY"
+                    or stored_source != source_identity
+                    or current_source["state"] != "UNVERIFIED"):
+                raise ValueError("Immutable atomic native/parity evidence conflict")
+            action = "ALREADY_STAGED_UNVERIFIED"
     return {
         "schema": SCHEMA, "status": action,
         "attempt_id": claim["attempt_id"], "manifest_sha256": checksum,
-        "parity_report_sha256": report["report_sha256"],
+        "parity_report_sha256": comparison_sha,
         "vendor_exports": len(bundle["provider_exports"]),
         "accepted": False, "execution_authorized": False,
+        "atomic_two_receipt_commit": True,
+        "vendor_runtime_attested": False,
     }
-
 
 def audit_native_source_evidence(state: DurableResearchState) -> dict:
     """Read-only audit of all source manifests and their parity attempts."""
