@@ -225,3 +225,47 @@ def test_expired_requeue_refuses_cancelled_and_live_leases(tmp_path):
     store.cancel(ident)
     with pytest.raises(ValueError, match="not eligible"):
         store.requeue_expired(ident, process_exit_confirmed=True, now_ms=20000)
+
+
+def test_durable_integrity_audit_across_requeue_and_cancellation(tmp_path):
+    store = state.DurableResearchState(tmp_path / "state.sqlite3")
+    ident = store.ingest_record(frozen_request())
+    assert store.audit_integrity()["checked_jobs"] == 1
+    first = store.claim_next("worker-A", lease_seconds=1, now_ms=1000)
+    store.heartbeat(ident, first["attempt_id"], first["fencing_token"],
+                    "worker-A", lease_seconds=1, now_ms=1100)
+    assert store.audit_integrity()["checked_jobs"] == 1
+    store.requeue_expired(ident, process_exit_confirmed=True, now_ms=2100)
+    assert store.audit_integrity()["checked_jobs"] == 1
+    second = store.claim_next("worker-B", lease_seconds=10, now_ms=2200)
+    store.start_reconciliation(ident, second["attempt_id"],
+                               second["fencing_token"], "worker-B", now_ms=2300)
+    store.cancel(ident)
+    store.acknowledge_cancel(ident, second["attempt_id"],
+                             second["fencing_token"], "worker-B", now_ms=2400)
+    assert store.audit_integrity()["checked_jobs"] == 1
+
+
+def test_durable_integrity_audit_rejects_tampered_attempt_and_event(tmp_path):
+    store = state.DurableResearchState(tmp_path / "state.sqlite3")
+    ident = store.ingest_record(frozen_request())
+    store.claim_next("worker-A", lease_seconds=10, now_ms=1000)
+    with store._write() as db:
+        db.execute("UPDATE attempts SET fencing_token=99 WHERE request_id=?", (ident,))
+    with pytest.raises(ValueError, match="attempt sequence"):
+        store.audit_integrity()
+    with store._write() as db:
+        db.execute("UPDATE attempts SET fencing_token=1 WHERE request_id=?", (ident,))
+        db.execute("UPDATE events SET from_state='CANCELLED' "
+                   "WHERE request_id=? AND to_state='RUNNING'", (ident,))
+    with pytest.raises(ValueError, match="event chain"):
+        store.audit_integrity()
+
+
+def test_durable_integrity_audit_rejects_frozen_record_drift(tmp_path):
+    store = state.DurableResearchState(tmp_path / "state.sqlite3")
+    ident = store.ingest_record(frozen_request())
+    with store._write() as db:
+        db.execute("UPDATE jobs SET frozen_json='{}' WHERE request_id=?", (ident,))
+    with pytest.raises(ValueError, match="Frozen durable research request"):
+        store.audit_integrity()
