@@ -69,3 +69,10 @@ def test_status_not_misrepresented_as_live_approval():
     assert "not a completed quantitative trading system" in html
     assert "PLANNED / UNVERIFIED" in html
     assert "LIVE TRADING" in html
+
+def test_backup_dashboard_is_read_only_and_promises_no_resume():
+    page = DASHBOARD.read_text(encoding='utf-8')
+    assert 'id="backup-status"' in page
+    assert 'id="backup-jobs"' in page
+    assert 'AUTO-RESUME' in page and 'DISABLED' in page
+    assert 'value.backup_health || {}' in page

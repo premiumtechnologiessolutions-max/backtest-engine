@@ -8,6 +8,7 @@ from norisk_quant.campaign_sharding import freeze_sharded_campaign
 from norisk_quant.construction_mission_control import construction_snapshot
 from scripts.quant_construction_snapshot import main
 from scripts.durable_research_state import DurableResearchState
+from scripts.durable_backup_attestation import backup_durable_state
 from scripts.research_job_queue import _canonical
 
 
@@ -89,3 +90,36 @@ def test_cli_fails_on_symlinked_design(tmp_path):
         pytest.skip("Symlinks not supported")
     with pytest.raises(ValueError, match="Unsafe"):
         main(["--design", str(linked)])
+
+def test_verified_backup_visible_without_resuming_tasks(tmp_path, capsys):
+    store = DurableResearchState(tmp_path / 'control.sqlite3')
+    root = tmp_path / 'private_backups'
+    root.mkdir()
+    backup_durable_state(store.database, root, 'synthetic_001', now_ms=1250)
+    snap = construction_snapshot(design(), database=store.database,
+                                 backup_snapshot_dir=root / 'synthetic_001',
+                                 now_ms=1250)
+    assert snap['backup_health']['status'] == 'VERIFIED_REVIEW_ONLY'
+    assert snap['backup_health']['manifest_verified'] is True
+    assert snap['backup_health']['automatic_resume'] is False
+    assert snap['market_research_authorized'] is False
+    source = tmp_path / 'design.json'
+    source.write_text(json.dumps(design()), encoding='utf-8')
+    assert main(['--design', str(source), '--backup-dir', str(root / 'synthetic_001')]) == 0
+    shown = json.loads(capsys.readouterr().out)
+    assert shown['backup_health']['jobs_observed'] == 0
+
+def test_modified_backup_is_invalid_in_readonly_snapshot(tmp_path):
+    store = DurableResearchState(tmp_path / 'control.sqlite3')
+    root = tmp_path / 'private_backups'
+    root.mkdir()
+    backup_durable_state(store.database, root, 'synthetic_002', now_ms=1250)
+    with (root / 'synthetic_002' / 'state.sqlite3').open('ab') as target:
+        target.write(b'tampered')
+    state = construction_snapshot(design(), backup_snapshot_dir=root / 'synthetic_002')
+    assert state['backup_health']['status'] == 'INVALID'
+    assert state['backup_health']['manifest_verified'] is False
+    assert state['engineering_acceptance_passed'] is False
+
+def test_no_backup_is_never_implicitly_verified():
+    assert construction_snapshot(design())['backup_health']['status'] == 'NOT_CONFIGURED'

@@ -114,6 +114,15 @@
           <div class="datum"><span class="label">MAX RAM (DESIGN)</span><span class="content" id="ram">—</span></div>
         </div>
         <div class="line"></div>
+        <h2>Verified local backups</h2>
+        <p class="sub">Snapshot integrity is not permission to resume workers.</p>
+        <div class="small-grid">
+          <div class="datum"><span class="label">BACKUP STATUS</span><span class="content" id="backup-status">UNKNOWN</span></div>
+          <div class="datum"><span class="label">BACKUP JOBS</span><span class="content" id="backup-jobs">—</span></div>
+          <div class="datum"><span class="label">BACKUP ATTEMPTS</span><span class="content" id="backup-attempts">—</span></div>
+          <div class="datum"><span class="label">AUTO-RESUME</span><span class="content">DISABLED</span></div>
+        </div>
+        <div class="line"></div>
         <h2>Readiness classification</h2>
         <ul>
           <li>Source code and designed stages are not the same as production integrations.</li>
@@ -193,6 +202,10 @@ function loadSnapshot(value) {
   setText("task-count", format(d.nodes_designed));
   setText("shard-count", format(d.shards_designed));
   setText("health", String(value.operational_health.status || "UNKNOWN"));
+  const b = value.backup_health || {};
+  setText('backup-status', String(b.status || 'NOT_CONFIGURED'));
+  setText('backup-jobs', format(b.jobs_observed));
+  setText('backup-attempts', format(b.attempts_observed));
   setText("dataset", String(d.dataset_id || "—"));
   setText("commit", String(d.source_commit || "—").slice(0,12));
   setText("workers", format(d.resource_limits && d.resource_limits.max_workers));
@@ -208,8 +221,9 @@ function loadSnapshot(value) {
   setText("load-state", "Local construction snapshot loaded. No external engines were started.");
 }
 function reset() {
-  for (const id of ["strategy-count","task-count","shard-count","dataset","commit","workers","ram"]) setText(id,"—");
+  for (const id of ["strategy-count","task-count","shard-count","dataset","commit","workers","ram","backup-jobs","backup-attempts"]) setText(id,"—");
   setText("health","UNKNOWN");
+  setText("backup-status","UNKNOWN");
   setText("load-state","No status file loaded. Displayed figures are placeholders, not results.");
   $("engines").replaceChildren();
   $("reviewers").replaceChildren();
