@@ -44,7 +44,10 @@ def test_openbb_fredseries_executor_contract():
 def test_historical_observation_is_not_available_before_capture():
     events = to_prospective_causal_events(frozen())
     assert len(events) == 2
-    assert events[0].available_at_ns == events[0].event_at_ns
+    assert events[0].event_at_ns == pd.Timestamp("2024-01-01T00:00:00Z").value
+    assert events[1].event_at_ns == pd.Timestamp("2024-04-01T00:00:00Z").value
+    assert all(e.available_at_ns == pd.Timestamp(STAMP).value for e in events)
+    assert all(e.available_at_ns > e.event_at_ns for e in events)
     past = pd.Timestamp("2025-01-01T00:00:00Z").value
     assert list(merge_causal_streams({"openbb_fred": events}, through_ns=past)) == []
     assert [e.values[0] for e in merge_causal_streams({"openbb_fred": events})] == [10.5, 11.0]

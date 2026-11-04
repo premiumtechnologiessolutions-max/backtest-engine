@@ -138,9 +138,13 @@ def to_prospective_causal_events(snapshot: dict) -> tuple[CausalEvent, ...]:
     """Make all rows known at capture, not at historical observation dates."""
     valid = verify_fred_snapshot(snapshot)
     known_ns = utc_timestamp(valid["captured_at_utc"]).as_unit("ns").value
+    # Observation date is the period to which the value pertains, NOT its
+    # historical release timestamp. The only defensible known-at clock is
+    # this snapshot's capture time because upstream omits FRED vintage fields.
     return tuple(
         CausalEvent(source="openbb_fred", source_sha256=valid["snapshot_sha256"],
-                    kind="economic_observation", event_at_ns=known_ns,
+                    kind="economic_observation",
+                    event_at_ns=pd.Timestamp(row["date"], tz="UTC").as_unit("ns").value,
                     available_at_ns=known_ns, sequence=i,
                     values=(row["value"],))
         for i, row in enumerate(valid["rows"])
