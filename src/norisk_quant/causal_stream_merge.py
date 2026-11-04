@@ -13,9 +13,9 @@ import math
 import re
 from collections.abc import Iterable, Iterator, Mapping
 
-_SHA = re.compile(r"[0-9a-f]{64}\\Z")
-_SOURCE = re.compile(r"[a-z][a-z0-9_]{1,47}\\Z")
-_KIND = re.compile(r"[a-z][a-z0-9_]{1,47}\\Z")
+_SHA = re.compile(r"[0-9a-f]{64}\Z")
+_SOURCE = re.compile(r"[a-z][a-z0-9_]{1,47}\Z")
+_KIND = re.compile(r"[a-z][a-z0-9_]{1,47}\Z")
 
 
 def _clock(value: int, field: str) -> None:
