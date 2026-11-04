@@ -114,6 +114,13 @@
           <div class="datum"><span class="label">MAX RAM (DESIGN)</span><span class="content" id="ram">—</span></div>
         </div>
         <div class="line"></div>
+        <h2>Durable construction DAG</h2>
+        <p class="sub">Immutable campaign dependencies stored without runnable worker permissions.</p>
+        <div class="small-grid">
+          <div class="datum"><span class="label">CAMPAIGNS REGISTERED</span><span class="content" id="registered-campaigns">—</span></div>
+          <div class="datum"><span class="label">INERT TASK NODES</span><span class="content" id="registered-nodes">—</span></div>
+        </div>
+        <div class="line"></div>
         <h2>Verified local backups</h2>
         <p class="sub">Snapshot integrity is not permission to resume workers.</p>
         <div class="small-grid">
@@ -202,6 +209,8 @@ function loadSnapshot(value) {
   setText("task-count", format(d.nodes_designed));
   setText("shard-count", format(d.shards_designed));
   setText("health", String(value.operational_health.status || "UNKNOWN"));
+  setText('registered-campaigns', format(value.operational_health.construction_campaigns));
+  setText('registered-nodes', format(value.operational_health.registered_dag_nodes));
   const b = value.backup_health || {};
   setText('backup-status', String(b.status || 'NOT_CONFIGURED'));
   setText('backup-jobs', format(b.jobs_observed));
@@ -221,7 +230,7 @@ function loadSnapshot(value) {
   setText("load-state", "Local construction snapshot loaded. No external engines were started.");
 }
 function reset() {
-  for (const id of ["strategy-count","task-count","shard-count","dataset","commit","workers","ram","backup-jobs","backup-attempts"]) setText(id,"—");
+  for (const id of ["strategy-count","task-count","shard-count","dataset","commit","workers","ram","backup-jobs","backup-attempts","registered-campaigns","registered-nodes"]) setText(id,"—");
   setText("health","UNKNOWN");
   setText("backup-status","UNKNOWN");
   setText("load-state","No status file loaded. Displayed figures are placeholders, not results.");

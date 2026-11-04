@@ -76,3 +76,9 @@ def test_backup_dashboard_is_read_only_and_promises_no_resume():
     assert 'id="backup-jobs"' in page
     assert 'AUTO-RESUME' in page and 'DISABLED' in page
     assert 'value.backup_health || {}' in page
+
+def test_dashboard_displays_inert_registered_dag_without_execution_claim():
+    page = DASHBOARD.read_text(encoding='utf-8')
+    assert 'id="registered-campaigns"' in page
+    assert 'id="registered-nodes"' in page
+    assert 'without runnable worker permissions' in page

@@ -58,6 +58,8 @@ def evaluate(database: Path, *, now_ms: int | None = None) -> tuple[int, dict]:
                 snapshot = probe.operational_snapshot(now_ms=now_ms)
                 from scripts.durable_receipt_inventory import audit_all_external_receipts
                 receipt_audit = audit_all_external_receipts(probe)
+                from scripts.durable_inert_campaign_registry import audit_inert_registry
+                campaign_audit = audit_inert_registry(probe)
             finally:
                 db.execute("ROLLBACK")
         # Never interpret a boolean success of the audit as a trading result.
@@ -65,6 +67,7 @@ def evaluate(database: Path, *, now_ms: int | None = None) -> tuple[int, dict]:
             raise ValueError("Unexpected operations audit shape")
         payload = {"schema": SCHEMA, "status": "HEALTHY", "audit": audit,
                    "operations": snapshot, "receipt_inbox": receipt_audit,
+                   "construction_registry": campaign_audit,
                    "research_edge_proven": False}
         # Operational snapshot's action-required signal is authoritative.
         # Also examine status counts for cancellation regardless of clock.

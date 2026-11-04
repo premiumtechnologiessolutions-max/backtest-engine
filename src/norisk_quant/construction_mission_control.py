@@ -42,6 +42,8 @@ def construction_snapshot(
             "by_state": probed.get("operations", {}).get("by_state"),
             "unverified_receipts": probed.get("receipt_inbox", {}).get(
                 "logical_unverified_attempts"),
+            "construction_campaigns": probed.get("construction_registry", {}).get("campaign_count"),
+            "registered_dag_nodes": probed.get("construction_registry", {}).get("planned_nodes"),
         }
     if backup_snapshot_dir is None:
         backup = {"status": "NOT_CONFIGURED", "automatic_resume": False,

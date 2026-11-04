@@ -102,3 +102,18 @@ def test_two_shards_have_namespaced_independent_dependency_ids(tmp_path):
         assert len(rows) == len({r[0] for r in rows})
         assert any(r[0].startswith("0002/") for r in rows)
     assert audit_inert_registry(store)["execution_enabled"] is False
+
+def test_ops_gate_verifies_inert_registry_integrity(tmp_path):
+    from scripts.durable_operations_gate import evaluate
+    state = DurableResearchState(tmp_path / 'state.sqlite3')
+    design = frozen()
+    register_inert_campaign(state, design)
+    code, result = evaluate(state.database, now_ms=1000)
+    assert code == 0
+    assert result['construction_registry']['campaign_count'] == 1
+    assert result['construction_registry']['planned_nodes'] == design['total_designed_nodes']
+    with state._write() as db:
+        db.execute("UPDATE construction_nodes SET node_json='{}' WHERE campaign_sha=?",
+                   (design['sharded_blueprint_sha256'],))
+    code, result = evaluate(state.database, now_ms=1000)
+    assert code == 3 and result['status'] == 'INVALID'
