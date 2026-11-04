@@ -269,3 +269,31 @@ def test_durable_integrity_audit_rejects_frozen_record_drift(tmp_path):
         db.execute("UPDATE jobs SET frozen_json='{}' WHERE request_id=?", (ident,))
     with pytest.raises(ValueError, match="Frozen durable research request"):
         store.audit_integrity()
+
+
+@pytest.mark.parametrize("transition", ["QUEUED", "RUNNING", "RECONCILING"])
+def test_integrity_audit_rejects_forged_event_fencing(tmp_path, transition):
+    store = state.DurableResearchState(tmp_path / "state.sqlite3")
+    ident = store.ingest_record(frozen_request())
+    claim = store.claim_next("worker-A", lease_seconds=10, now_ms=1000)
+    store.start_reconciliation(ident, claim["attempt_id"],
+                               claim["fencing_token"], "worker-A", now_ms=1500)
+    assert store.audit_integrity()["checked_jobs"] == 1
+    with store._write() as db:
+        db.execute("UPDATE events SET fencing_token=99 "
+                   "WHERE request_id=? AND to_state=?", (ident, transition))
+    with pytest.raises(ValueError, match="event fencing mismatch"):
+        store.audit_integrity()
+
+
+def test_integrity_audit_rejects_missing_claim_transition(tmp_path):
+    store = state.DurableResearchState(tmp_path / "state.sqlite3")
+    ident = store.ingest_record(frozen_request())
+    claim = store.claim_next("worker-A", lease_seconds=10, now_ms=1000)
+    store.start_reconciliation(ident, claim["attempt_id"],
+                               claim["fencing_token"], "worker-A", now_ms=1500)
+    with store._write() as db:
+        db.execute("DELETE FROM events WHERE request_id=? "
+                   "AND to_state='RUNNING'", (ident,))
+    with pytest.raises(ValueError, match="event chain"):
+        store.audit_integrity()
