@@ -1,0 +1,9 @@
+# No Risk FX — construction-only evidence gate (2026-11-04)
+
+The operator's latest authorization is **ENGINE CONSTRUCTION ONLY**. Do not run historical Gold data, prospective/OOS data, canonical parity on private archives, market-data fetches, LEAN, NautilusTrader, RD-Agent, TradingAgents, FinRL, autonomous workers, supervisors or live execution. Synthetic unit tests and static inspection are allowed.
+
+`scripts/construction_gate.py` is a pure, side-effect-free evidence-envelope validator. It never loads private quotes, starts a job, connects to a service or checks an artifact's existence. It rejects missing/unknown checks, mismatched source commits, non-boolean status and unsafe paths. It emits a deterministic SHA256 of the evidence envelope. **An evidence declaration is not evidence verification**: the operator must independently verify artifacts before setting any `passed` flag.
+
+Required categories: synthetic tests, security review, queue permissions, resume idempotence, registry provenance, accessibility, synthetic shared-capacity simulation, canonical adapter contract (synthetic only), no-live-execution boundary, and private-data exclusion. Every category must have an artifact tied to the same source commit. Passing all ten indicates only that the *declared construction evidence* is complete. The output always sets profitability_verified, production_approved and real_data_backtests_performed to false.
+
+Focused synthetic tests: `python -m pytest -q tests/test_construction_gate.py`. These tests do not constitute full-platform validation. Full acceptance requires independent artifact review, full-head CI, security and mobile/accessibility checks, verified resumability and operator approval. The existing registry remains the historical source of truth and is not modified by this module. Keep PR #1 Draft/unmerged. No new market P/L or drawdown figures are authorized.
