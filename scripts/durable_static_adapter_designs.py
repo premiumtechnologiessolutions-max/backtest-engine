@@ -42,7 +42,16 @@ def _schema(db) -> None:
 
 
 def _audit(db) -> dict:
-    _schema(db)
+    """Verify existing storage without DDL or silently repairing damage."""
+    required = {"static_adapter_designs", "static_adapter_request_ids"}
+    existing = {
+        row["name"] for row in db.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' "
+            "AND name IN ('static_adapter_designs','static_adapter_request_ids')"
+        ).fetchall()
+    }
+    if existing != required:
+        raise ValueError("Incomplete static design tables; refusing implicit repair")
     batches = db.execute(
         "SELECT * FROM static_adapter_designs ORDER BY batch_sha256"
     ).fetchall()
@@ -99,6 +108,7 @@ def stage_static_adapter_designs(state: DurableResearchState,
             or len(encoded_envelopes.encode("utf-8")) > _MAX_BYTES):
         raise ValueError("Oversized static design batch")
     with state._write() as db:
+        _schema(db)
         _audit(db)
         current = db.execute(
             "SELECT manifest_json,envelopes_json FROM static_adapter_designs "
