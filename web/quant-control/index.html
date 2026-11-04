@@ -119,6 +119,8 @@
         <div class="small-grid">
           <div class="datum"><span class="label">CAMPAIGNS REGISTERED</span><span class="content" id="registered-campaigns">—</span></div>
           <div class="datum"><span class="label">INERT TASK NODES</span><span class="content" id="registered-nodes">—</span></div>
+          <div class="datum"><span class="label">UNVERIFIED PARITY REPORTS</span><span class="content" id="unverified-parity">—</span></div>
+          <div class="datum"><span class="label">PARITY FIELD DISAGREEMENTS</span><span class="content" id="parity-differences">—</span></div>
         </div>
         <div class="line"></div>
         <h2>Verified local backups</h2>
@@ -211,6 +213,8 @@ function loadSnapshot(value) {
   setText("health", String(value.operational_health.status || "UNKNOWN"));
   setText('registered-campaigns', format(value.operational_health.construction_campaigns));
   setText('registered-nodes', format(value.operational_health.registered_dag_nodes));
+  setText('unverified-parity', format(value.operational_health.unverified_parity_reports));
+  setText('parity-differences', format(value.operational_health.cross_engine_discrepancy_fields));
   const b = value.backup_health || {};
   setText('backup-status', String(b.status || 'NOT_CONFIGURED'));
   setText('backup-jobs', format(b.jobs_observed));
@@ -230,7 +234,7 @@ function loadSnapshot(value) {
   setText("load-state", "Local construction snapshot loaded. No external engines were started.");
 }
 function reset() {
-  for (const id of ["strategy-count","task-count","shard-count","dataset","commit","workers","ram","backup-jobs","backup-attempts","registered-campaigns","registered-nodes"]) setText(id,"—");
+  for (const id of ["strategy-count","task-count","shard-count","dataset","commit","workers","ram","backup-jobs","backup-attempts","registered-campaigns","registered-nodes","unverified-parity","parity-differences"]) setText(id,"—");
   setText("health","UNKNOWN");
   setText("backup-status","UNKNOWN");
   setText("load-state","No status file loaded. Displayed figures are placeholders, not results.");

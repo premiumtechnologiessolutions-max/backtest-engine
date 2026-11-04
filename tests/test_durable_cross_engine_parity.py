@@ -125,3 +125,29 @@ def test_parity_rejected_after_attempt_lease_expiry(tmp_path):
         stage_unverified_cross_engine_parity(
             store, claim, plan, ledgers, now_ms=11001)
     assert audit_unverified_cross_engine_parity(store)["reports"] == 0
+
+
+def test_readonly_health_gate_detects_unverified_cross_engine_receipt(tmp_path):
+    from scripts.durable_operations_gate import evaluate
+    store, claim, plan, ledgers = setup(tmp_path)
+    stage_unverified_cross_engine_parity(
+        store, claim, plan, ledgers, now_ms=1200)
+    code, payload = evaluate(store.database, now_ms=1300)
+    assert code == 2
+    assert payload["status"] == "OPERATOR_ATTENTION"
+    assert payload["cross_engine_parity"]["reports"] == 1
+    assert payload["cross_engine_parity"]["accepted"] == 0
+    assert store.status(claim["request_id"])["state"] == "RECONCILING"
+
+
+def test_tampered_parity_receipt_invalidates_whole_control_plane(tmp_path):
+    from scripts.durable_operations_gate import evaluate
+    store, claim, plan, ledgers = setup(tmp_path)
+    stage_unverified_cross_engine_parity(
+        store, claim, plan, ledgers, now_ms=1200)
+    with store._write() as db:
+        db.execute(
+            "UPDATE unverified_cross_engine_parity SET report_sha256=?"
+            " WHERE attempt_id=?", ("0" * 64, claim["attempt_id"]))
+    code, payload = evaluate(store.database, now_ms=1300)
+    assert code == 3 and payload["status"] == "INVALID"

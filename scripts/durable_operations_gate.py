@@ -60,6 +60,8 @@ def evaluate(database: Path, *, now_ms: int | None = None) -> tuple[int, dict]:
                 receipt_audit = audit_all_external_receipts(probe)
                 from scripts.durable_inert_campaign_registry import audit_inert_registry
                 campaign_audit = audit_inert_registry(probe)
+                from scripts.durable_cross_engine_parity import audit_unverified_cross_engine_parity
+                comparison_audit = audit_unverified_cross_engine_parity(probe)
             finally:
                 db.execute("ROLLBACK")
         # Never interpret a boolean success of the audit as a trading result.
@@ -68,13 +70,14 @@ def evaluate(database: Path, *, now_ms: int | None = None) -> tuple[int, dict]:
         payload = {"schema": SCHEMA, "status": "HEALTHY", "audit": audit,
                    "operations": snapshot, "receipt_inbox": receipt_audit,
                    "construction_registry": campaign_audit,
+                   "cross_engine_parity": comparison_audit,
                    "research_edge_proven": False}
         # Operational snapshot's action-required signal is authoritative.
         # Also examine status counts for cancellation regardless of clock.
         counts = snapshot.get("by_state", {})
         if not isinstance(counts, dict):
             counts = {}
-        action = bool(receipt_audit["unverified_receipts"]) or (
+        action = bool(receipt_audit["unverified_receipts"]) or bool(comparison_audit["reports"]) or (
             bool(snapshot.get("requires_operator_attention"))
                   or bool(snapshot.get("operator_attention"))
                   or any(counts.get(s, 0) for s in ("CANCEL_REQUESTED", "QUARANTINED")))

@@ -82,3 +82,11 @@ def test_dashboard_displays_inert_registered_dag_without_execution_claim():
     assert 'id="registered-campaigns"' in page
     assert 'id="registered-nodes"' in page
     assert 'without runnable worker permissions' in page
+
+
+def test_dashboard_displays_parity_as_unverified_not_approved():
+    page = DASHBOARD.read_text(encoding="utf-8")
+    assert 'id="unverified-parity"' in page
+    assert 'id="parity-differences"' in page
+    assert "UNVERIFIED PARITY REPORTS" in page
+    assert "NOT READY FOR MARKET RUNS" in page
