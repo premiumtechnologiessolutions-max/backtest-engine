@@ -165,3 +165,28 @@ def test_expired_cancel_requires_supervisor_confirmed_exit(tmp_path):
         ident, process_exit_confirmed=True, now_ms=3000) is False
     assert store.status(ident)["state"] == "CANCELLED"
     assert store.claim_next("worker-B", now_ms=5000) is None
+
+
+def test_operations_snapshot_distinguishes_expired_lease_from_success(tmp_path):
+    store = state.DurableResearchState(tmp_path / "state.sqlite3")
+    ident = store.ingest_record(frozen_request())
+    empty = store.operational_snapshot(now_ms=1000)
+    assert empty["by_state"] == {"QUEUED": 1}
+    assert empty["expired_active_or_cancel_leases"] == 0
+    assert empty["accepted_results"] == "NOT_IMPLEMENTED"
+    claim = store.claim_next("worker-A", lease_seconds=1, now_ms=1000)
+    active = store.operational_snapshot(now_ms=1500)
+    assert active["by_state"] == {"RUNNING": 1}
+    assert active["expired_active_or_cancel_leases"] == 0
+    assert not active["requires_operator_attention"]
+    stale = store.operational_snapshot(now_ms=2001)
+    assert stale["expired_active_or_cancel_leases"] == 1
+    assert stale["requires_operator_attention"]
+    assert stale["accepted_results"] == "NOT_IMPLEMENTED"
+    assert store.cancel(ident) == "CANCEL_REQUESTED"
+    pending = store.operational_snapshot(now_ms=2001)
+    assert pending["by_state"] == {"CANCEL_REQUESTED": 1}
+    assert pending["expired_active_or_cancel_leases"] == 1
+    assert pending["broker_order_placement_enabled"] is False
+    with pytest.raises(ValueError, match="snapshot clock"):
+        store.operational_snapshot(now_ms=True)
