@@ -33,6 +33,9 @@ def audit_contract(contract: object) -> dict:
             raise ValueError(f"{key}: placeholder or excessive text")
         if any(ord(ch) < 32 for ch in value):
             raise ValueError(f"{key}: control character")
+    # Identical prose for different rules cannot define eight independent semantics.
+    if len({contract[key].casefold() for key in FIELDS}) != len(FIELDS):
+        raise ValueError("distinct executable rules required for all eight fields")
     frozen = json.dumps(contract, ensure_ascii=False, sort_keys=True,
                         separators=(",", ":")).encode("utf-8")
     return {"status": "SHAPE_VALID_ONLY_NOT_EXECUTION_APPROVED",
