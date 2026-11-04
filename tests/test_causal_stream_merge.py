@@ -89,3 +89,13 @@ def test_deterministic_1000_synthetic_events():
     assert len(events) == 1000
     assert [x.available_at_ns for x in events] == sorted(x.available_at_ns for x in events)
     assert events[0].source == "external"
+
+
+def test_tie_priority_beats_old_observation_period():
+    # A 2024 economic period fetched at the 2026 gold close cannot leap
+    # ahead of that gold candle only because its period is chronologically old.
+    gold = [event("gold", 100, 200, 0)]
+    fred = [event("fred", 10, 200, 0)]
+    got = list(merge_causal_streams({"gold": gold, "fred": fred},
+                                    precedence=("gold", "fred")))
+    assert [e.source for e in got] == ["gold", "fred"]

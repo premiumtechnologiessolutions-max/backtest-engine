@@ -63,8 +63,9 @@ def merge_causal_streams(
 ) -> Iterator[CausalEvent]:
     """Yield events in first-known order across at most 32 named streams.
 
-    Equal-time priorities are deterministic, rather than dependent on mapping
-    insertion order. Each feed must arrive in nondecreasing availability order
+    Equal-known-time priorities dominate event date, and are deterministic,
+    rather than dependent on mapping insertion order. Historical FRED period
+    dates cannot reorder data ahead of same-time closed M1 evidence. Each feed must arrive in nondecreasing availability order
     and strictly increasing sequence order; malformed feeds fail closed.
     Never feed this generator to a live trading engine. To publish a verified
     result, stage ALL output and independently reconcile its source bytes.
@@ -105,13 +106,13 @@ def merge_causal_streams(
                 raise ValueError("Out-of-order, replayed or source-drifted data")
         prior[name] = (event.available_at_ns, event.event_at_ns,
                        event.sequence, event.source_sha256)
-        heapq.heappush(frontier, (event.available_at_ns, event.event_at_ns,
-                                  priority, event.sequence, event))
+        heapq.heappush(frontier, (event.available_at_ns, priority,
+                                  event.event_at_ns, event.sequence, event))
 
     for priority, name in enumerate(ordered):
         push(name, priority)
     while frontier:
-        available, _, priority, _, event = heapq.heappop(frontier)
+        available, priority, _, _, event = heapq.heappop(frontier)
         if through_ns is not None and available > through_ns:
             return
         yield event
