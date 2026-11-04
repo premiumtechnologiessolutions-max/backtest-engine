@@ -10,10 +10,10 @@ from norisk_quant.strategy_source_audit import audit_campaign_sources
 def scenario(tmp_path):
     root = tmp_path / "repo"
     code_file = root / "src/norisk_quant/sample_strategy.py"
-    code_file.parent.mkdir(parents=True)
+    code_file.parent.mkdir(parents=True, exist_ok=True)
     code_file.write_text("def frozen_signal():\n    return None\n", encoding="utf-8")
     spec_file = root / "research/strategy.md"
-    spec_file.parent.mkdir(parents=True)
+    spec_file.parent.mkdir(parents=True, exist_ok=True)
     spec_file.write_text("# Inert synthetic strategy\n", encoding="utf-8")
     spec = {
         "source_commit": "a" * 40,
