@@ -141,3 +141,74 @@ def test_no_image_or_container_process_is_started(tmp_path, monkeypatch):
     assert artifact["engine_construction_only"] is True
     assert artifact["image_verified_locally"] is False
     assert artifact["market_data_opened"] is False
+
+
+def test_real_synthetic_gitlink_compiles_then_local_source_tamper_blocks(
+    tmp_path, monkeypatch,
+):
+    import subprocess
+    from norisk_quant import vendor_checkout_attestation as attest
+
+    def git(root, *args):
+        result = subprocess.run(
+            ["git", "-C", str(root), *args],
+            capture_output=True, text=True, check=True)
+        return result.stdout.strip()
+
+    origin = tmp_path / "synthetic_vendor_origin"
+    origin.mkdir()
+    git(origin, "init", "-q")
+    git(origin, "config", "user.email", "ci@example.invalid")
+    git(origin, "config", "user.name", "Synthetic CI")
+    source_files = (
+        "Engine/DataFeeds/SubscriptionSynchronizer.cs",
+        "Engine/Results/BacktestingResultHandler.cs",
+    )
+    for path in source_files:
+        entry = origin / path
+        entry.parent.mkdir(parents=True, exist_ok=True)
+        entry.write_text("// Synthetic Git source: no vendor executable\n")
+    git(origin, "add", ".")
+    git(origin, "commit", "-qm", "Frozen synthetic source")
+    vendor_sha = git(origin, "rev-parse", "HEAD")
+
+    host = tmp_path / "synthetic_host"
+    host.mkdir()
+    git(host, "init", "-q")
+    git(host, "config", "user.email", "ci@example.invalid")
+    git(host, "config", "user.name", "Synthetic CI")
+    submodule = host / "vendor/upstream/lean"
+    submodule.parent.mkdir(parents=True)
+    subprocess.run(
+        ["git", "clone", "-q", str(origin), str(submodule)], check=True)
+    git(host, "update-index", "--add", "--cacheinfo",
+        f"160000,{vendor_sha},vendor/upstream/lean")
+    git(host, "commit", "-qm", "Attach synthetic exact Git submodule")
+    frozen_head = git(host, "rev-parse", "HEAD")
+    synthetic_input = tmp_path / "synthetic_quote_manifest"
+    private_output = tmp_path / "private_output"
+    synthetic_input.mkdir()
+    private_output.mkdir()
+
+    # Patch only the EXPECTED upstream hash for this synthetic fake vendor.
+    # The proof itself invokes real local Git and reads tracked bytes.
+    monkeypatch.setitem(PINNED_VENDOR, "lean", vendor_sha)
+    plan = mod.VendorContainerDesign(
+        engine="lean",
+        image_by_digest="local/nrfx-synthetic-lean@sha256:" + "a" * 64,
+        frozen_parent_commit=frozen_head,
+        frozen_request_sha256="b" * 64,
+        repository_root=host,
+        input_root=synthetic_input,
+        output_root=private_output,
+    )
+    result = mod.compile_vendor_container_design(plan)
+    assert result["source_gitlink_commit"] == vendor_sha
+    assert result["vendor_started"] is False
+    assert result["network_enabled"] is False
+
+    # Even a legitimate local edit invalidates the pinned checkout.
+    (submodule / source_files[0]).write_text(
+        "// Unauthorized change after frozen source commit\n")
+    with pytest.raises(ValueError):
+        mod.compile_vendor_container_design(plan)
