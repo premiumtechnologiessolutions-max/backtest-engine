@@ -66,17 +66,17 @@ def evaluate(database: Path, *, now_ms: int | None = None) -> tuple[int, dict]:
                    "operations": snapshot, "research_edge_proven": False}
         # Operational snapshot's action-required signal is authoritative.
         # Also examine status counts for cancellation regardless of clock.
-        counts = snapshot.get("states", snapshot.get("state_counts", {}))
+        counts = snapshot.get("by_state", {})
         if not isinstance(counts, dict):
             counts = {}
         action = (bool(snapshot.get("requires_operator_attention"))
                   or bool(snapshot.get("operator_attention"))
-                  or any(counts.get(s, 0) for s in ("CANCEL_REQUESTED",)))
+                  or any(counts.get(s, 0) for s in ("CANCEL_REQUESTED", "QUARANTINED")))
         # Some snapshots expose a list of actionable expired leases.
         action = action or any(
             isinstance(snapshot.get(k), (list, dict)) and bool(snapshot[k])
             or isinstance(snapshot.get(k), int) and snapshot[k] > 0
-            for k in ("expired_leases", "expired_active_leases", "attention_required")
+            for k in ("expired_leases", "expired_active_leases", "expired_active_or_cancel_leases", "attention_required")
         )
         if action:
             payload["status"] = "OPERATOR_ATTENTION"
