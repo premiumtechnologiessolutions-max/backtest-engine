@@ -56,8 +56,8 @@ def evaluate(database: Path, *, now_ms: int | None = None) -> tuple[int, dict]:
             try:
                 audit = probe.audit_integrity()
                 snapshot = probe.operational_snapshot(now_ms=now_ms)
-                from scripts.durable_external_receipts import audit_staged_external_receipts
-                receipt_audit = audit_staged_external_receipts(probe)
+                from scripts.durable_receipt_inventory import audit_all_external_receipts
+                receipt_audit = audit_all_external_receipts(probe)
             finally:
                 db.execute("ROLLBACK")
         # Never interpret a boolean success of the audit as a trading result.
