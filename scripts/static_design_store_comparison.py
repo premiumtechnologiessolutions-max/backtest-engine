@@ -20,7 +20,11 @@ def compare_audited_static_design_stores(
     if not isinstance(previous, DurableResearchState) or not isinstance(current, DurableResearchState):
         raise ValueError("Expected two durable state stores")
     # Same-file and hard-link aliases cannot provide independent baselines.
-    if os.path.samefile(previous.database, current.database):
+    try:
+        same_store = os.path.samefile(previous.database, current.database)
+    except (OSError, TypeError, ValueError) as exc:
+        raise ValueError("Cannot verify both SQLite store paths") from exc
+    if same_store:
         raise ValueError("Baseline and current must be distinct SQLite stores")
     # Do not silently treat an unreadable previous store as an empty baseline.
     before = snapshot_static_design_records(previous)
