@@ -35,6 +35,8 @@ def compare_static_design_inventories(previous: object, current: object) -> dict
     old = _check(previous)
     new = _check(current)
     changed = old["inventory_sha256"] != new["inventory_sha256"]
+    if not changed and (old["batches"], old["requests"]) != (new["batches"], new["requests"]):
+        raise ValueError("Matching inventory fingerprint with conflicting counters")
     return {
         "schema": "NRFX_STATIC_DESIGN_INVENTORY_COMPARISON_V1",
         "changed": changed,
