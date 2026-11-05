@@ -91,3 +91,21 @@ def test_same_physical_store_cannot_claim_independent_continuity(tmp_path, alias
         current.database = linked
     with pytest.raises(ValueError, match="distinct SQLite stores"):
         compare_audited_static_design_stores(old, current)
+
+
+@pytest.mark.parametrize("missing_side", ["baseline", "current"])
+def test_missing_store_path_fails_closed_with_validation_error(tmp_path, missing_side):
+    old = DurableResearchState(tmp_path / "old.sqlite3")
+    new = DurableResearchState(tmp_path / "new.sqlite3")
+    missing = old if missing_side == "baseline" else new
+    missing.database.unlink()
+    with pytest.raises(ValueError, match="Cannot verify both SQLite store paths"):
+        compare_audited_static_design_stores(old, new)
+
+
+def test_invalid_store_path_type_fails_closed(tmp_path):
+    old = DurableResearchState(tmp_path / "old.sqlite3")
+    new = DurableResearchState(tmp_path / "new.sqlite3")
+    new.database = None
+    with pytest.raises(ValueError, match="Cannot verify both SQLite store paths"):
+        compare_audited_static_design_stores(old, new)
