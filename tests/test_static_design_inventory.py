@@ -71,3 +71,27 @@ def test_missing_index_table_fails_closed(tmp_path):
 def test_invalid_state_rejected(tmp_path):
     with pytest.raises(ValueError, match="Expected durable"):
         inspect_static_design_inventory(None)
+
+
+def test_summary_refuses_oversized_index_before_audit(tmp_path, monkeypatch):
+    from scripts import static_design_inventory as inventory
+    state = DurableResearchState(tmp_path / "synthetic.sqlite3")
+    stage_static_adapter_designs(state, _batch("synthetic_seed"))
+    with state._write() as db:
+        batch = db.execute("SELECT batch_sha256 FROM static_adapter_designs").fetchone()[0]
+        db.executemany(
+            "INSERT INTO static_adapter_request_ids(request_id,batch_sha256) VALUES (?,?)",
+            [(f"synthetic_extra_{i}", batch) for i in range(10000)],
+        )
+    monkeypatch.setattr(inventory, "_audit", lambda _: (_ for _ in ()).throw(
+        AssertionError("unbounded audit executed")))
+    with pytest.raises(ValueError, match="exceeds continuity limit"):
+        inventory.inspect_static_design_inventory(state)
+
+
+def test_summary_refuses_orphan_request_table_before_audit(tmp_path):
+    state = DurableResearchState(tmp_path / "synthetic.sqlite3")
+    with state._write() as db:
+        db.execute("CREATE TABLE static_adapter_request_ids (request_id TEXT)")
+    with pytest.raises(ValueError, match="Incomplete static design inbox schema"):
+        inspect_static_design_inventory(state)
