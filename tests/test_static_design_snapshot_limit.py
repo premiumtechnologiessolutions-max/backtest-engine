@@ -67,3 +67,17 @@ def test_snapshot_still_audits_small_corrupt_index(tmp_path):
         db.execute("DELETE FROM static_adapter_request_ids")
     with pytest.raises(ValueError):
         inventory.snapshot_static_design_records(state)
+
+
+def test_snapshot_rejects_missing_design_table_before_count(tmp_path):
+    state = DurableResearchState(tmp_path / "synthetic.sqlite3")
+    name, spec = next(iter(REGISTRY.items()))
+    stage_static_adapter_designs(state, [{
+        "schema": SCHEMA, "adapter": name, "request_id": "synthetic_seed",
+        "payload_schema": spec.inputs[0],
+        "payload": {"field_names": ["synthetic_column"]},
+    }])
+    with state._write() as db:
+        db.execute("DROP TABLE static_adapter_designs")
+    with pytest.raises(ValueError, match="Incomplete static design inbox schema"):
+        inventory.snapshot_static_design_records(state)
