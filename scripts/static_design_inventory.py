@@ -68,6 +68,10 @@ def snapshot_static_design_records(state: DurableResearchState) -> list[dict]:
         if not tables:
             return []
         summary = _audit(db)
+        # Match the continuity verifier bound before decoding stored envelopes.
+        # A valid but oversized inbox must fail closed rather than exhaust memory.
+        if summary["requests"] > 10000:
+            raise ValueError("Static design snapshot exceeds continuity limit")
         records = []
         for batch in db.execute(
             "SELECT batch_sha256,envelopes_json FROM static_adapter_designs "
