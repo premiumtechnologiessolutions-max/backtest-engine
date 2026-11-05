@@ -30,7 +30,23 @@ def compare_audited_static_design_stores(
         raise ValueError("Cannot verify both SQLite store paths") from exc
     if (before_ids[0].st_dev, before_ids[0].st_ino) == (before_ids[1].st_dev, before_ids[1].st_ino):
         raise ValueError("Baseline and current must be distinct SQLite stores")
-    # Track WAL sidecars as well as main database files: committed writes may\n    # touch only the WAL while the database inode and metadata remain stable.\n    def wal_identity(store):\n        path = os.fspath(store.database) + "-wal"\n        try:\n            info = os.stat(path)\n        except FileNotFoundError:\n            return None\n        if not stat.S_ISREG(info.st_mode):\n            raise ValueError("SQLite WAL sidecar must be a regular file")\n        return (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns)\n\n    try:\n        before_wal = tuple(wal_identity(store) for store in (previous, current))\n    except (OSError, TypeError) as exc:\n        raise ValueError("Cannot verify SQLite WAL sidecars") from exc\n    # Do not silently treat an unreadable previous store as an empty baseline.
+    # Track WAL sidecars as well as main database files: committed writes may
+    # touch only the WAL while the database inode and metadata remain stable.
+    def wal_identity(store):
+        path = os.fspath(store.database) + "-wal"
+        try:
+            info = os.stat(path)
+        except FileNotFoundError:
+            return None
+        if not stat.S_ISREG(info.st_mode):
+            raise ValueError("SQLite WAL sidecar must be a regular file")
+        return (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+
+    try:
+        before_wal = tuple(wal_identity(store) for store in (previous, current))
+    except (OSError, TypeError) as exc:
+        raise ValueError("Cannot verify SQLite WAL sidecars") from exc
+    # Do not silently treat an unreadable previous store as an empty baseline.
     before = snapshot_static_design_records(previous)
     after = snapshot_static_design_records(current)
     try:
@@ -41,10 +57,16 @@ def compare_audited_static_design_stores(
         raise ValueError("SQLite store path changed during comparison")
     # A stable inode does not imply stable contents: reject observable
     # in-place writes as well. WAL-only changes are NOT covered by this
-    # metadata check, so this is not a cross-store atomicity guarantee.
+    # metadata check alone; this remains non-atomic across stores.
     if any((a.st_size, a.st_mtime_ns, a.st_ctime_ns) !=
            (b.st_size, b.st_mtime_ns, b.st_ctime_ns)
            for a, b in zip(before_ids, after_ids)):
         raise ValueError("SQLite store metadata changed during comparison")
-    try:\n        after_wal = tuple(wal_identity(store) for store in (previous, current))\n    except (OSError, TypeError) as exc:\n        raise ValueError("Cannot verify SQLite WAL sidecars") from exc\n    if before_wal != after_wal:\n        raise ValueError("SQLite WAL sidecar changed during comparison")\n    result = verify_static_design_continuity(before, after)
+    try:
+        after_wal = tuple(wal_identity(store) for store in (previous, current))
+    except (OSError, TypeError) as exc:
+        raise ValueError("Cannot verify SQLite WAL sidecars") from exc
+    if before_wal != after_wal:
+        raise ValueError("SQLite WAL sidecar changed during comparison")
+    result = verify_static_design_continuity(before, after)
     return {**result, "snapshots_audited": True, "provenance_verified": False}
