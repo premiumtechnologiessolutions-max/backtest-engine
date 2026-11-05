@@ -171,3 +171,36 @@ def test_unchanged_distinct_stores_still_compare(tmp_path):
     result = compare_audited_static_design_stores(old, new)
     assert result["snapshots_audited"] is True
     assert result["execution_authorized"] is False
+
+
+def test_wal_only_mutation_during_snapshot_fails_closed(tmp_path, monkeypatch):
+    """A WAL change must invalidate evidence even if the main DB is untouched."""
+    import os
+    import scripts.static_design_store_comparison as comparison
+
+    old = DurableResearchState(tmp_path / "old.sqlite3")
+    new = DurableResearchState(tmp_path / "new.sqlite3")
+    original = comparison.snapshot_static_design_records
+    calls = 0
+
+    def mutating_snapshot(state):
+        nonlocal calls
+        result = original(state)
+        calls += 1
+        if calls == 1:
+            # Synthetic sidecar mutation, not a real database write or research run.
+            with open(os.fspath(old.database) + "-wal", "ab") as sidecar:
+                sidecar.write(b"synthetic-wal-change")
+        return result
+
+    monkeypatch.setattr(comparison, "snapshot_static_design_records", mutating_snapshot)
+    with pytest.raises(ValueError, match="WAL sidecar changed"):
+        comparison.compare_audited_static_design_stores(old, new)
+
+
+def test_wal_sidecar_directory_fails_closed(tmp_path):
+    old = DurableResearchState(tmp_path / "old.sqlite3")
+    new = DurableResearchState(tmp_path / "new.sqlite3")
+    (tmp_path / "old.sqlite3-wal").mkdir()
+    with pytest.raises(ValueError, match="WAL sidecar must be a regular file"):
+        compare_audited_static_design_stores(old, new)
