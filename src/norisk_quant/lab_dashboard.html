@@ -88,6 +88,15 @@ async function show(id){
     const choice=result.selection||(result.schema==='NRFX_LOCAL_QAOA_V1'?result:null);if(choice)detail.append(metricsSection('المقارنة الكمية',[['اختيار QAOA',(choice.selected||[]).join('، ')||'—'],['الحل التقليدي الدقيق',(choice.classical_exact_selected||[]).join('، ')||'—'],['المحاكي',shortValue(choice.backend)],['جهاز OpenCL',shortValue(choice.opencl_device?.device_name)],['فرق دالة الهدف',number(choice.objective_gap)],['احتمال تحقيق القيد',number(choice.feasible_probability)]]));
     if(result.discovery){const discovery=result.discovery;detail.append(metricsSection('اكتشاف وتطوير المرشّحين',[['الأجيال',number(discovery.generations)],['مرشّحون تم تقييمهم',number(discovery.evaluated)]]),observations('تحليل الفشل المسجّل',discovery.failure_analysis),observations('مقترحات الجيل التالي',discovery.next_proposals))}
     if(result.portfolio){const portfolio=result.portfolio,summary=portfolio.summary||{};detail.append(metricsSection('المحفظة المشتركة · وحدات نقدية مصطنعة',[['صافي النتيجة',number(summary.net_pnl)],['أقصى سحب محقّق',number(summary.max_realized_drawdown)],['أقصى سحب على حقوق الملكية',number(summary.max_floating_drawdown)],['أقصى هامش مستخدم',number(summary.peak_used_margin)],['أدنى هامش متاح',number(summary.min_available_margin)],['رفض بسبب الهامش',number(summary.margin_rejections)],['إغلاقات بسبب هامش الصيانة',number(summary.maintenance_liquidation_count)],['صفقات مقبولة',number(summary.accepted_trades)],['صفقات مرفوضة',number(summary.rejected_trades)],['الأدوات',Object.keys(portfolio.per_symbol_net||{}).join('، ')||'—']]))}
+    if(result.frozen_selection_validation){
+      const validation=result.frozen_selection_validation;
+      detail.append(metricsSection('إعادة تشغيل الاختيارات المثبّتة على فترة مصطنعة ثانية',[
+        ['بداية الفترة الثانية',shortValue(validation.validation_start)],
+        ['اختيارات فُحص تطابق تنفيذها',number(validation.candidates.length)],
+        ['صافي محفظة QAOA',number(validation.portfolio.summary.net_pnl)],
+        ['صافي المحفظة التقليدية',number(validation.classical_portfolio.summary.net_pnl)]
+      ]));
+    }
     if(result.external_engines){const section=element('section'),container=element('div');section.append(element('h3','حالة المحركات في هذه النتيجة'));capabilityView(container,result.external_engines);section.append(container);detail.append(section)}
     if(['nautilus_synthetic','lean_synthetic','finrl_synthetic','finrl_training_synthetic'].includes(job.kind)){
       const section=element('section');

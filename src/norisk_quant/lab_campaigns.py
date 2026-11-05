@@ -36,6 +36,16 @@ def _compact_portfolio(report):
     return compact
 
 
+def _replay_selected(chosen, candidate_ledgers, fixtures, contracts):
+    ledgers = {symbol: [] for symbol in fixtures}
+    for ident in chosen:
+        symbol, rows = candidate_ledgers[ident]
+        ledgers[symbol].extend(rows)
+    return _compact_portfolio(replay_margin_portfolio(
+        ledgers, fixtures, contracts, max_positions=2, max_per_symbol=1,
+        daily_loss_limit=20., initial_cash=10000.))
+
+
 def normalize_canonical_ledger(trades, strategy):
     """Map M1 intrabar candle labels to first knowable closure time."""
     result = []
@@ -54,6 +64,58 @@ def normalize_canonical_ledger(trades, strategy):
             row[name] = row[name].isoformat()
         result.append(row)
     return result
+
+
+def _validate_frozen_selection(spec, selection, summaries, training, settings, contracts, progress):
+    from .lab_coordinator import synthetic_fixture, _frame_digest, _parity
+
+    progress('frozen_selection_validation')
+    frozen = {
+        'qaoa': list(selection['selected']),
+        'classical_exact': list(selection['classical_exact_selected']),
+    }
+    chosen = set(frozen['qaoa']) | set(frozen['classical_exact'])
+    frozen['candidates'] = {row['id']: {'symbol': row['symbol'], 'spec': row['spec']}
+                            for row in summaries if row['id'] in chosen}
+    encoded = json.dumps(frozen, sort_keys=True, separators=(',', ':'), allow_nan=False)
+    seeds = {'SIM_A': spec['seed'] ^ 0x69F14BC7, 'SIM_B': spec['seed'] ^ 0xD37CA508}
+    fixtures = {symbol: synthetic_fixture(spec['bars'], seed) for symbol, seed in seeds.items()}
+    fixtures['SIM_B'] *= .6
+    for symbol, minutes in fixtures.items():
+        minutes.index += pd.Timedelta(days=7)
+        if minutes.index[0] <= training[symbol].index[-1]:
+            raise ValueError('Validation fixture overlaps the selection window')
+
+    ledgers = {}
+    evidence = []
+    for ident, candidate in sorted(frozen['candidates'].items()):
+        progress('validation_' + ident)
+        symbol = candidate['symbol']
+        minutes = fixtures[symbol]
+        signals = list(signals_for_spec(minutes, candidate['spec']))
+        reference = run(minutes, signals, settings[symbol])
+        _parity(reference, run_fast(minutes, signals, settings[symbol]))
+        ledger = normalize_canonical_ledger(reference.trades, ident)
+        ledgers[ident] = (symbol, ledger)
+        evidence.append({'id': ident, 'symbol': symbol, 'signals': len(signals),
+                         'trades': len(ledger), 'parity_passed': True,
+                         'trade_ledger_sha256': _frame_digest(reference.trades),
+                         'equity_sha256': _frame_digest(reference.equity)})
+
+    return {
+        'provenance': 'FROZEN_SELECTION_SYNTHETIC_ONLY',
+        'market_oos_evidence': False,
+        'selection_manifest': frozen,
+        'selection_manifest_sha256': hashlib.sha256(encoded.encode()).hexdigest(),
+        'training_end': max(frame.index[-1] for frame in training.values()).isoformat(),
+        'validation_start': min(frame.index[0] for frame in fixtures.values()).isoformat(),
+        'validation_end': max(frame.index[-1] for frame in fixtures.values()).isoformat(),
+        'fixture_seeds': seeds,
+        'fixture_sha256': {symbol: _frame_digest(frame) for symbol, frame in fixtures.items()},
+        'candidates': evidence,
+        'portfolio': _replay_selected(frozen['qaoa'], ledgers, fixtures, contracts),
+        'classical_portfolio': _replay_selected(frozen['classical_exact'], ledgers, fixtures, contracts),
+    }
 
 
 def run_discovery_campaign(spec, progress=lambda stage: None):
@@ -130,16 +192,9 @@ def run_discovery_campaign(spec, progress=lambda stage: None):
     selection = solve_problem(compilation.problem, backend=spec['backend'], layers=spec['layers'],
                               evaluations=spec['evaluations'], seed=spec['seed'], device=spec.get('device'))
     progress('shared_margin_portfolio')
-    def replay(chosen):
-        ledgers = {symbol: [] for symbol in fixtures}
-        for ident in chosen:
-            symbol, rows = all_ledgers[ident]
-            ledgers[symbol].extend(rows)
-        return _compact_portfolio(replay_margin_portfolio(
-            ledgers, fixtures, contracts, max_positions=2, max_per_symbol=1,
-            daily_loss_limit=20., initial_cash=10000.))
-    quantum_portfolio = replay(selection['selected'])
-    classic_portfolio = replay(selection['classical_exact_selected'])
+    quantum_portfolio = _replay_selected(selection['selected'], all_ledgers, fixtures, contracts)
+    classic_portfolio = _replay_selected(selection['classical_exact_selected'], all_ledgers, fixtures, contracts)
+    validation = _validate_frozen_selection(spec, selection, summaries, fixtures, settings, contracts, progress)
     return {'schema': 'NRFX_SYNTHETIC_DISCOVERY_PORTFOLIO_V1',
             'provenance': 'SYNTHETIC_NOT_MARKET', 'market_data_accessed': False,
             'live_trading_enabled': False, 'candidates': summaries,
@@ -151,10 +206,12 @@ def run_discovery_campaign(spec, progress=lambda stage: None):
             'agent_components': guidance['agent_components'],
             'agent_feedback_sha256': guidance['canonical_feedback_sha256'],
             'portfolio': quantum_portfolio, 'classical_portfolio':classic_portfolio,
+            'frozen_selection_validation': validation,
             'stages':['discovery_fixture','two_generation_canonical_parity','discovery_feedback','agent_upstream_decisions',
-                      'compile_multiasset_selection','quantum_multiasset_selection','shared_margin_portfolio'],
+                      'compile_multiasset_selection','quantum_multiasset_selection','shared_margin_portfolio',
+                      'frozen_selection_validation'],
             'limitations':['All OHLC and instrument contracts are invented construction fixtures',
-                'Selection and generation share the same fixture, not independent validation',
+                'Selection and generation share a fixture; frozen replay uses different invented bars only',
                 'Shared margin and floating equity are observed at M1 boundaries; planned exits are retained',
                 'Candidate diagnostic drawdown totals are not portfolio drawdown',
                 'QUBO optimum need not maximize the capacity-constrained realized portfolio result']}

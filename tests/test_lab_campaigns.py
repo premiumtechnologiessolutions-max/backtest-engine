@@ -1,4 +1,6 @@
+import hashlib
 import importlib.util
+import json
 from pathlib import Path
 import tempfile
 import unittest
@@ -27,6 +29,24 @@ class DiscoveryIntegrationTests(unittest.TestCase):
             self.assertEqual(len(result['selection']['selected']),4)
             self.assertFalse(result['market_data_accessed'])
             self.assertGreater(len(lab.job(job['id'])['events']),16)
+            validation = result['frozen_selection_validation']
+            manifest = validation['selection_manifest']
+            self.assertEqual(manifest['qaoa'], result['selection']['selected'])
+            self.assertEqual(manifest['classical_exact'], result['selection']['classical_exact_selected'])
+            chosen = set(manifest['qaoa']) | set(manifest['classical_exact'])
+            self.assertEqual(manifest['candidates'], {
+                row['id']: {'symbol': row['symbol'], 'spec': row['spec']}
+                for row in result['candidates'] if row['id'] in chosen})
+            self.assertEqual({row['id'] for row in validation['candidates']}, chosen)
+            self.assertTrue(all(row['parity_passed'] for row in validation['candidates']))
+            encoded = json.dumps(manifest, sort_keys=True, separators=(',', ':')).encode()
+            self.assertEqual(validation['selection_manifest_sha256'], hashlib.sha256(encoded).hexdigest())
+            self.assertLess(pd.Timestamp(validation['training_end']), pd.Timestamp(validation['validation_start']))
+            self.assertTrue(set(validation['fixture_sha256'].values()).isdisjoint(result['fixture_sha256'].values()))
+            self.assertFalse(validation['market_oos_evidence'])
+            for key in ('portfolio', 'classical_portfolio'):
+                self.assertLessEqual(validation[key]['summary']['peak_positions'], 2)
+                self.assertNotEqual(validation[key]['full_replay_sha256'], result[key]['full_replay_sha256'])
     def test_intrabar_closure_known_only_at_candle_end(self):
         at=pd.Timestamp('2024-01-08T00:01:00Z')
         frame=pd.DataFrame([{'entry_at':at,'closed_at':at,'signal_at':at,

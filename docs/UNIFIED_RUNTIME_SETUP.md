@@ -19,7 +19,11 @@ The portfolio records observed M1 floating equity, per-instrument contract
 multipliers, initial and maintenance margin, sticky daily equity loss limits,
 and closures at fresh observed marks when maintenance margin is breached.
 The discovery path replays planned entries and exits under those gates. It uses
-invented prices and contract terms.
+invented prices and contract terms. After both selections are frozen, the lab
+checks reference/fast parity and replays both portfolios on separately seeded
+invented bars from a later, disjoint time window. The receipt binds the frozen
+candidate specifications, both selection lists and the validation fixture
+digests. This validates the separation in the software pipeline only.
 
 ## Quantum backends
 
