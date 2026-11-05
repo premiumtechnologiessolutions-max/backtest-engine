@@ -204,3 +204,35 @@ def test_wal_sidecar_directory_fails_closed(tmp_path):
     (tmp_path / "old.sqlite3-wal").mkdir()
     with pytest.raises(ValueError, match="WAL sidecar must be a regular file"):
         compare_audited_static_design_stores(old, new)
+
+
+def test_real_sqlite_wal_commit_during_snapshot_fails_closed(tmp_path, monkeypatch):
+    """Synthetic SQLite transaction, no research or trading engine involved."""
+    import sqlite3
+    import scripts.static_design_store_comparison as comparison
+
+    old = DurableResearchState(tmp_path / "old.sqlite3")
+    new = DurableResearchState(tmp_path / "new.sqlite3")
+    # Keep a connection open so SQLite retains the WAL sidecar across reads.
+    writer = sqlite3.connect(old.database)
+    try:
+        assert writer.execute("PRAGMA journal_mode=WAL").fetchone()[0].lower() == "wal"
+        writer.execute("PRAGMA user_version=1")
+        writer.commit()
+        original = comparison.snapshot_static_design_records
+        calls = 0
+
+        def commit_between_snapshots(state):
+            nonlocal calls
+            snapshot = original(state)
+            calls += 1
+            if calls == 1:
+                writer.execute("PRAGMA user_version=2")
+                writer.commit()
+            return snapshot
+
+        monkeypatch.setattr(comparison, "snapshot_static_design_records", commit_between_snapshots)
+        with pytest.raises(ValueError, match="WAL sidecar changed"):
+            comparison.compare_audited_static_design_stores(old, new)
+    finally:
+        writer.close()
