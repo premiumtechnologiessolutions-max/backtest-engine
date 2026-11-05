@@ -75,7 +75,7 @@ def _verify_table_contract(db) -> None:
         # The exact DDL is part of this application's private store contract.
         # Normalization tolerates case/whitespace, not missing constraints.
         import re
-        ddl = re.sub(r"\\s+", "", record["sql"]).upper()
+        ddl = re.sub(r"\s+", "", record["sql"]).upper()
         if table == "static_adapter_designs":
             if "CHECK(STATE='DESIGN_ONLY_DISABLED')" not in ddl:
                 raise ValueError("Static design disabled-only CHECK constraint missing")
