@@ -76,7 +76,7 @@ silently executed, migrated or marked complete.
 Local tests cover lease recovery/fencing, concurrent claims, HTTP security,
 complete real HTTP-to-existing-engines-to-QAOA flow, independent dense circuit
 and QUBO objective oracles, persistence and code drift. unified-lab.yml runs
-full repository CI plus a separate optional PennyLane test on the pushed head.
+full repository CI, a separate optional PennyLane test and Windows construction tests on the pushed head.
 A pending CI run is not a pass. First-install Windows execution and browser
 visual layout require observed verification on those environments.
 
