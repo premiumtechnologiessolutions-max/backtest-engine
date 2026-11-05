@@ -50,3 +50,20 @@ def test_non_dict_and_missing_fields_rejected():
     del broken["requests"]
     with pytest.raises(ValueError):
         compare_static_design_inventories(snapshot(), broken)
+
+
+@pytest.mark.parametrize("counter_changes", [
+    {"batches": 2, "requests": 2},
+    {"requests": 3},
+    {"batches": 2, "requests": 4},
+])
+def test_same_digest_cannot_disagree_on_counts(counter_changes):
+    with pytest.raises(ValueError, match="conflicting counters"):
+        compare_static_design_inventories(snapshot(), snapshot(**counter_changes))
+
+
+def test_changed_digest_with_same_counts_still_requires_review():
+    result = compare_static_design_inventories(snapshot(), snapshot(inventory_sha256="b" * 64))
+    assert result["status"] == "CHANGED_REVIEW_REQUIRED"
+    assert result["batch_delta"] == result["request_delta"] == 0
+    assert result["execution_authorized"] is False
