@@ -67,3 +67,30 @@ def test_changed_digest_with_same_counts_still_requires_review():
     assert result["status"] == "CHANGED_REVIEW_REQUIRED"
     assert result["batch_delta"] == result["request_delta"] == 0
     assert result["execution_authorized"] is False
+
+
+@pytest.mark.parametrize("previous,current,expected", [
+    (snapshot(batches=3, requests=7), snapshot(batches=2, requests=7, inventory_sha256="b" * 64), (-1, 0)),
+    (snapshot(batches=2, requests=7), snapshot(batches=2, requests=6, inventory_sha256="b" * 64), (0, -1)),
+    (snapshot(batches=3, requests=7), snapshot(batches=1, requests=2, inventory_sha256="b" * 64), (-2, -5)),
+])
+def test_inventory_shrinkage_requires_distinct_review(previous, current, expected):
+    result = compare_static_design_inventories(previous, current)
+    assert result["status"] == "REMOVAL_REVIEW_REQUIRED"
+    assert result["removal_detected"] is True
+    assert (result["batch_delta"], result["request_delta"]) == expected
+    assert result["execution_authorized"] is False
+    assert result["results_verified"] is False
+    assert result["jobs_created"] == 0
+
+
+def test_nonshrinking_change_is_not_removal():
+    result = compare_static_design_inventories(snapshot(), snapshot(inventory_sha256="b" * 64))
+    assert result["status"] == "CHANGED_REVIEW_REQUIRED"
+    assert result["removal_detected"] is False
+
+
+def test_identical_inventory_has_no_removal():
+    result = compare_static_design_inventories(snapshot(), snapshot())
+    assert result["status"] == "UNCHANGED"
+    assert result["removal_detected"] is False
