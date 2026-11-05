@@ -107,6 +107,11 @@ def _audit(db) -> dict:
     if existing != required:
         raise ValueError("Incomplete static design tables; refusing implicit repair")
     _verify_table_contract(db)
+    # Foreign-key enforcement on this connection cannot reveal orphan rows
+    # inserted earlier by a different connection with enforcement disabled.
+    # Audit persisted relationships before any new design is admitted.
+    if db.execute("PRAGMA foreign_key_check").fetchone() is not None:
+        raise ValueError("Static design database foreign key integrity failure")
     batches = db.execute(
         "SELECT * FROM static_adapter_designs ORDER BY batch_sha256"
     ).fetchall()
