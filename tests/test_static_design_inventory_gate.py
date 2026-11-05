@@ -94,3 +94,18 @@ def test_identical_inventory_has_no_removal():
     result = compare_static_design_inventories(snapshot(), snapshot())
     assert result["status"] == "UNCHANGED"
     assert result["removal_detected"] is False
+
+
+@pytest.mark.parametrize("old,new,review,continuity", [
+    (snapshot(), snapshot(), False, False),
+    (snapshot(), snapshot(inventory_sha256="b" * 64), True, True),
+    (snapshot(), snapshot(inventory_sha256="b" * 64, batches=2, requests=3), True, True),
+    (snapshot(batches=2, requests=3), snapshot(inventory_sha256="b" * 64), True, True),
+])
+def test_comparison_never_infers_append_only_continuity(old, new, review, continuity):
+    result = compare_static_design_inventories(old, new)
+    assert result["review_required"] is review
+    assert result["continuity_unverified"] is continuity
+    assert result["execution_authorized"] is False
+    assert result["results_verified"] is False
+    assert result["jobs_created"] == 0
