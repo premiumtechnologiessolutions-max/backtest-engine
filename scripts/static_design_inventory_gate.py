@@ -37,12 +37,15 @@ def compare_static_design_inventories(previous: object, current: object) -> dict
     changed = old["inventory_sha256"] != new["inventory_sha256"]
     if not changed and (old["batches"], old["requests"]) != (new["batches"], new["requests"]):
         raise ValueError("Matching inventory fingerprint with conflicting counters")
+    removal_detected = new["batches"] < old["batches"] or new["requests"] < old["requests"]
     return {
         "schema": "NRFX_STATIC_DESIGN_INVENTORY_COMPARISON_V1",
         "changed": changed,
+        "removal_detected": removal_detected,
         "batch_delta": new["batches"] - old["batches"],
         "request_delta": new["requests"] - old["requests"],
-        "status": "CHANGED_REVIEW_REQUIRED" if changed else "UNCHANGED",
+        "status": ("REMOVAL_REVIEW_REQUIRED" if removal_detected else
+                   "CHANGED_REVIEW_REQUIRED" if changed else "UNCHANGED"),
         "execution_authorized": False,
         "results_verified": False,
         "jobs_created": 0,
