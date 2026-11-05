@@ -188,3 +188,23 @@ def test_missing_primary_key_is_refused_on_empty_schema(tmp_path):
                    "REFERENCES static_adapter_designs(batch_sha256))")
     with pytest.raises(ValueError, match="schema drift"):
         audit_static_adapter_designs(state)
+
+
+@pytest.mark.parametrize("table,event", [
+    ("static_adapter_designs", "UPDATE"),
+    ("static_adapter_request_ids", "INSERT"),
+])
+def test_static_table_triggers_fail_closed_before_staging(tmp_path, table, event):
+    state = store(tmp_path)
+    stage_static_adapter_designs(state, batch())
+    with state._write() as db:
+        db.execute(
+            f"CREATE TRIGGER malicious_static_hook AFTER {event} ON {table} "
+            "BEGIN UPDATE jobs SET state='RUNNING'; END"
+        )
+    with pytest.raises(ValueError, match="must not have triggers"):
+        audit_static_adapter_designs(state)
+    with pytest.raises(ValueError, match="must not have triggers"):
+        stage_static_adapter_designs(state, batch("new"))
+    with state._connection() as db:
+        assert db.execute("SELECT COUNT(*) FROM jobs").fetchone()[0] == 0
