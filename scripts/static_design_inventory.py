@@ -54,3 +54,33 @@ def inspect_static_design_inventory(state: DurableResearchState) -> dict:
             "results_verified": False,
             "jobs_created": 0,
         }
+
+def snapshot_static_design_records(state: DurableResearchState) -> list[dict]:
+    """Read-only audited envelope fingerprints; not provenance or research proof."""
+    if not isinstance(state, DurableResearchState):
+        raise ValueError("Expected durable state store")
+    with state._connection() as db:
+        db.execute("BEGIN")
+        tables = {row["name"] for row in db.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' "
+            "AND name IN ('static_adapter_designs','static_adapter_request_ids')"
+        )}
+        if not tables:
+            return []
+        summary = _audit(db)
+        records = []
+        for batch in db.execute(
+            "SELECT batch_sha256,envelopes_json FROM static_adapter_designs "
+            "ORDER BY batch_sha256"
+        ):
+            for envelope in json.loads(batch["envelopes_json"]):
+                canonical = json.dumps(envelope, sort_keys=True, separators=(",", ":"),
+                                       ensure_ascii=True, allow_nan=False).encode("ascii")
+                records.append({
+                    "batch_id": batch["batch_sha256"],
+                    "request_id": envelope["request_id"],
+                    "payload_sha256": hashlib.sha256(canonical).hexdigest(),
+                })
+        if len(records) != summary["requests"]:
+            raise ValueError("Static design snapshot count mismatch")
+        return sorted(records, key=lambda row: (row["batch_id"], row["request_id"]))
