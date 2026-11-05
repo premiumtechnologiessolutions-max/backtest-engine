@@ -41,6 +41,53 @@ def _schema(db) -> None:
     )
 
 
+def _verify_table_contract(db) -> None:
+    """Refuse schema downgrades, even if all current rows look valid.
+
+    A damaged table recreated without PRIMARY KEY / CHECK / REFERENCES
+    can otherwise pass row-by-row audits until a later write. This check
+    performs only read-only SQLite introspection, never a repair.
+    """
+    expected = {
+        "static_adapter_designs": [
+            ("batch_sha256", "TEXT", 0, 1),
+            ("manifest_json", "TEXT", 1, 0),
+            ("envelopes_json", "TEXT", 1, 0),
+            ("state", "TEXT", 1, 0),
+        ],
+        "static_adapter_request_ids": [
+            ("request_id", "TEXT", 0, 1),
+            ("batch_sha256", "TEXT", 1, 0),
+        ],
+    }
+    for table, columns in expected.items():
+        info = db.execute(f"PRAGMA table_info({table})").fetchall()
+        actual = [(row["name"], row["type"].upper(),
+                   row["notnull"], row["pk"]) for row in info]
+        if actual != columns:
+            raise ValueError("Static design table schema drift")
+        record = db.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name=?",
+            (table,),
+        ).fetchone()
+        if record is None or type(record["sql"]) is not str:
+            raise ValueError("Missing static design table definition")
+        # The exact DDL is part of this application's private store contract.
+        # Normalization tolerates case/whitespace, not missing constraints.
+        import re
+        ddl = re.sub(r"\\s+", "", record["sql"]).upper()
+        if table == "static_adapter_designs":
+            if "CHECK(STATE='DESIGN_ONLY_DISABLED')" not in ddl:
+                raise ValueError("Static design disabled-only CHECK constraint missing")
+        elif ("REFERENCESSTATIC_ADAPTER_DESIGNS(BATCH_SHA256)" not in ddl):
+            raise ValueError("Static design request foreign key missing")
+    fk = db.execute("PRAGMA foreign_key_list(static_adapter_request_ids)").fetchall()
+    if len(fk) != 1 or (
+        fk[0]["table"], fk[0]["from"], fk[0]["to"]
+    ) != ("static_adapter_designs", "batch_sha256", "batch_sha256"):
+        raise ValueError("Static design request foreign key drift")
+
+
 def _audit(db) -> dict:
     """Verify existing storage without DDL or silently repairing damage."""
     required = {"static_adapter_designs", "static_adapter_request_ids"}
@@ -52,6 +99,7 @@ def _audit(db) -> dict:
     }
     if existing != required:
         raise ValueError("Incomplete static design tables; refusing implicit repair")
+    _verify_table_contract(db)
     batches = db.execute(
         "SELECT * FROM static_adapter_designs ORDER BY batch_sha256"
     ).fetchall()
