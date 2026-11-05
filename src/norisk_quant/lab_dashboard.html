@@ -13,6 +13,8 @@
 <section class="hero" aria-labelledby="hero-title"><div><h2 id="hero-title">دورة واحدة من البحث إلى المقارنة الكمية</h2><p class="muted">تجربة برمجية تربط محرك الأبحاث، مقارنة التنفيذ، اختيار المرشّحين بـQAOA وحفظ النتائج. الأرقام المعروضة ناتجة عن بيانات مصطنعة، ولا تمثّل أداء تداول.</p><div class="small">أبحاث الذهب والحسابات الحقيقية متوقفة.</div></div><div class="controls"><label for="campaign-mode">نوع الدورة المصطنعة</label><select id="campaign-mode"><option value="synthetic_campaign">مقارنة أربعة مرشّحين</option><option value="synthetic_discovery">اكتشاف وتطوير عبر أجيال</option></select><label for="quantum-backend">محاكي Quantum</label><select id="quantum-backend"><option value="numpy">NumPy · CPU</option><option value="pennylane">PennyLane · CPU اختياري</option><option value="opencl">OpenCL · GPU</option></select><div id="backend-note" class="small muted" role="status">جارٍ قراءة إمكانات المكتبات…</div><label for="seed">بذرة التجربة Seed</label><input id="seed" type="number" min="0" max="4294967295" step="1" value="0" inputmode="numeric" dir="ltr" aria-describedby="seed-help"><div class="small muted" id="seed-help">نفس البذرة تعيد التجربة نفسها. غيّرها صراحةً لتجربة مصطنعة أخرى.</div><button id="demo" class="primary" type="button">تشغيل الدورة المصطنعة</button><button id="nautilus" class="secondary" type="button">تجربة Nautilus</button>
 <button id="lean" class="secondary" type="button">تجربة LEAN</button>
 <button id="finrl" class="secondary" type="button">تجربة FinRL</button>
+<button id="finrl-train" class="secondary" type="button">تدريب FinRL المصطنع</button>
+<button id="agents" class="secondary" type="button">تجربة مكوّنات الوكلاء</button>
 <label for="proposal-file">ملف فرضيات خارجي</label><input type="file" id="proposal-file" accept="application/json,.json">
 <button id="proposals" class="secondary" type="button">اختبار الفرضيات المصطنع</button></div></section>
 <div id="message" role="status" aria-live="polite"></div>
@@ -42,7 +44,7 @@ function message(text,error=false){$('message').textContent=text;$('message').cl
 function identifier(job){return job.job_id||job.id||job.fingerprint||''}
 function statusName(job){return job.status||job.state||'UNKNOWN'}
 const translations={QUEUED:'بالانتظار',RUNNING:'قيد التنفيذ',SUCCEEDED:'مكتملة',FAILED:'فشلت',CANCELLED:'ملغاة',HELD:'معلّقة'};
-const kindNames={synthetic_campaign:'مقارنة مرشّحين',synthetic_discovery:'اكتشاف وتطوير',nautilus_synthetic:'Nautilus · تجربة مصطنعة',lean_synthetic:'LEAN · تجربة مصطنعة',finrl_synthetic:'FinRL · تجربة مصطنعة',historical_research:'بحث تاريخي محفوظ',synthetic_external_proposals:'فرضيات خارجية',quantum_optimization:'اختيار كمي'};
+const kindNames={synthetic_campaign:'مقارنة مرشّحين',synthetic_discovery:'اكتشاف وتطوير',nautilus_synthetic:'Nautilus · تجربة مصطنعة',lean_synthetic:'LEAN · تجربة مصطنعة',finrl_synthetic:'FinRL · تجربة مصطنعة',finrl_training_synthetic:'FinRL · تدريب PPO',synthetic_agent_components:'مكوّنات الوكلاء',historical_research:'بحث تاريخي محفوظ',synthetic_external_proposals:'فرضيات خارجية',quantum_optimization:'اختيار كمي'};
 function stageLabel(stage){const names={synthetic_data:'إنشاء البيانات المصطنعة',selection_compilation:'تجهيز مسألة الاختيار',quantum_selection:'تشغيل الاختيار الكمي',publish:'حفظ النتيجة',complete:'اكتملت الدورة',submitted:'إضافة المهمة',claimed:'بدء المحاولة',completed:'حفظ النتيجة',cancelled:'إلغاء المهمة',failed:'فشل التنفيذ',lease_expired:'انتهاء مهلة المحاولة',discovery:'تطوير الأجيال',failure_analysis:'تحليل الفشل',shared_portfolio:'محاكاة المحفظة المشتركة',nautilus_synthetic:'تشغيل Nautilus على بيانات مصطنعة'};if(stage.startsWith('canonical_'))return 'مقارنة المحركين · '+stage.slice(10);return names[stage]||stage}
 function number(value){return typeof value==='number'?value.toLocaleString('en-US',{maximumFractionDigits:4}):'—'}
 function shortValue(value){if(value===null||value===undefined)return '—';if(typeof value==='object')return JSON.stringify(value);return String(value)}
@@ -63,7 +65,7 @@ async function load(){
   $('phase').textContent=state.phase==='CONSTRUCTION_SYNTHETIC_ONLY'?'بناء وتجهيز':(state.phase||'غير متاح');
   $('count').textContent=jobs.length;$('market').textContent=state.market_research_enabled?'مفعّلة':'متوقفة';
   $('backend').textContent=capabilities.default_backend||capabilities.default||capabilities.backend||'CPU';
-  $('gpu').textContent='GPU: '+((capabilities.backends||{}).opencl?.available?'جهاز مكتشف':'لا يوجد جهاز متاح');
+  $('gpu').textContent='GPU: '+(capabilities.gpu?.execution_verified?'تم التحقق على هذا الجهاز':((capabilities.backends||{}).opencl?.available?'جهاز مكتشف':'لا يوجد جهاز متاح'));
   backendNote();capabilityView($('external-status'),state.external_engines);
   const list=$('jobs');list.replaceChildren();if(!jobs.length)list.append(element('div','لا توجد مهام بعد.','empty'));
   for(const job of jobs){const id=identifier(job),button=element('button',undefined,'job'+(id===selected?' active':''));button.type='button';const row=element('div',undefined,'row'),kind=job.kind||(job.spec||job.payload||{}).kind;row.append(element('span',kindNames[kind]||kind||'دورة بحث'),element('span',translations[statusName(job)]||statusName(job),'state'));button.append(row,element('div',id.slice(0,20),'mono small muted'));button.addEventListener('click',()=>show(id).catch(e=>message(e.message,true)));list.append(button)}
@@ -83,15 +85,21 @@ async function show(id){
     detail.append(element('div','بيانات مصطنعة — ليست نتائج سوق فعلية','notice'));
     if(Array.isArray(result.stages)&&!job.events?.length){const stages=element('div');for(const stage of result.stages)stages.append(element('div',typeof stage==='string'?stageLabel(stage):JSON.stringify(stage),'stage'));detail.append(stages)}
     if(Array.isArray(result.candidates)){const wrap=element('div',undefined,'tablewrap'),table=element('table'),head=element('tr');for(const title of ['المرشّح','الصفقات',result.discovery?'الصافي · وحدات مصطنعة':'الصافي المصطنع / oz',result.discovery?'السحب · وحدات مصطنعة':'السحب / oz','تطابق المحركين'])head.append(element('th',title));table.append(head);for(const candidate of result.candidates){const row=element('tr');for(const value of [candidate.id,number(candidate.trades),number(candidate.net_usd_per_oz),number(candidate.max_drawdown_usd_per_oz),candidate.parity_passed?'نعم':'لا'])row.append(element('td',value));table.append(row)}wrap.append(table);detail.append(wrap)}
-    const choice=result.selection;if(choice)detail.append(metricsSection('المقارنة الكمية',[['اختيار QAOA',(choice.selected||[]).join('، ')||'—'],['الحل التقليدي الدقيق',(choice.classical_exact_selected||[]).join('، ')||'—'],['المحاكي',shortValue(choice.backend)],['فرق دالة الهدف',number(choice.objective_gap)],['احتمال تحقيق القيد',number(choice.feasible_probability)]]));
+    const choice=result.selection||(result.schema==='NRFX_LOCAL_QAOA_V1'?result:null);if(choice)detail.append(metricsSection('المقارنة الكمية',[['اختيار QAOA',(choice.selected||[]).join('، ')||'—'],['الحل التقليدي الدقيق',(choice.classical_exact_selected||[]).join('، ')||'—'],['المحاكي',shortValue(choice.backend)],['جهاز OpenCL',shortValue(choice.opencl_device?.device_name)],['فرق دالة الهدف',number(choice.objective_gap)],['احتمال تحقيق القيد',number(choice.feasible_probability)]]));
     if(result.discovery){const discovery=result.discovery;detail.append(metricsSection('اكتشاف وتطوير المرشّحين',[['الأجيال',number(discovery.generations)],['مرشّحون تم تقييمهم',number(discovery.evaluated)]]),observations('تحليل الفشل المسجّل',discovery.failure_analysis),observations('مقترحات الجيل التالي',discovery.next_proposals))}
     if(result.portfolio){const portfolio=result.portfolio,summary=portfolio.summary||{};detail.append(metricsSection('المحفظة المشتركة · وحدات نقدية مصطنعة',[['صافي النتيجة',number(summary.net_pnl)],['أقصى سحب محقّق',number(summary.max_realized_drawdown)],['أقصى سحب على حقوق الملكية',number(summary.max_floating_drawdown)],['أقصى هامش مستخدم',number(summary.peak_used_margin)],['أدنى هامش متاح',number(summary.min_available_margin)],['رفض بسبب الهامش',number(summary.margin_rejections)],['إغلاقات بسبب هامش الصيانة',number(summary.maintenance_liquidation_count)],['صفقات مقبولة',number(summary.accepted_trades)],['صفقات مرفوضة',number(summary.rejected_trades)],['الأدوات',Object.keys(portfolio.per_symbol_net||{}).join('، ')||'—']]))}
     if(result.external_engines){const section=element('section'),container=element('div');section.append(element('h3','حالة المحركات في هذه النتيجة'));capabilityView(container,result.external_engines);section.append(container);detail.append(section)}
-    if(['nautilus_synthetic','lean_synthetic','finrl_synthetic'].includes(job.kind)){
+    if(['nautilus_synthetic','lean_synthetic','finrl_synthetic','finrl_training_synthetic'].includes(job.kind)){
       const section=element('section');
       section.append(element('h3',kindNames[job.kind]));
-      const fields=['engine','engine_version','vendor_commit','upstream_commit','runtime_executed','bars_per_side','bars','steps','orders_count','fills_count','closed_positions_count','fee_cost','provenance'];
+      const fields=['engine','engine_version','vendor_commit','upstream_commit','runtime_executed','bars_per_side','bars','steps','orders_count','fills_count','closed_positions_count','fee_cost','rl_training_executed','training_timesteps','evaluation_fixture_sha256','provenance'];
       for(const key of fields)if(result[key]!==undefined)section.append(element('div',key+': '+shortValue(result[key]),'stage mono'));
+      detail.append(section);
+    }
+    if(result.agent_components){
+      const section=element('section'),container=element('div');
+      section.append(element('h3','مكوّنات الوكلاء المستخدمة'),container);
+      capabilityView(container,result.agent_components);
       detail.append(section);
     }
     if(job.kind==='synthetic_external_proposals')detail.append(metricsSection('مصدر الفرضيات المصرّح عنه',[['المولّد',shortValue(result.generator)],['النسخة',shortValue(result.upstream_commit_asserted)]]));
@@ -99,7 +107,7 @@ async function show(id){
   const details=element('details'),summary=element('summary','عرض السجل الكامل');details.append(summary,element('pre',JSON.stringify(job,null,2),'mono'));detail.append(details);
 }
 function chosenSeed(){const text=$('seed').value.trim(),seed=Number(text);if(!text||!Number.isInteger(seed)||seed<0||seed>4294967295)throw Error('اختر بذرة صحيحة بين 0 و4294967295');return seed}
-const runControls=['demo','tick','seed','campaign-mode','quantum-backend','nautilus','lean','finrl','proposals','proposal-file'];
+const runControls=['demo','tick','seed','campaign-mode','quantum-backend','nautilus','lean','finrl','finrl-train','agents','proposals','proposal-file'];
 async function action(fn,success){
   if(busy)return;
   busy=true;
@@ -128,6 +136,12 @@ for(const vendor of ['nautilus','lean','finrl']){
     await submitAndRun({kind:vendor+'_synthetic',bars:240,seed:chosenSeed()});
   },'راجع سجل تشغيل المحرّك.');
 }
+$('finrl-train').onclick=()=>action(async()=>{
+  await submitAndRun({kind:'finrl_training_synthetic',bars:240,seed:chosenSeed()});
+},'راجع نتيجة التدريب والتقييم المصطنع.');
+$('agents').onclick=()=>action(async()=>{
+  await submitAndRun({kind:'synthetic_agent_components',bars:360,seed:chosenSeed()});
+},'راجع نتيجة مكوّنات الوكلاء.');
 $('proposals').onclick=()=>action(async()=>{
   const file=$('proposal-file').files[0];
   if(!file||file.size>60000)throw Error('اختر ملف JSON للفرضيات بحجم أقل من 60 KB.');

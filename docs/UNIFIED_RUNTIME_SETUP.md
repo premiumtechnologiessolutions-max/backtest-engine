@@ -38,11 +38,13 @@ device for verification.
 | --- | --- | --- |
 | NautilusTrader | Install `.[nautilus]` | `norisk-lab nautilus-demo` |
 | LEAN | Build and configure the [pinned local Docker image](UNIFIED_LEAN_RUNTIME_2026-11-05.md) | `norisk-lab lean-demo` |
-| FinRL | Set `NRFX_FINRL_SOURCE` to a checkout at `7e98df461cbc7772f16a545a2f13b521e5d0b8f4`. Install Torch 2.7.1 CPU, Stable-Baselines3 2.6.0, Gymnasium 1.1.1 and Matplotlib 3.10.3. | `norisk-lab finrl-demo` |
+| FinRL | Set `NRFX_FINRL_SOURCE` to a checkout at `7e98df461cbc7772f16a545a2f13b521e5d0b8f4`. Install Torch 2.7.1 CPU, Stable-Baselines3 2.6.0, Gymnasium 1.1.1 and Matplotlib 3.10.3. | `norisk-lab finrl-demo` or `norisk-lab finrl-train-demo` |
 
 LEAN and Nautilus record vendor-native simulated orders and fills on invented
-BID/ASK bars. FinRL rolls out a fixed policy in the pinned StockTradingEnv and
-reconciles native share changes, fees and equity. Native vendor results use
+BID/ASK bars. FinRL runs the pinned StockTradingEnv and reconciles native share changes,
+fees and equity. Its optional PPO job trains for 512 CPU steps on one invented
+fixture and freezes the policy before evaluation on a separately seeded
+invented fixture. Both policy hashes and both fixture hashes are retained. Native vendor results use
 each engine's own cost and fill model. The canonical reference/fast parity gate
 is a separate check within the discovery job.
 
@@ -62,6 +64,10 @@ and holds them apart from runnable jobs. The proposal file uses the
 `scripts/import_external_formula_proposals.py`. The lab accepts up to 16 typed
 formulas per batch. The RD-Agent and TradingAgents fields identify the declared
 source revision. The lab evaluates the formulas on an invented fixture with
-both canonical execution engines. Upstream agent execution, RL training,
-hardware verification on the target laptop and original-source/OOS studies
-have separate acceptance requirements.
+both canonical execution engines. The default discovery campaign also uses the
+pinned RD-Agent bandit to select a proposal family and the pinned
+TradingAgents rating parser to reconcile synthetic labels from canonical
+results. `norisk-lab agent-components-demo` runs the component path on its own.
+The vendored components carry their original licenses and verified source
+digests. Full provider-backed agent workflows, GPU verification on the target
+laptop, and original-source/OOS studies have separate acceptance requirements.

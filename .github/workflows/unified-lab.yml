@@ -26,8 +26,10 @@ jobs:
           python -c 'import json,os; from pathlib import Path; r=json.loads((Path(os.environ["RUNNER_TEMP"])/"synthetic.json").read_text()); assert r["state"]=="SUCCEEDED"; assert all(c["parity_passed"] for c in r["result"]["candidates"])'
           norisk-lab --database "$RUNNER_TEMP/discovery.db" discovery-demo > "$RUNNER_TEMP/discovery.json"
           python -c 'import json,os; from pathlib import Path; r=json.loads((Path(os.environ["RUNNER_TEMP"])/"discovery.json").read_text()); assert r["state"]=="SUCCEEDED"; assert r["result"]["discovery"]["evaluated"]==16'
+          norisk-lab --database "$RUNNER_TEMP/agents.db" agent-components-demo > "$RUNNER_TEMP/agents.json"
+          python -c 'import json,os; from pathlib import Path; r=json.loads((Path(os.environ["RUNNER_TEMP"])/"agents.json").read_text()); assert r["state"]=="SUCCEEDED"; assert all(c["runtime_executed"] for c in r["result"]["agent_components"].values())'
           python -m pip wheel --no-deps --no-build-isolation . -w "$RUNNER_TEMP/wheels"
-          python -c 'import os,zipfile; from pathlib import Path; p=next((Path(os.environ["RUNNER_TEMP"])/"wheels").glob("*.whl")); assert "norisk_quant/lab_dashboard.html" in zipfile.ZipFile(p).namelist()'
+          python -c 'import os,zipfile; from pathlib import Path; p=next((Path(os.environ["RUNNER_TEMP"])/"wheels").glob("*.whl")); assert {"norisk_quant/lab_dashboard.html", "norisk_quant/_agent_upstream/rd_agent_bandit.py", "norisk_quant/_agent_upstream/tradingagents_rating.py", "norisk_quant/_agent_upstream/RD_AGENT_LICENSE.txt", "norisk_quant/_agent_upstream/TRADINGAGENTS_LICENSE.txt"}.issubset(zipfile.ZipFile(p).namelist())'
   optional-pennylane:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -48,7 +50,7 @@ jobs:
           python-version: '3.12'
       - run: python -m pip install -c constraints-ci.txt -e ".[dev]" setuptools wheel
       - name: Local HTTP, persistence and construction integration on Windows
-        run: python -m pytest -q tests/test_lab_jobs.py tests/test_lab_coordinator.py tests/test_lab_server.py tests/test_unified_lab_e2e.py tests/test_quantum_optimizer.py tests/test_quantum_backends.py tests/test_quantum_selection.py tests/test_lab_discovery.py tests/test_lab_portfolio.py tests/test_lab_campaigns.py tests/test_lab_margin.py tests/test_lab_legacy.py tests/test_lab_proposals.py tests/test_quantum_opencl.py
+        run: python -m pytest -q tests/test_lab_jobs.py tests/test_lab_coordinator.py tests/test_lab_server.py tests/test_unified_lab_e2e.py tests/test_quantum_optimizer.py tests/test_quantum_backends.py tests/test_quantum_selection.py tests/test_lab_discovery.py tests/test_lab_portfolio.py tests/test_lab_campaigns.py tests/test_lab_margin.py tests/test_lab_legacy.py tests/test_lab_proposals.py tests/test_quantum_opencl.py tests/test_lab_agent_runtime.py tests/test_lab_finrl.py
   optional-nautilus:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -101,3 +103,5 @@ jobs:
         run: |
           norisk-lab --database "$RUNNER_TEMP/finrl.db" finrl-demo > "$RUNNER_TEMP/finrl.json"
           python -c 'import json,os; from pathlib import Path; r=json.loads((Path(os.environ["RUNNER_TEMP"])/"finrl.json").read_text()); assert r["state"]=="SUCCEEDED"; s=r["result"]; assert s["runtime_executed"] and s["fills_count"]>0 and not s["market_data_accessed"]'
+          norisk-lab --database "$RUNNER_TEMP/finrl-training.db" finrl-train-demo --seed 7 > "$RUNNER_TEMP/finrl-training.json"
+          python -c 'import json,os; from pathlib import Path; r=json.loads((Path(os.environ["RUNNER_TEMP"])/"finrl-training.json").read_text()); assert r["state"]=="SUCCEEDED"; s=r["result"]; assert s["rl_training_executed"] and s["training_timesteps"]==512 and s["training_fixture_sha256"]!=s["evaluation_fixture_sha256"] and s["evaluation_policy_frozen"]'

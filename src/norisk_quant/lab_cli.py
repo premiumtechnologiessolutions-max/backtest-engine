@@ -14,6 +14,8 @@ _DEMOS = {
     'nautilus-demo': 'nautilus_synthetic',
     'lean-demo': 'lean_synthetic',
     'finrl-demo': 'finrl_synthetic',
+    'finrl-train-demo': 'finrl_training_synthetic',
+    'agent-components-demo': 'synthetic_agent_components',
 }
 
 

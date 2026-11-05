@@ -20,6 +20,9 @@ class DiscoveryIntegrationTests(unittest.TestCase):
             self.assertEqual({c['generation'] for c in result['candidates']},{0,1})
             self.assertTrue(all(c['parity_passed'] for c in result['candidates']))
             self.assertTrue(any(c['spec']['parent_id'] for c in result['candidates'] if c['generation']==1))
+            family = result['agent_components']['rd-agent']['proposal_family']
+            self.assertEqual({c['family'] for c in result['candidates'] if c['generation']==1}, {family})
+            self.assertTrue(result['agent_components']['tradingagents']['runtime_executed'])
             self.assertLessEqual(result['portfolio']['summary']['peak_positions'],2)
             self.assertEqual(len(result['selection']['selected']),4)
             self.assertFalse(result['market_data_accessed'])

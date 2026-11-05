@@ -28,6 +28,7 @@ _VENDORS = {
     'nautilus_synthetic': 'nautilus',
     'lean_synthetic': 'lean',
     'finrl_synthetic': 'finrl',
+    'finrl_training_synthetic': 'finrl',
 }
 _BACKENDS = {'numpy', 'pennylane', 'opencl', 'opencl-cpu'}
 _OPENCL = {'opencl', 'opencl-cpu'}
@@ -36,10 +37,11 @@ _LEASE_SECONDS = 120
 
 def code_identity() -> str:
     digest = hashlib.sha256()
-    for path in sorted(p for p in Path(__file__).parent.iterdir() if p.suffix in {'.py', '.html'}):
-        digest.update(path.name.encode())
+    root = Path(__file__).parent
+    for path in sorted(p for p in root.rglob('*') if p.is_file() and p.suffix in {'.py', '.html'}):
+        digest.update(path.relative_to(root).as_posix().encode())
         digest.update(b'\0')
-        digest.update(path.read_bytes())
+        digest.update(hashlib.sha256(path.read_bytes()).digest())
     return digest.hexdigest()
 
 
@@ -90,14 +92,20 @@ def validate_spec(spec):
         raise ValueError('Job specification must be an object')
     kind = spec.get('kind')
     supported = {'synthetic_campaign', 'synthetic_discovery', 'quantum_optimization',
-                 'synthetic_external_proposals', *_VENDORS}
+                 'synthetic_external_proposals', 'synthetic_agent_components', *_VENDORS}
     if type(kind) is not str or kind not in supported:
         raise ValueError('Only construction synthetic jobs and supplied binary problems are enabled')
     if kind in _VENDORS:
         if set(spec) - {'kind', 'bars', 'seed'}:
             raise ValueError('External synthetic jobs accept only bars and seed')
-        return {'kind':kind, 'bars':_bounded(spec.get('bars',240),'bars',60,1000),
+        max_bars = 480 if kind == 'finrl_training_synthetic' else 1000
+        return {'kind':kind, 'bars':_bounded(spec.get('bars',240),'bars',60,max_bars),
                 'seed':_bounded(spec.get('seed',0),'seed',0,2**32-1)}
+    if kind == 'synthetic_agent_components':
+        if set(spec) - {'kind', 'bars', 'seed'}:
+            raise ValueError('Native component jobs accept only bars and seed')
+        return {'kind': kind, 'bars': _bounded(spec.get('bars', 360), 'bars', 240, 1440),
+                'seed': _bounded(spec.get('seed', 0), 'seed', 0, 2**32-1)}
     if kind == 'synthetic_external_proposals':
         from .lab_proposals import normalize_proposal_envelope
         if set(spec) - {'kind', 'bars', 'seed', 'envelope'}:
@@ -218,7 +226,8 @@ class LabCoordinator:
         counts = Counter(j['state'] for j in jobs)
         current_code = code_identity()
         vendors = {}
-        for kind, vendor in _VENDORS.items():
+        for vendor in dict.fromkeys(_VENDORS.values()):
+            kind = f'{vendor}_synthetic'
             if vendor == 'nautilus':
                 from .lab_nautilus import PINNED_NAUTILUS_VERSION
                 available = {'installed': util.find_spec('nautilus_trader') is not None,
@@ -227,13 +236,36 @@ class LabCoordinator:
                 module = import_module(f'.lab_{vendor}', __package__)
                 available = getattr(module, f'{vendor}_status')()
             identity = _job_runtime({'kind': kind})
-            verified = any(j['kind'] == kind and j['state'] == 'SUCCEEDED'
-                           and (j['result'] or {}).get('runtime_executed') is True
-                           and (j['result'] or {}).get('code_sha256') == current_code
-                           and j['payload'].get('runtime') == identity for j in jobs)
-            vendors[vendor] = {**available, 'execution_verified': verified, 'mode': 'synthetic_only'}
+            receipts = [j['result'] for j in jobs if _VENDORS.get(j['kind']) == vendor
+                        and j['state'] == 'SUCCEEDED'
+                        and (j['result'] or {}).get('runtime_executed') is True
+                        and (j['result'] or {}).get('code_sha256') == current_code
+                        and j['payload'].get('runtime') == identity]
+            vendors[vendor] = {**available, 'execution_verified': bool(receipts), 'mode': 'synthetic_only'}
+            if vendor == 'finrl':
+                vendors[vendor]['training_verified'] = any(r.get('rl_training_executed') is True for r in receipts)
+        from .lab_agent_runtime import agent_component_capabilities
+        quantum = backend_capabilities()
+        devices = quantum['backends']['opencl']['devices']
+        runtime = runtime_identity()
+        observed = [j for j in jobs if j['state'] == 'SUCCEEDED'
+                    and (j['result'] or {}).get('code_sha256') == current_code]
+        for provider, info in agent_component_capabilities().items():
+            verified = any(j['result'].get('agent_components', {}).get(provider, {}).get('runtime_executed')
+                           for j in observed)
+            vendors[provider] = {**info, 'execution_verified': bool(verified)}
+        for job in observed:
+            if job['payload'].get('backend') != 'opencl':
+                continue
+            selection = job['result'].get('selection', job['result'])
+            bound_runtime = job['payload'].get('runtime', {})
+            if (selection.get('gpu_used') is True and selection.get('opencl_device') in devices
+                    and selection.get('opencl_numpy_parity')
+                    and all(bound_runtime.get(key) == value for key, value in runtime.items())):
+                quantum['gpu'].update(compatibility='VERIFIED', execution_verified=True)
+                break
         return {'phase': 'CONSTRUCTION_SYNTHETIC_ONLY', 'market_research_enabled': False,
-                'quantum': backend_capabilities(), 'jobs': dict(counts),
+                'quantum': quantum, 'jobs': dict(counts),
                 'code_sha256': current_code, 'engine_complete': False,
                 'integration': 'discovery_canonical_multiasset_portfolio_quantum_local_ui',
                 'external_engines': vendors}
@@ -309,7 +341,8 @@ class LabCoordinator:
             except Exception as exc:
                 safe_error = (f'{type(exc).__name__}: check the optional runtime and configuration'
                               if type(exc).__name__ in {'NautilusUnavailable', 'BackendUnavailable',
-                                                       'LeanUnavailable', 'FinRLUnavailable'}
+                                                       'LeanUnavailable', 'FinRLUnavailable',
+                                                       'AgentComponentUnavailable'}
                               else f'{type(exc).__name__}: local execution failed; no result accepted')
                 # Keep paths, tokens and arbitrary external messages out of UI.
                 try:
@@ -329,11 +362,14 @@ class LabCoordinator:
         if kind == 'synthetic_external_proposals':
             from .lab_proposals import run_proposal_campaign
             return run_proposal_campaign(payload, progress)
+        if kind == 'synthetic_agent_components':
+            from .lab_agent_runtime import run_agent_runtime
+            return run_agent_runtime(payload, progress)
         if kind in _VENDORS:
             vendor = _VENDORS[kind]
             progress(kind)
             module = import_module(f'.lab_{vendor}', __package__)
-            return getattr(module, f'run_{vendor}_synthetic')(bars=payload['bars'], seed=payload['seed'])
+            return getattr(module, f'run_{kind}')(bars=payload['bars'], seed=payload['seed'])
         if kind == 'quantum_optimization':
             progress('quantum_selection')
             return solve_problem(BinaryProblem.from_dict(payload['problem']),

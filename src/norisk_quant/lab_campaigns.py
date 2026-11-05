@@ -14,6 +14,7 @@ import pandas as pd
 
 from .execution import run
 from .fast_engine import run_fast
+from .lab_agent_runtime import decide_agent_components
 from .lab_discovery import generate_specs, diagnose_candidates, signals_for_spec
 from .lab_margin import replay_margin_portfolio
 from .model import Settings
@@ -71,6 +72,8 @@ def run_discovery_campaign(spec, progress=lambda stage: None):
     sources = {symbol: _frame_digest(frame) for symbol, frame in fixtures.items()}
     summaries, increments, inputs, all_ledgers, feedbacks = [], [], [], {}, []
     proposals = generate_specs(seed=spec['seed'], generation=0, count=4)
+    guidance = None
+    guided_proposals = None
     for generation in range(2):
         records = []
         for candidate_no, candidate in enumerate(proposals):
@@ -111,6 +114,15 @@ def run_discovery_campaign(spec, progress=lambda stage: None):
         feedback = diagnose_candidates(records, seed=(spec['seed'] + generation) % 2**32, count=4)
         feedbacks.append(feedback)
         proposals = feedback['proposals']
+        if generation == 0:
+            progress('agent_upstream_decisions')
+            guidance = decide_agent_components(records, seed=spec['seed'])
+            family = guidance['agent_components']['rd-agent']['proposal_family']
+            by_id = {row['spec']['id']: row['spec'] for row in records}
+            parents = [by_id[row['id']] for row in feedback['rankings']
+                       if by_id[row['id']]['family'] == family]
+            proposals = generate_specs(seed=spec['seed'], generation=1, parents=parents, count=4)
+            guided_proposals = proposals
     progress('compile_multiasset_selection')
     compilation = compile_selection(inputs, np.cov(np.asarray(increments), ddof=1).tolist(),
                                     spec['select_count'], provenance='synthetic', source_ids=tuple(sources.values()))
@@ -134,9 +146,12 @@ def run_discovery_campaign(spec, progress=lambda stage: None):
             'fixture_sha256': sources, 'instrument_settings': {k:asdict(v) for k,v in settings.items()},
             'selection': selection, 'compilation': compilation.manifest,
             'discovery': {'generations':2, 'evaluated':len(summaries),
-                'distinct_specs':8, 'failure_analysis':feedbacks, 'next_proposals':proposals},
+                'distinct_specs':8, 'failure_analysis':feedbacks,
+                'generation_one_proposals':guided_proposals, 'next_proposals':proposals},
+            'agent_components': guidance['agent_components'],
+            'agent_feedback_sha256': guidance['canonical_feedback_sha256'],
             'portfolio': quantum_portfolio, 'classical_portfolio':classic_portfolio,
-            'stages':['discovery_fixture','two_generation_canonical_parity','discovery_feedback',
+            'stages':['discovery_fixture','two_generation_canonical_parity','discovery_feedback','agent_upstream_decisions',
                       'compile_multiasset_selection','quantum_multiasset_selection','shared_margin_portfolio'],
             'limitations':['All OHLC and instrument contracts are invented construction fixtures',
                 'Selection and generation share the same fixture, not independent validation',

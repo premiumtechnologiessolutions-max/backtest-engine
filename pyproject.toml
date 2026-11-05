@@ -28,3 +28,4 @@ testpaths = ["tests"]
 
 [tool.setuptools.package-data]
 norisk_quant = ["lab_dashboard.html"]
+"norisk_quant._agent_upstream" = ["*LICENSE.txt"]
