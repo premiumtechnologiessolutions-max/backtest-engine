@@ -208,3 +208,41 @@ def test_static_table_triggers_fail_closed_before_staging(tmp_path, table, event
         stage_static_adapter_designs(state, batch("new"))
     with state._connection() as db:
         assert db.execute("SELECT COUNT(*) FROM jobs").fetchone()[0] == 0
+
+
+def test_orphaned_static_request_foreign_key_fails_closed(tmp_path):
+    """A prior foreign_keys=OFF writer must not bypass the design audit."""
+    state = store(tmp_path)
+    stage_static_adapter_designs(state, batch())
+    # Separate connection deliberately simulates damaged persisted metadata.
+    with sqlite3.connect(state.database) as db:
+        db.execute("PRAGMA foreign_keys=OFF")
+        db.execute(
+            "UPDATE static_adapter_request_ids SET batch_sha256=? "
+            "WHERE request_id=?", ("0" * 64, "synthetic_1")
+        )
+        db.commit()
+    with pytest.raises(ValueError, match="foreign key integrity"):
+        audit_static_adapter_designs(state)
+    with pytest.raises(ValueError, match="foreign key integrity"):
+        stage_static_adapter_designs(state, batch("later"))
+    with state._connection() as db:
+        assert db.execute("SELECT COUNT(*) FROM jobs").fetchone()[0] == 0
+
+
+def test_unrelated_orphaned_job_attempt_is_not_silently_ignored(tmp_path):
+    """The shared SQLite store is rejected if another control table is corrupt."""
+    state = store(tmp_path)
+    stage_static_adapter_designs(state, batch())
+    with sqlite3.connect(state.database) as db:
+        db.execute("PRAGMA foreign_keys=OFF")
+        db.execute(
+            "INSERT INTO attempts (attempt_id,request_id,attempt_no,"
+            "fencing_token,worker,claimed_ms) VALUES (?,?,?,?,?,?)",
+            ("synthetic_attempt", "missing_job", 1, 1, "synthetic", 1),
+        )
+        db.commit()
+    with pytest.raises(ValueError, match="foreign key integrity"):
+        audit_static_adapter_designs(state)
+    with pytest.raises(ValueError, match="foreign key integrity"):
+        stage_static_adapter_designs(state, batch("later"))
