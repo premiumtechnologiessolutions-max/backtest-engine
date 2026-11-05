@@ -70,3 +70,24 @@ def test_corrupted_previous_store_fails_closed(tmp_path):
 def test_invalid_store_types_rejected(old, new):
     with pytest.raises(ValueError):
         compare_audited_static_design_stores(old, new)
+
+
+@pytest.mark.parametrize("alias", ["same_object", "same_path", "hardlink"])
+def test_same_physical_store_cannot_claim_independent_continuity(tmp_path, alias):
+    import os
+
+    old = DurableResearchState(tmp_path / "baseline.sqlite3")
+    stage_static_adapter_designs(old, _batch("synthetic_baseline"))
+    if alias == "same_object":
+        current = old
+    elif alias == "same_path":
+        current = DurableResearchState(old.database)
+    else:
+        linked = tmp_path / "alias.sqlite3"
+        os.link(old.database, linked)
+        # Constructing a second state would alter the linked SQLite file;
+        # compare the existing store with an alias object instead.
+        current = object.__new__(DurableResearchState)
+        current.database = linked
+    with pytest.raises(ValueError, match="distinct SQLite stores"):
+        compare_audited_static_design_stores(old, current)
