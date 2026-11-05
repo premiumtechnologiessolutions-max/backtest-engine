@@ -180,13 +180,16 @@ class LabRequestHandler(BaseHTTPRequestHandler):
             if path == "/api/jobs":
                 self._json(HTTPStatus.CREATED, self.server.coordinator.submit(body))
             elif path == "/api/worker/tick":
-                if body:
-                    raise ValueError("Worker tick accepts no options")
+                if body and (set(body) != {'job_id'} or type(body['job_id']) is not str
+                             or re.fullmatch(r'[0-9a-f]{64}', body['job_id']) is None):
+                    raise ValueError("Worker tick accepts only an optional job ID")
                 if not self.server.worker_lock.acquire(blocking=False):
                     self._error(HTTPStatus.CONFLICT, "worker_busy")
                     return
                 try:
-                    self._json(HTTPStatus.OK, self.server.coordinator.run_one())
+                    coordinator = self.server.coordinator
+                    result = coordinator.run_one(job_id=body['job_id']) if body else coordinator.run_one()
+                    self._json(HTTPStatus.OK, result)
                 finally:
                     self.server.worker_lock.release()
             elif path.startswith("/api/jobs/") and path.endswith("/cancel"):

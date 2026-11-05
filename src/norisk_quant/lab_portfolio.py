@@ -39,31 +39,20 @@ def _timestamp(value):
         raise ValueError('Invalid UTC trade timestamp') from exc
 
 
-def replay_shared_portfolio(ledgers, *, max_positions=2, max_per_symbol=1,
-                            daily_loss_limit=1000.0, initial_cash=10000.0):
-    """Replay entry admission and grouped closures without future-P/L ranking.
-
-    All exits at a timestamp settle as a batch before entries at that instant.
-    Same-time entries use symbol/strategy/source-row priority, never future P/L.
-    Daily loss halts are sticky until the next UTC date; already admitted trades
-    continue to their supplied closures. Supplied closed_at must be the actual closure-availability instant,
-    not an M1 candle label for an intrabar fill. Cost is an explicitly supplied
-    total recognized at closure. No margin, exposure sizing or floating loss is modeled.
-    """
-    if type(ledgers) is not dict or not 1 <= len(ledgers) <= 64:
-        raise ValueError('Require 1..64 supplied synthetic instrument ledgers')
+def _validate_position_limits(max_positions, max_per_symbol):
     if (type(max_positions) is not int or not 1 <= max_positions <= 64
             or type(max_per_symbol) is not int or not 1 <= max_per_symbol <= 64):
         raise ValueError('Invalid shared position limits')
-    initial_cash = _amount(initial_cash, 'initial cash', positive=True)
-    loss_limit = _amount(daily_loss_limit, 'daily loss limit', positive=True)
+
+
+def _normalize_ledgers(ledgers):
+    if type(ledgers) is not dict or not 1 <= len(ledgers) <= 64:
+        raise ValueError('Require 1..64 supplied synthetic instrument ledgers')
     if any(type(symbol) is not str or _SYMBOL.fullmatch(symbol) is None
            or type(rows) is not list for symbol, rows in ledgers.items()):
         raise ValueError('Only synthetic SIM_* symbols and trade lists are accepted')
     trades = []
     for symbol, rows in sorted(ledgers.items()):
-        if type(symbol) is not str or _SYMBOL.fullmatch(symbol) is None or type(rows) is not list:
-            raise ValueError('Only synthetic SIM_* symbols and trade lists are accepted')
         if len(trades) + len(rows) > 20000:
             raise ValueError('Portfolio replay supports at most 20000 supplied trades')
         for index, row in enumerate(rows):
@@ -90,6 +79,24 @@ def replay_shared_portfolio(ledgers, *, max_positions=2, max_per_symbol=1,
                 raise ValueError('Supplied gross/net/cost accounting is inconsistent')
             trades.append((entry.value, symbol, row['strategy'], index, closed.value, normalized))
     trades.sort(key=lambda item: item[:4])
+    return trades
+
+
+def replay_shared_portfolio(ledgers, *, max_positions=2, max_per_symbol=1,
+                            daily_loss_limit=1000.0, initial_cash=10000.0):
+    """Replay entry admission and grouped closures without future-P/L ranking.
+
+    All exits at a timestamp settle as a batch before entries at that instant.
+    Same-time entries use symbol/strategy/source-row priority, never future P/L.
+    Daily loss halts are sticky until the next UTC date. Already admitted trades
+    continue to their supplied closures. The closed_at field records when the
+    exit became observable. Cost is an explicitly supplied total recognized at
+    closure. This mode tracks realized cash.
+    """
+    _validate_position_limits(max_positions, max_per_symbol)
+    initial_cash = _amount(initial_cash, 'initial cash', positive=True)
+    loss_limit = _amount(daily_loss_limit, 'daily loss limit', positive=True)
+    trades = _normalize_ledgers(ledgers)
     pending, accepted, rejected, marks = [], [], [], []
     active = defaultdict(int)
     per_symbol = {symbol: 0.0 for symbol in sorted(ledgers)}

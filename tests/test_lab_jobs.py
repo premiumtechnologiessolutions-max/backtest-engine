@@ -68,6 +68,18 @@ class JobTests(unittest.TestCase):
         self.assertEqual(self.store.cancel(second["id"])["state"], "CANCELLED")
         self.assertIsNone(self.store.claim("worker"))
 
+    def test_specific_claim_leaves_other_queued_jobs_untouched(self):
+        older = self.store.submit("synthetic_campaign", {"seed": 1})
+        self.now += 1
+        target = self.store.submit("synthetic_campaign", {"seed": 2})
+        self.assertIsNone(self.store.claim("worker", job_id="f"*64))
+        with self.assertRaises(ValueError):
+            self.store.claim("worker", job_id="not-a-job-id")
+        self.assertEqual(self.store.claim("worker", job_id=target["id"])["id"], target["id"])
+        self.assertEqual(self.store.get(older["id"])["state"], "QUEUED")
+        self.assertIsNone(self.store.claim("worker", job_id=target["id"]))
+        self.assertEqual(self.store.claim("worker")["id"], older["id"])
+
     def test_heartbeat_extends_and_requires_owner(self):
         job = self.store.submit("quantum", {})
         claim = self.store.claim("worker", 5)

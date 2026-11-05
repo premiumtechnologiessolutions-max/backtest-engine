@@ -1,31 +1,16 @@
-## Connected discovery and vendor-runtime increment
+# Unified local Quantum Lab
 
-The local UI now also offers a two-generation synthetic discovery campaign:
-8 distinct EMA/arithmetic specs evaluated across two invented instruments,
-full canonical reference/fast parity, feedback-driven child proposals,
-16-variable Quantum selection and causal shared-capacity portfolio replay.
-Use `norisk-lab discovery-demo` or select the discovery mode in the UI.
-An optional **actual NautilusTrader runtime** uses invented BID/ASK bars and
-native orders/fills: install `pip install -e ".[nautilus]"`, then use
-`norisk-lab nautilus-demo` or the explicit UI action. No original data are used.
-See [increment details](docs/UNIFIED_DISCOVERY_VENDOR_2026-11-05.md).
+Run `START_UNIFIED_LAB.bat` on Windows, or install with
+`python -m pip install -e .` and run `norisk-lab serve`.
+Open http://127.0.0.1:8766 for the Arabic dashboard.
 
-# Unified local Quantum Lab — construction build (2026-11-05)
+The lab connects durable jobs, reference/fast parity, feedback-driven strategy
+discovery, QAOA selection, an exact classical baseline and shared M1 equity
+and margin replay. The construction routes use invented fixtures. Historical
+queue records can be imported into the same inventory in the held state.
 
-Start the connected local lab with `START_UNIFIED_LAB.bat` on Windows or install
-this checkout (`python -m pip install -e .`) and run `norisk-lab serve`.
-Open http://127.0.0.1:8766. See [the unified lab runbook](docs/UNIFIED_LAB_2026-11-05.md).
-
-This build connects durable SQLite jobs, four existing canonical strategy
-variants, reference/fast parity, covariance-to-QUBO compilation, actual CPU
-QAOA simulation, a separate exact classical baseline, and an Arabic control UI.
-Only invented synthetic OHLC and explicitly supplied bounded binary problems
-are enabled in this control path. **Gold research remains disabled.**
-
-PennyLane is an optional real circuit adapter (`pip install -e ".[quantum]"`),
-with CPU-only device allowlisting. GPU execution, vendor engine runtimes,
-market research and complete-platform readiness are not claimed.
-Historical status and evidence below retain their original scope and dates.
+See [the local workflow and optional runtime setup](docs/UNIFIED_RUNTIME_SETUP.md).
+Historical engine evidence below retains its original scope and dates.
 
 # No Risk FX Quant Engine
 

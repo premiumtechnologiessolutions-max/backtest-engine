@@ -18,7 +18,8 @@ from typing import Callable
 
 _KIND = re.compile(r"[a-z][a-z0-9_]{0,63}\Z")
 _MAX_JSON = 1_000_000
-_STATES = frozenset({"QUEUED", "RUNNING", "SUCCEEDED", "FAILED", "CANCELLED"})
+_JOB_ID = re.compile(r"[0-9a-f]{64}\Z")
+_HISTORICAL_KIND = "historical_research"
 
 
 class JobStateError(ValueError):
@@ -89,6 +90,21 @@ class JobStore:
                 state TEXT NOT NULL, token INTEGER NOT NULL, observed_at REAL NOT NULL,
                 reason TEXT NOT NULL
             )""")
+            # Historical requests stay in a separate table so older lab versions
+            # cannot accidentally lease them and existing stores need no rewrite.
+            db.execute("""CREATE TABLE IF NOT EXISTS lab_held_jobs (
+                id TEXT PRIMARY KEY, payload_json TEXT NOT NULL, legacy_json TEXT NOT NULL,
+                created_at REAL NOT NULL, updated_at REAL NOT NULL
+            )""")
+            db.execute("""CREATE VIEW IF NOT EXISTS lab_job_inventory AS
+                SELECT id,kind,payload_json,state,token,attempt,worker,lease_until,
+                       result_json,error,created_at,updated_at,NULL AS legacy_json
+                FROM lab_jobs
+                UNION ALL
+                SELECT id,'historical_research',payload_json,'HELD',0,0,NULL,NULL,
+                       NULL,NULL,created_at,updated_at,legacy_json
+                FROM lab_held_jobs
+            """)
 
     @contextmanager
     def _connection(self):
@@ -125,7 +141,7 @@ class JobStore:
 
     @staticmethod
     def _row(db, job_id):
-        row = db.execute("SELECT * FROM lab_jobs WHERE id=?", (job_id,)).fetchone()
+        row = db.execute("SELECT * FROM lab_job_inventory WHERE id=?", (job_id,)).fetchone()
         if row is None:
             raise KeyError("Unknown job")
         return row
@@ -138,12 +154,17 @@ class JobStore:
         value["payload"] = json.loads(value.pop("payload_json"))
         raw_result = value.pop("result_json")
         value["result"] = json.loads(raw_result) if raw_result is not None else None
+        raw_legacy = value.pop("legacy_json", None)
+        if raw_legacy is not None:
+            value["legacy"] = json.loads(raw_legacy)
         return value
 
     def submit(self, kind: str, payload: dict) -> dict:
         """Deduplicate the exact immutable kind/payload, including terminal jobs."""
         if type(kind) is not str or not _KIND.fullmatch(kind):
             raise ValueError("Invalid job kind")
+        if kind == _HISTORICAL_KIND:
+            raise ValueError("Historical research requests can only enter as held metadata")
         encoded = _json(payload)
         ident = hashlib.sha256((kind + "\n" + encoded).encode("utf-8")).hexdigest()
         now = self._now()
@@ -156,6 +177,59 @@ class JobStore:
                 self._event(db, ident, "QUEUED", 0, now, "submitted")
             return self._public(self._row(db, ident))
 
+    def _stage_legacy(self, records, source_format: str) -> dict:
+        """Persist adapter-validated historical requests as one atomic held batch."""
+        now = self._now()
+        stats = {"newly_held": 0, "metadata_updated": 0, "unchanged": 0, "job_ids": []}
+        with self._transaction() as db:
+            for request, snapshot in records:
+                fingerprint = request["fingerprint"]
+                ident = hashlib.sha256(f"{_HISTORICAL_KIND}\n{fingerprint}".encode()).hexdigest()
+                payload = _json({"frozen_request": request})
+                current = db.execute(
+                    "SELECT payload_json,legacy_json FROM lab_held_jobs WHERE id=?", (ident,)
+                ).fetchone()
+                if current is None:
+                    if db.execute("SELECT 1 FROM lab_jobs WHERE id=?", (ident,)).fetchone():
+                        raise JobStateError("Historical job identity collides with a runnable job")
+                    legacy = {"fingerprint": fingerprint, "source_formats": [source_format],
+                              "source_state": request["status"], "source_version": None}
+                    if snapshot is not None:
+                        legacy.update(snapshot)
+                    db.execute("""INSERT INTO lab_held_jobs
+                        (id,payload_json,legacy_json,created_at,updated_at) VALUES (?,?,?,?,?)""",
+                               (ident, payload, _json(legacy), now, now))
+                    self._event(db, ident, "HELD", 0, now, "legacy_imported")
+                    stats["newly_held"] += 1
+                else:
+                    if current["payload_json"] != payload:
+                        raise JobStateError("Immutable historical request changed")
+                    legacy = json.loads(current["legacy_json"])
+                    legacy["source_formats"] = sorted(set(legacy["source_formats"]) | {source_format})
+                    old_version = legacy["source_version"]
+                    if snapshot is not None:
+                        new_version = snapshot["source_version"]
+                        if new_version == old_version and any(legacy[k] != v for k, v in snapshot.items()):
+                            raise JobStateError("Conflicting historical snapshots at the same version")
+                        if old_version is None or new_version > old_version:
+                            if old_version is not None and (
+                                legacy["source_created_ms"] != snapshot["source_created_ms"]
+                                or legacy["source_attempt"] > snapshot["source_attempt"]
+                                or legacy["source_state"] in {"CANCELLED", "QUARANTINED"}
+                            ):
+                                raise JobStateError("Conflicting historical snapshot progression")
+                            legacy.update(snapshot)
+                    encoded = _json(legacy)
+                    if encoded != current["legacy_json"]:
+                        db.execute("UPDATE lab_held_jobs SET legacy_json=?,updated_at=? WHERE id=?",
+                                   (encoded, now, ident))
+                        self._event(db, ident, "HELD", 0, now, "legacy_metadata_refreshed")
+                        stats["metadata_updated"] += 1
+                    else:
+                        stats["unchanged"] += 1
+                stats["job_ids"].append(ident)
+        return stats
+
     def get(self, job_id: str) -> dict:
         with self._connection() as db:
             return self._public(self._row(db, job_id))
@@ -164,7 +238,7 @@ class JobStore:
         if type(limit) is not int or not 1 <= limit <= 1000:
             raise ValueError("List limit must be 1..1000")
         with self._connection() as db:
-            rows = db.execute("SELECT * FROM lab_jobs ORDER BY created_at DESC,id LIMIT ?", (limit,))
+            rows = db.execute("SELECT * FROM lab_job_inventory ORDER BY created_at DESC,id LIMIT ?", (limit,))
             return [self._public(row) for row in rows]
 
     def _recover(self, db, now):
@@ -179,12 +253,17 @@ class JobStore:
         with self._transaction() as db:
             return self._recover(db, self._now())
 
-    def claim(self, worker: str, lease_seconds: float = 60) -> dict | None:
+    def claim(self, worker: str, lease_seconds: float = 60, *, job_id: str | None = None) -> dict | None:
         worker, lease_seconds = _worker(worker), _lease(lease_seconds)
+        if job_id is not None and (type(job_id) is not str or not _JOB_ID.fullmatch(job_id)):
+            raise ValueError("Invalid job ID")
         now = self._now()
         with self._transaction() as db:
             self._recover(db, now)
-            row = db.execute("SELECT * FROM lab_jobs WHERE state='QUEUED' ORDER BY created_at,id LIMIT 1").fetchone()
+            if job_id is None:
+                row = db.execute("SELECT * FROM lab_jobs WHERE state='QUEUED' ORDER BY created_at,id LIMIT 1").fetchone()
+            else:
+                row = db.execute("SELECT * FROM lab_jobs WHERE state='QUEUED' AND id=?", (job_id,)).fetchone()
             if row is None:
                 return None
             db.execute("""UPDATE lab_jobs SET state='RUNNING',token=token+1,attempt=attempt+1,

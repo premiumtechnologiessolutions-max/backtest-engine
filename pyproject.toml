@@ -13,6 +13,7 @@ dependencies = ["pandas>=2.2,<3", "numpy>=1.26,<3", "pyarrow>=14"]
 [project.optional-dependencies]
 dev = ["pytest>=8"]
 nautilus = ["nautilus_trader==1.221.0"]
+gpu = ["pyopencl>=2025.1,<2027"]
 quantum = ["pennylane==0.43.0", "pennylane-lightning==0.43.0", "gast==0.6.0", "astunparse==1.6.3", "diastatic-malt==2.15.3"]
 
 [project.scripts]

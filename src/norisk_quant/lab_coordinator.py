@@ -1,15 +1,11 @@
-"""One executable construction path: durable jobs -> canonical engines -> QAOA.
-
-Only deterministic invented OHLC and explicit bounded binary problems are
-accepted. No path, broker credential, provider runner or market input is accepted.
-"""
+"""Run bounded synthetic and Quantum jobs through the local durable queue."""
 from __future__ import annotations
 
 from collections import Counter
+from contextlib import contextmanager
 import hashlib
-import json
 import sys
-from importlib import metadata, util
+from importlib import import_module, metadata, util
 from pathlib import Path
 import threading
 import uuid
@@ -22,10 +18,20 @@ from .fast_engine import run_fast
 from .lab_jobs import JobStateError, JobStore
 from .math_discovery import Formula, arithmetic_signals
 from .model import Settings
-from .quantum_backends import backend_capabilities, solve_problem
+from .quantum_backends import (BackendUnavailable, backend_capabilities,
+                               opencl_device_identity, solve_problem, validate_opencl_selector)
 from .quantum_optimizer import BinaryProblem
 from .quantum_selection import compile_selection
 from .strategy import ema_cross_signals
+
+_VENDORS = {
+    'nautilus_synthetic': 'nautilus',
+    'lean_synthetic': 'lean',
+    'finrl_synthetic': 'finrl',
+}
+_BACKENDS = {'numpy', 'pennylane', 'opencl', 'opencl-cpu'}
+_OPENCL = {'opencl', 'opencl-cpu'}
+_LEASE_SECONDS = 120
 
 
 def code_identity() -> str:
@@ -39,11 +45,27 @@ def code_identity() -> str:
 
 def runtime_identity():
     result = {'numpy': np.__version__, 'pandas': pd.__version__, 'python': sys.version}
-    for package in ('pennylane', 'nautilus_trader'):
+    for package in ('pennylane', 'pennylane-lightning', 'nautilus_trader',
+                    'pyopencl', 'gymnasium', 'matplotlib', 'stable-baselines3', 'torch'):
         try:
             result[package] = metadata.version(package)
         except metadata.PackageNotFoundError:
             result[package] = None
+    return result
+
+
+def _job_runtime(payload):
+    result = runtime_identity()
+    backend = payload.get('backend')
+    if backend in _OPENCL:
+        try:
+            result['opencl_device'] = opencl_device_identity(backend, payload.get('device'))
+        except BackendUnavailable:
+            result['opencl_device'] = None
+    vendor = _VENDORS.get(payload['kind'])
+    if vendor in {'lean', 'finrl'}:
+        module = import_module(f'.lab_{vendor}', __package__)
+        result[vendor] = getattr(module, f'{vendor}_status')()
     return result
 
 
@@ -67,15 +89,23 @@ def validate_spec(spec):
     if type(spec) is not dict:
         raise ValueError('Job specification must be an object')
     kind = spec.get('kind')
-    supported = {'synthetic_campaign', 'synthetic_discovery', 'quantum_optimization', 'nautilus_synthetic'}
+    supported = {'synthetic_campaign', 'synthetic_discovery', 'quantum_optimization',
+                 'synthetic_external_proposals', *_VENDORS}
     if type(kind) is not str or kind not in supported:
         raise ValueError('Only construction synthetic jobs and supplied binary problems are enabled')
-    if kind == 'nautilus_synthetic':
+    if kind in _VENDORS:
         if set(spec) - {'kind', 'bars', 'seed'}:
             raise ValueError('External synthetic jobs accept only bars and seed')
         return {'kind':kind, 'bars':_bounded(spec.get('bars',240),'bars',60,1000),
                 'seed':_bounded(spec.get('seed',0),'seed',0,2**32-1)}
-    common = {'kind', 'seed', 'layers', 'evaluations', 'backend'}
+    if kind == 'synthetic_external_proposals':
+        from .lab_proposals import normalize_proposal_envelope
+        if set(spec) - {'kind', 'bars', 'seed', 'envelope'}:
+            raise ValueError('Invalid external proposal job fields')
+        return {'kind': kind, 'bars': _bounded(spec.get('bars', 360), 'bars', 240, 1440),
+                'seed': _bounded(spec.get('seed', 0), 'seed', 0, 2**32-1),
+                'envelope': normalize_proposal_envelope(spec.get('envelope'))}
+    common = {'kind', 'seed', 'layers', 'evaluations', 'backend', 'device'}
     allowed = common | ({'problem'} if kind == 'quantum_optimization' else {'bars', 'select_count'})
     if set(spec) - allowed:
         raise ValueError('Unknown job fields; market paths and execution commands are not accepted')
@@ -83,8 +113,13 @@ def validate_spec(spec):
                       layers=_bounded(spec.get('layers',1),'layers',1,3),
                       evaluations=_bounded(spec.get('evaluations',32),'evaluations',1,256),
                       backend=spec.get('backend','numpy'))
-    if type(normalized['backend']) is not str or normalized['backend'] not in {'numpy','pennylane'}:
+    backend = normalized['backend']
+    if type(backend) is not str or backend not in _BACKENDS:
         raise ValueError('Unsupported backend')
+    if backend in _OPENCL:
+        normalized['device'] = validate_opencl_selector(spec.get('device'))
+    elif 'device' in spec:
+        raise ValueError('Device selection requires an OpenCL backend')
     if kind == 'synthetic_campaign':
         normalized['bars'] = _bounded(spec.get('bars',720),'bars',240,3000)
         normalized['select_count'] = _bounded(spec.get('select_count',2),'select_count',1,4)
@@ -159,7 +194,7 @@ def run_synthetic_campaign(spec, progress=lambda stage: None):
                                     provenance='synthetic', source_ids=(fixture_id,))
     progress('quantum_selection')
     selection = solve_problem(compilation.problem, backend=spec['backend'], layers=spec['layers'],
-                              evaluations=spec['evaluations'], seed=spec['seed'])
+                              evaluations=spec['evaluations'], seed=spec['seed'], device=spec.get('device'))
     stages += ['selection_compilation', 'quantum_selection', 'complete']
     return {'schema': 'NRFX_UNIFIED_SYNTHETIC_CAMPAIGN_V1',
             'provenance': 'SYNTHETIC_NOT_MARKET', 'fixture_sha256': fixture_id,
@@ -169,8 +204,7 @@ def run_synthetic_campaign(spec, progress=lambda stage: None):
             'selection': selection, 'stages': stages,
             'limitations': ['Fixture performance is not market performance',
                             'Candidate curves use independent accounts, not a shared-capacity portfolio',
-                            'Selection uses the same synthetic fixture; no out-of-sample evidence',
-                            'GPU and external market engines are not executed']}
+                            'Selection uses the same synthetic fixture; no out-of-sample evidence']}
 
 
 class LabCoordinator:
@@ -183,21 +217,31 @@ class LabCoordinator:
         jobs = self.store.list_jobs(1000)
         counts = Counter(j['state'] for j in jobs)
         current_code = code_identity()
-        vendor_verified = any(j['state']=='SUCCEEDED' and j['kind']=='nautilus_synthetic'
-            and (j['result'] or {}).get('runtime_executed') is True
-            and (j['result'] or {}).get('code_sha256') == current_code
-            and j['payload'].get('runtime') == runtime_identity() for j in jobs)
+        vendors = {}
+        for kind, vendor in _VENDORS.items():
+            if vendor == 'nautilus':
+                from .lab_nautilus import PINNED_NAUTILUS_VERSION
+                available = {'installed': util.find_spec('nautilus_trader') is not None,
+                             'required_version': PINNED_NAUTILUS_VERSION}
+            else:
+                module = import_module(f'.lab_{vendor}', __package__)
+                available = getattr(module, f'{vendor}_status')()
+            identity = _job_runtime({'kind': kind})
+            verified = any(j['kind'] == kind and j['state'] == 'SUCCEEDED'
+                           and (j['result'] or {}).get('runtime_executed') is True
+                           and (j['result'] or {}).get('code_sha256') == current_code
+                           and j['payload'].get('runtime') == identity for j in jobs)
+            vendors[vendor] = {**available, 'execution_verified': verified, 'mode': 'synthetic_only'}
         return {'phase': 'CONSTRUCTION_SYNTHETIC_ONLY', 'market_research_enabled': False,
                 'quantum': backend_capabilities(), 'jobs': dict(counts),
                 'code_sha256': current_code, 'engine_complete': False,
                 'integration': 'discovery_canonical_multiasset_portfolio_quantum_local_ui',
-                'external_engines': {'nautilus': {'installed': util.find_spec('nautilus_trader') is not None,
-                    'required_version':'1.221.0','execution_verified':vendor_verified,'mode':'synthetic_only'}}}
+                'external_engines': vendors}
 
     def submit(self, spec):
         payload = validate_spec(spec)
         payload['code_sha256'] = code_identity()
-        payload['runtime'] = runtime_identity()
+        payload['runtime'] = _job_runtime(payload)
         return self.store.submit(payload['kind'], payload)
 
     def list_jobs(self):
@@ -211,38 +255,50 @@ class LabCoordinator:
     def cancel(self, job_id):
         return self.store.cancel(job_id)
 
-    def run_one(self):
+    @contextmanager
+    def _renew_while_running(self, job_id, token):
+        stop = threading.Event()
+
+        def renew():
+            while not stop.wait(_LEASE_SECONDS / 4):
+                try:
+                    self.store.heartbeat(job_id, token, self.worker, _LEASE_SECONDS)
+                except JobStateError:
+                    return
+
+        thread = threading.Thread(target=renew, name='lab-lease', daemon=True)
+        thread.start()
+        try:
+            yield
+        finally:
+            stop.set()
+            thread.join()
+
+    def run_one(self, *, job_id=None):
         if not self._lock.acquire(blocking=False):
             raise ValueError('A local worker is already running')
         try:
-            claimed = self.store.claim(self.worker, lease_seconds=120)
+            claimed = self.store.claim(self.worker, lease_seconds=_LEASE_SECONDS, job_id=job_id)
             if claimed is None:
                 return {'state': 'IDLE'}
             ident, token = claimed['id'], claimed['token']
             payload = claimed['payload']
             def progress(stage):
-                self.store.progress(ident, token, self.worker, stage, lease_seconds=120)
+                self.store.progress(ident, token, self.worker, stage, lease_seconds=_LEASE_SECONDS)
             try:
                 if payload['code_sha256'] != code_identity():
                     raise ValueError('Code changed since submission; submit a fresh job')
-                if payload['runtime'] != runtime_identity():
+                if payload['runtime'] != _job_runtime(payload):
                     raise ValueError('Runtime changed since submission')
-                if claimed['kind'] == 'synthetic_campaign':
-                    result = run_synthetic_campaign(payload, progress)
-                elif claimed['kind'] == 'synthetic_discovery':
-                    from .lab_campaigns import run_discovery_campaign
-                    result = run_discovery_campaign(payload, progress)
-                elif claimed['kind'] == 'nautilus_synthetic':
-                    progress('nautilus_synthetic')
-                    from .lab_nautilus import run_nautilus_synthetic
-                    result = run_nautilus_synthetic(bars=payload['bars'],seed=payload['seed'])
-                elif claimed['kind'] == 'quantum_optimization':
-                    progress('quantum_selection')
-                    result = solve_problem(BinaryProblem.from_dict(payload['problem']),
-                        backend=payload['backend'], layers=payload['layers'],
-                        evaluations=payload['evaluations'], seed=payload['seed'])
-                else:
-                    raise ValueError('Unknown local job handler')
+                with self._renew_while_running(ident, token):
+                    result = self._execute(claimed['kind'], payload, progress)
+                if payload.get('backend') in _OPENCL:
+                    selection = result.get('selection', result)
+                    if selection.get('opencl_device') != payload['runtime']['opencl_device']:
+                        raise ValueError('OpenCL device changed during execution')
+                if claimed['kind'] == 'lean_synthetic':
+                    if result.get('runtime_image_id') != payload['runtime']['lean']['runtime_image_id']:
+                        raise ValueError('LEAN image changed during execution')
                 if payload['code_sha256'] != code_identity():
                     raise ValueError('Code changed during execution')
                 progress('publish')
@@ -251,8 +307,9 @@ class LabCoordinator:
             except JobStateError:
                 return self.store.get(ident)
             except Exception as exc:
-                safe_error = (f'{type(exc).__name__}: install the matching optional engine extra'
-                              if type(exc).__name__ in {'NautilusUnavailable', 'BackendUnavailable'}
+                safe_error = (f'{type(exc).__name__}: check the optional runtime and configuration'
+                              if type(exc).__name__ in {'NautilusUnavailable', 'BackendUnavailable',
+                                                       'LeanUnavailable', 'FinRLUnavailable'}
                               else f'{type(exc).__name__}: local execution failed; no result accepted')
                 # Keep paths, tokens and arbitrary external messages out of UI.
                 try:
@@ -261,3 +318,25 @@ class LabCoordinator:
                     return self.store.get(ident)
         finally:
             self._lock.release()
+
+    @staticmethod
+    def _execute(kind, payload, progress):
+        if kind == 'synthetic_campaign':
+            return run_synthetic_campaign(payload, progress)
+        if kind == 'synthetic_discovery':
+            from .lab_campaigns import run_discovery_campaign
+            return run_discovery_campaign(payload, progress)
+        if kind == 'synthetic_external_proposals':
+            from .lab_proposals import run_proposal_campaign
+            return run_proposal_campaign(payload, progress)
+        if kind in _VENDORS:
+            vendor = _VENDORS[kind]
+            progress(kind)
+            module = import_module(f'.lab_{vendor}', __package__)
+            return getattr(module, f'run_{vendor}_synthetic')(bars=payload['bars'], seed=payload['seed'])
+        if kind == 'quantum_optimization':
+            progress('quantum_selection')
+            return solve_problem(BinaryProblem.from_dict(payload['problem']),
+                backend=payload['backend'], layers=payload['layers'],
+                evaluations=payload['evaluations'], seed=payload['seed'], device=payload.get('device'))
+        raise ValueError('Unknown local job handler')

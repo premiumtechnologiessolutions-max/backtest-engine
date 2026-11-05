@@ -15,7 +15,7 @@ import pandas as pd
 from .execution import run
 from .fast_engine import run_fast
 from .lab_discovery import generate_specs, diagnose_candidates, signals_for_spec
-from .lab_portfolio import replay_shared_portfolio
+from .lab_margin import replay_margin_portfolio
 from .model import Settings
 from .quantum_backends import solve_problem
 from .quantum_selection import compile_selection
@@ -26,7 +26,8 @@ def _compact_portfolio(report):
     encoded = json.dumps(report, sort_keys=True, separators=(',', ':'), allow_nan=False)
     compact = dict(report)
     compact['full_replay_sha256'] = hashlib.sha256(encoded.encode()).hexdigest()
-    for field in ('accepted', 'rejected', 'equity_at_closure'):
+    for field in ('accepted', 'rejected', 'equity_at_closure', 'equity_at_mark',
+                  'maintenance_liquidations'):
         if isinstance(report.get(field), list):
             compact[field] = report[field][:40]
             compact[field + '_total'] = len(report[field])
@@ -63,6 +64,10 @@ def run_discovery_campaign(spec, progress=lambda stage: None):
                 'SIM_B': synthetic_fixture(spec['bars'], spec['seed'] ^ 0xA5A5A5A5) * .6}
     settings = {'SIM_A': Settings(ounces=1., roundtrip_cost_per_ounce=.4, max_holding_minutes=60),
                 'SIM_B': Settings(ounces=1., roundtrip_cost_per_ounce=.1, max_holding_minutes=45)}
+    contracts = {
+        'SIM_A': {'multiplier': 1., 'initial_margin_rate': .10, 'maintenance_margin_rate': .05},
+        'SIM_B': {'multiplier': 2., 'initial_margin_rate': .15, 'maintenance_margin_rate': .075},
+    }
     sources = {symbol: _frame_digest(frame) for symbol, frame in fixtures.items()}
     summaries, increments, inputs, all_ledgers, feedbacks = [], [], [], {}, []
     proposals = generate_specs(seed=spec['seed'], generation=0, count=4)
@@ -82,8 +87,10 @@ def run_discovery_campaign(spec, progress=lambda stage: None):
                 delta.iloc[0] = equity.iloc[0]
                 dd = float((equity.cummax().clip(lower=0)-equity).clip(lower=0).max())
                 net = float(equity.iloc[-1])
-                inputs.append({'id': ident, 'expected_return': float(delta.mean()), 'source_id': sources[symbol]})
-                increments.append(delta.to_numpy())
+                scaled_delta = delta.to_numpy() * contracts[symbol]['multiplier']
+                inputs.append({'id': ident, 'expected_return': float(scaled_delta.mean()),
+                               'source_id': sources[symbol]})
+                increments.append(scaled_delta)
                 ledger = normalize_canonical_ledger(reference.trades, ident)
                 all_ledgers[ident] = (symbol, ledger)
                 summaries.append({'id': ident, 'symbol': symbol, 'spec': candidate,
@@ -109,15 +116,16 @@ def run_discovery_campaign(spec, progress=lambda stage: None):
                                     spec['select_count'], provenance='synthetic', source_ids=tuple(sources.values()))
     progress('quantum_multiasset_selection')
     selection = solve_problem(compilation.problem, backend=spec['backend'], layers=spec['layers'],
-                              evaluations=spec['evaluations'], seed=spec['seed'])
-    progress('shared_capacity_portfolio')
+                              evaluations=spec['evaluations'], seed=spec['seed'], device=spec.get('device'))
+    progress('shared_margin_portfolio')
     def replay(chosen):
         ledgers = {symbol: [] for symbol in fixtures}
         for ident in chosen:
             symbol, rows = all_ledgers[ident]
             ledgers[symbol].extend(rows)
-        return _compact_portfolio(replay_shared_portfolio(ledgers, max_positions=2, max_per_symbol=1,
-                                  daily_loss_limit=20., initial_cash=10000.))
+        return _compact_portfolio(replay_margin_portfolio(
+            ledgers, fixtures, contracts, max_positions=2, max_per_symbol=1,
+            daily_loss_limit=20., initial_cash=10000.))
     quantum_portfolio = replay(selection['selected'])
     classic_portfolio = replay(selection['classical_exact_selected'])
     return {'schema': 'NRFX_SYNTHETIC_DISCOVERY_PORTFOLIO_V1',
@@ -129,9 +137,9 @@ def run_discovery_campaign(spec, progress=lambda stage: None):
                 'distinct_specs':8, 'failure_analysis':feedbacks, 'next_proposals':proposals},
             'portfolio': quantum_portfolio, 'classical_portfolio':classic_portfolio,
             'stages':['discovery_fixture','two_generation_canonical_parity','discovery_feedback',
-                      'compile_multiasset_selection','quantum_multiasset_selection','shared_capacity_portfolio'],
+                      'compile_multiasset_selection','quantum_multiasset_selection','shared_margin_portfolio'],
             'limitations':['All OHLC and instrument contracts are invented construction fixtures',
                 'Selection and generation share the same fixture, not independent validation',
-                'Shared portfolio replays candidate ledgers with causal capacity admission; no intrabar margin model',
+                'Shared margin and floating equity are observed at M1 boundaries; planned exits are retained',
                 'Candidate diagnostic drawdown totals are not portfolio drawdown',
                 'QUBO optimum need not maximize the capacity-constrained realized portfolio result']}

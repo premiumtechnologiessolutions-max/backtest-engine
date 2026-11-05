@@ -34,8 +34,9 @@ class QuantumBackendTests(unittest.TestCase):
             with self.assertRaises(BackendUnavailable):
                 statevector_probabilities([0., 1.], [[.3, .2]], backend='pennylane')
 
-    def test_unproven_gpu_is_not_enabled(self):
-        self.assertFalse(backend_capabilities()['gpu']['execution_enabled'])
+    def test_missing_gpu_package_is_not_enabled(self):
+        with patch('norisk_quant.quantum_opencl.importlib.util.find_spec', return_value=None):
+            self.assertFalse(backend_capabilities()['gpu']['execution_enabled'])
         with self.assertRaises(ValueError):
             statevector_probabilities([0., 1.], [[.3, .2]], backend='pennylane', device='lightning.gpu')
 

@@ -1,7 +1,7 @@
-"""Bounded CPU quantum backends; optional devices never silently fall back.
+"""Bounded CPU and OpenCL quantum backends with explicit device selection.
 
-PennyLane is imported only when explicitly selected. Both adapters execute a
-QAOA circuit; neither is quantum hardware or evidence of a quantum advantage.
+The adapters simulate a QAOA circuit. OpenCL computes statevector operations
+on its chosen device and verifies the winning circuit against NumPy.
 """
 from __future__ import annotations
 
@@ -12,6 +12,10 @@ import math
 
 import numpy as np
 
+from .quantum_opencl import (
+    OPENCL_BACKENDS, OpenCLStatevector, OpenCLUnavailable, opencl_capabilities,
+    opencl_device_identity as _opencl_device_identity, validate_opencl_selector,
+)
 from .quantum_optimizer import BinaryProblem, probabilities, solve
 
 CPU_DEVICES = frozenset({'default.qubit', 'lightning.qubit'})
@@ -22,6 +26,8 @@ class BackendUnavailable(RuntimeError):
 
 
 def backend_capabilities() -> dict:
+    opencl = opencl_capabilities()
+    gpu = opencl['opencl']
     return {
         'default': 'numpy',
         'backends': {
@@ -31,11 +37,25 @@ def backend_capabilities() -> dict:
                 'allowed_devices': sorted(CPU_DEVICES),
                 'device_initialization_verified': False,
             },
+            **opencl,
         },
-        'gpu': {'compatibility': 'NOT_TESTED', 'execution_enabled': False},
+        'gpu': {
+            'compatibility': 'DEVICE_AVAILABLE_UNVERIFIED' if gpu['available'] else gpu['status'],
+            'execution_enabled': gpu['available'],
+            'execution_verified': False,
+        },
         'quantum_hardware': False,
         'quantum_advantage_proven': False,
     }
+
+
+def opencl_device_identity(backend, device=None):
+    if backend not in OPENCL_BACKENDS:
+        raise ValueError('Unsupported OpenCL backend')
+    try:
+        return _opencl_device_identity(backend, device)
+    except OpenCLUnavailable as exc:
+        raise BackendUnavailable(str(exc)) from exc
 
 
 def _validate_angles(energies, parameters):
@@ -60,6 +80,11 @@ def statevector_probabilities(energies, parameters, *, backend='numpy', device=N
         if device not in (None, 'cpu'):
             raise ValueError('NumPy backend supports only CPU')
         return probabilities(e, parameters)
+    if backend in OPENCL_BACKENDS:
+        try:
+            return OpenCLStatevector(e, backend, device).probabilities(parameters)
+        except OpenCLUnavailable as exc:
+            raise BackendUnavailable(str(exc)) from exc
     if backend != 'pennylane':
         raise ValueError('Unsupported backend')
     device = device or 'default.qubit'
@@ -102,7 +127,7 @@ def solve_problem(problem: BinaryProblem, *, backend='numpy', layers=1,
         result = solve(problem, layers=layers, evaluations=evaluations, seed=seed)
         result['backend_adapter'] = 'numpy'
         return result
-    if backend != 'pennylane':
+    if backend != 'pennylane' and backend not in OPENCL_BACKENDS:
         raise ValueError('Unsupported backend')
     if (type(layers) is not int or not 1 <= layers <= 8
             or type(evaluations) is not int or not 1 <= evaluations <= 4096
@@ -110,17 +135,49 @@ def solve_problem(problem: BinaryProblem, *, backend='numpy', layers=1,
         raise ValueError('Invalid bounded optimization settings')
     bits, raw, energy, feasible = problem.energies()
     scale = max(1.0, float(np.max(np.abs(energy))))
+    scaled_energy = energy / scale
     rng = np.random.default_rng(seed)
     best = None
-    for _ in range(evaluations):
-        angles = [list(map(float, row)) for row in
-                  rng.uniform(-math.pi, math.pi, (layers, 2))]
-        probs = statevector_probabilities(energy / scale, angles,
-                                         backend=backend, device=device)
-        expectation = float(probs @ energy)
-        if best is None or expectation < best[0]:
-            best = expectation, angles, probs
+    simulator = None
+    try:
+        if backend in OPENCL_BACKENDS:
+            simulator = OpenCLStatevector(scaled_energy, backend, device)
+        for _ in range(evaluations):
+            angles = [list(map(float, row)) for row in
+                      rng.uniform(-math.pi, math.pi, (layers, 2))]
+            if simulator is None:
+                probs = statevector_probabilities(scaled_energy, angles, backend=backend, device=device)
+            else:
+                probs = simulator.probabilities(angles)
+            expectation = float(probs @ energy)
+            if best is None or expectation < best[0]:
+                best = expectation, angles, probs
+    except OpenCLUnavailable as exc:
+        raise BackendUnavailable(str(exc)) from exc
     expectation, angles, probs = best
+    backend_details = {'backend': f'pennylane:{device or "default.qubit"}',
+                       'backend_adapter': backend, 'gpu_used': False}
+    if simulator is not None:
+        error = np.abs(probs - probabilities(scaled_energy, angles))
+        max_error = float(error.max())
+        total_variation = float(error.sum() / 2)
+        max_tolerance, tv_tolerance = 2e-5, 1e-4
+        if max_error > max_tolerance or total_variation > tv_tolerance:
+            raise BackendUnavailable('OpenCL circuit exceeded NumPy reference tolerances')
+        backend_details = {
+            'backend': f'{backend}:{simulator.device["selector"]}',
+            'backend_adapter': backend,
+            'gpu_used': simulator.device['device_type'] == 'gpu',
+            'opencl_device': simulator.device,
+            'precision': 'float32',
+            'opencl_numpy_parity': {
+                'scope': 'winning_circuit',
+                'max_absolute_probability_error': max_error,
+                'max_absolute_probability_error_tolerance': max_tolerance,
+                'total_variation_distance': total_variation,
+                'total_variation_distance_tolerance': tv_tolerance,
+            },
+        }
     indices = np.flatnonzero(feasible)
     exact = int(indices[np.argmin(raw[indices])])
     chosen = int(indices[np.argmax(probs[indices])])
@@ -128,9 +185,8 @@ def solve_problem(problem: BinaryProblem, *, backend='numpy', layers=1,
                                       allow_nan=False).encode()).hexdigest()
     return {
         'schema': 'NRFX_LOCAL_QAOA_V1', 'problem_sha256': digest,
-        'backend': f'pennylane:{device or "default.qubit"}',
-        'backend_adapter': 'pennylane', 'quantum_hardware_used': False,
-        'gpu_used': False, 'quantum_advantage_proven': False,
+        **backend_details,
+        'quantum_hardware_used': False, 'quantum_advantage_proven': False,
         'optimization': 'seeded_random_angle_search', 'seed': seed,
         'layers': layers, 'objective_evaluations': evaluations,
         'parameters': angles, 'expected_penalized_objective': expectation,

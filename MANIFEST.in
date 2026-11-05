@@ -6,3 +6,4 @@ include constraints-ci.txt
 include start_quantlab.py
 include START_UNIFIED_LAB.bat
 recursive-include src/norisk_quant *.html
+recursive-include scripts/lean_synthetic Dockerfile *.cs *.sh

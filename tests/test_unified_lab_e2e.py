@@ -104,6 +104,16 @@ class UnifiedLabHTTPTests(unittest.TestCase):
         self.assertEqual(idle['state'], 'IDLE')
         self.assertIsNone(self.lab.job(queued['id'])['result'])
 
+    def test_starting_a_selected_job_keeps_older_job_queued(self):
+        older = self.lab.submit({'kind': 'synthetic_campaign', 'seed': 20})
+        chosen = self.lab.submit({'kind': 'synthetic_campaign', 'seed': 21,
+                                  'bars': 240, 'evaluations': 1})
+        status, completed = self.request('POST', '/api/worker/tick', {'job_id': chosen['id']})
+        self.assertEqual(status, 200)
+        self.assertEqual(completed['id'], chosen['id'])
+        self.assertEqual(completed['state'], 'SUCCEEDED')
+        self.assertEqual(self.lab.job(older['id'])['state'], 'QUEUED')
+
 
 if __name__ == '__main__':
     unittest.main()
