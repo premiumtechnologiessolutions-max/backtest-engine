@@ -39,5 +39,12 @@ def compare_audited_static_design_stores(
         raise ValueError("SQLite store path changed during comparison") from exc
     if any((a.st_dev, a.st_ino) != (b.st_dev, b.st_ino) for a, b in zip(before_ids, after_ids)):
         raise ValueError("SQLite store path changed during comparison")
+    # A stable inode does not imply stable contents: reject observable
+    # in-place writes as well. WAL-only changes are NOT covered by this
+    # metadata check, so this is not a cross-store atomicity guarantee.
+    if any((a.st_size, a.st_mtime_ns, a.st_ctime_ns) !=
+           (b.st_size, b.st_mtime_ns, b.st_ctime_ns)
+           for a, b in zip(before_ids, after_ids)):
+        raise ValueError("SQLite store metadata changed during comparison")
     result = verify_static_design_continuity(before, after)
     return {**result, "snapshots_audited": True, "provenance_verified": False}
