@@ -109,3 +109,34 @@ def test_invalid_store_path_type_fails_closed(tmp_path):
     new.database = None
     with pytest.raises(ValueError, match="Cannot verify both SQLite store paths"):
         compare_audited_static_design_stores(old, new)
+
+
+def test_path_replacement_during_snapshot_fails_closed(tmp_path, monkeypatch):
+    import os
+    import scripts.static_design_store_comparison as comparison
+
+    old = DurableResearchState(tmp_path / "old.sqlite3")
+    new = DurableResearchState(tmp_path / "new.sqlite3")
+    replacement = DurableResearchState(tmp_path / "replacement.sqlite3")
+    original_snapshot = comparison.snapshot_static_design_records
+    calls = 0
+
+    def replacing_snapshot(state):
+        nonlocal calls
+        result = original_snapshot(state)
+        calls += 1
+        if calls == 1:
+            os.replace(replacement.database, old.database)
+        return result
+
+    monkeypatch.setattr(comparison, "snapshot_static_design_records", replacing_snapshot)
+    with pytest.raises(ValueError, match="path changed during comparison"):
+        comparison.compare_audited_static_design_stores(old, new)
+
+
+def test_directory_store_path_fails_closed(tmp_path):
+    old = DurableResearchState(tmp_path / "old.sqlite3")
+    new = DurableResearchState(tmp_path / "new.sqlite3")
+    new.database = tmp_path
+    with pytest.raises(ValueError, match="Cannot verify both SQLite store paths"):
+        compare_audited_static_design_stores(old, new)
