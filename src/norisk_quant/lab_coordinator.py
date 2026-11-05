@@ -68,7 +68,7 @@ def validate_spec(spec):
         raise ValueError('Job specification must be an object')
     kind = spec.get('kind')
     supported = {'synthetic_campaign', 'synthetic_discovery', 'quantum_optimization', 'nautilus_synthetic'}
-    if kind not in supported:
+    if type(kind) is not str or kind not in supported:
         raise ValueError('Only construction synthetic jobs and supplied binary problems are enabled')
     if kind == 'nautilus_synthetic':
         if set(spec) - {'kind', 'bars', 'seed'}:
@@ -83,7 +83,7 @@ def validate_spec(spec):
                       layers=_bounded(spec.get('layers',1),'layers',1,3),
                       evaluations=_bounded(spec.get('evaluations',32),'evaluations',1,256),
                       backend=spec.get('backend','numpy'))
-    if normalized['backend'] not in {'numpy','pennylane'}:
+    if type(normalized['backend']) is not str or normalized['backend'] not in {'numpy','pennylane'}:
         raise ValueError('Unsupported backend')
     if kind == 'synthetic_campaign':
         normalized['bars'] = _bounded(spec.get('bars',720),'bars',240,3000)
@@ -180,13 +180,19 @@ class LabCoordinator:
         self._lock = threading.Lock()
 
     def status(self):
-        counts = Counter(j['state'] for j in self.store.list_jobs(1000))
+        jobs = self.store.list_jobs(1000)
+        counts = Counter(j['state'] for j in jobs)
+        current_code = code_identity()
+        vendor_verified = any(j['state']=='SUCCEEDED' and j['kind']=='nautilus_synthetic'
+            and (j['result'] or {}).get('runtime_executed') is True
+            and (j['result'] or {}).get('code_sha256') == current_code
+            and j['payload'].get('runtime') == runtime_identity() for j in jobs)
         return {'phase': 'CONSTRUCTION_SYNTHETIC_ONLY', 'market_research_enabled': False,
                 'quantum': backend_capabilities(), 'jobs': dict(counts),
-                'code_sha256': code_identity(), 'engine_complete': False,
+                'code_sha256': current_code, 'engine_complete': False,
                 'integration': 'discovery_canonical_multiasset_portfolio_quantum_local_ui',
                 'external_engines': {'nautilus': {'installed': util.find_spec('nautilus_trader') is not None,
-                    'required_version':'1.221.0','execution_verified':False,'mode':'synthetic_only'}}}
+                    'required_version':'1.221.0','execution_verified':vendor_verified,'mode':'synthetic_only'}}}
 
     def submit(self, spec):
         payload = validate_spec(spec)

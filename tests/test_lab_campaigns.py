@@ -37,7 +37,8 @@ class DiscoveryIntegrationTests(unittest.TestCase):
     def test_spec_bounds_and_no_external_paths(self):
         for spec in [{'kind':'synthetic_discovery','bars':10000},
                      {'kind':'synthetic_discovery','evaluations':100},
-                     {'kind':'nautilus_synthetic','path':'Gold.zip'}]:
+                     {'kind':'nautilus_synthetic','path':'Gold.zip'},
+                     {'kind':[]}, {'kind':'synthetic_discovery','backend':{}}]:
             with self.assertRaises(ValueError):
                 validate_spec(spec)
     @unittest.skipUnless(importlib.util.find_spec('nautilus_trader'),'optional vendor absent')
@@ -49,3 +50,4 @@ class DiscoveryIntegrationTests(unittest.TestCase):
             self.assertEqual(job['state'],'SUCCEEDED',job['error'])
             self.assertTrue(job['result']['runtime_executed'])
             self.assertGreater(job['result']['fills_count'],0)
+            self.assertTrue(lab.status()['external_engines']['nautilus']['execution_verified'])
