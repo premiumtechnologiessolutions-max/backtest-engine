@@ -32,6 +32,9 @@ def inspect_static_design_inventory(state: DurableResearchState) -> dict:
             summary = {"schema": SCHEMA, "batches": 0, "requests": 0}
             identifiers = []
         else:
+            # Reject partial inboxes and oversized stores before _audit
+            # materializes rows. COUNTs and audit share this read snapshot.
+            _preflight_static_design_inbox(db, tables)
             # _audit rejects missing counterpart, schema drift, orphan FKs,
             # mutated manifests, unauthorized states, and incomplete indexes.
             summary = _audit(db)
@@ -55,6 +58,16 @@ def inspect_static_design_inventory(state: DurableResearchState) -> dict:
             "jobs_created": 0,
         }
 
+def _preflight_static_design_inbox(db, tables: set[str]) -> None:
+    """Bound audited inbox reads inside the caller's SQLite transaction."""
+    if tables != {"static_adapter_designs", "static_adapter_request_ids"}:
+        raise ValueError("Incomplete static design inbox schema")
+    for table in ("static_adapter_request_ids", "static_adapter_designs"):
+        count = db.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+        if count > 10000:
+            raise ValueError("Static design snapshot exceeds continuity limit")
+
+
 def snapshot_static_design_records(state: DurableResearchState) -> list[dict]:
     """Read-only audited envelope fingerprints; not provenance or research proof."""
     if not isinstance(state, DurableResearchState):
@@ -67,21 +80,7 @@ def snapshot_static_design_records(state: DurableResearchState) -> list[dict]:
         )}
         if not tables:
             return []
-        # Reject a partial schema before COUNT queries; preserve the public
-        # fail-closed ValueError contract instead of leaking sqlite errors.
-        if tables != {"static_adapter_designs", "static_adapter_request_ids"}:
-            raise ValueError("Incomplete static design inbox schema")
-        # Bound rows before _audit materializes all batches and request IDs.
-        # The audit itself uses fetchall(), so a post-audit guard alone cannot
-        # protect against oversized or maliciously expanded inboxes.
-        request_count = db.execute(
-            "SELECT COUNT(*) FROM static_adapter_request_ids"
-        ).fetchone()[0]
-        batch_count = db.execute(
-            "SELECT COUNT(*) FROM static_adapter_designs"
-        ).fetchone()[0]
-        if request_count > 10000 or batch_count > 10000:
-            raise ValueError("Static design snapshot exceeds continuity limit")
+        _preflight_static_design_inbox(db, tables)
         summary = _audit(db)
         # Match the continuity verifier bound before decoding stored envelopes.
         # A valid but oversized inbox must fail closed rather than exhaust memory.
