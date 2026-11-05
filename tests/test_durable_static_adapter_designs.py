@@ -141,3 +141,53 @@ def test_index_table_only_is_corruption_not_empty_store(tmp_path):
                    "request_id TEXT PRIMARY KEY, batch_sha256 TEXT NOT NULL)")
     with pytest.raises(ValueError, match="Incomplete static design tables"):
         audit_static_adapter_designs(state)
+
+
+def test_recreated_index_table_without_foreign_key_is_refused(tmp_path):
+    state = store(tmp_path)
+    stage_static_adapter_designs(state, batch())
+    with state._write() as db:
+        db.execute("DROP TABLE static_adapter_request_ids")
+        db.execute("CREATE TABLE static_adapter_request_ids ("
+                   "request_id TEXT PRIMARY KEY, batch_sha256 TEXT NOT NULL)")
+        db.executemany(
+            "INSERT INTO static_adapter_request_ids VALUES (?,?)",
+            [("synthetic_1", db.execute(
+                "SELECT batch_sha256 FROM static_adapter_designs").fetchone()[0]),
+             ("synthetic_2", db.execute(
+                "SELECT batch_sha256 FROM static_adapter_designs").fetchone()[0])],
+        )
+    with pytest.raises(ValueError, match="foreign key"):
+        audit_static_adapter_designs(state)
+    with pytest.raises(ValueError, match="foreign key"):
+        stage_static_adapter_designs(state, batch("another"))
+
+
+def test_recreated_design_table_without_check_constraint_is_refused(tmp_path):
+    state = store(tmp_path)
+    stage_static_adapter_designs(state, batch())
+    with state._write() as db:
+        db.execute("PRAGMA foreign_keys=OFF")
+        db.execute("ALTER TABLE static_adapter_designs RENAME TO old_designs")
+        db.execute("CREATE TABLE static_adapter_designs ("
+                   "batch_sha256 TEXT PRIMARY KEY, manifest_json TEXT NOT NULL,"
+                   "envelopes_json TEXT NOT NULL, state TEXT NOT NULL)")
+        db.execute("INSERT INTO static_adapter_designs "
+                   "SELECT * FROM old_designs")
+        db.execute("DROP TABLE old_designs")
+    with pytest.raises(ValueError, match="CHECK constraint"):
+        audit_static_adapter_designs(state)
+
+
+def test_missing_primary_key_is_refused_on_empty_schema(tmp_path):
+    state = store(tmp_path)
+    with state._write() as db:
+        db.execute("CREATE TABLE static_adapter_designs ("
+                   "batch_sha256 TEXT, manifest_json TEXT NOT NULL,"
+                   "envelopes_json TEXT NOT NULL, state TEXT NOT NULL "
+                   "CHECK(state='DESIGN_ONLY_DISABLED'))")
+        db.execute("CREATE TABLE static_adapter_request_ids ("
+                   "request_id TEXT PRIMARY KEY, batch_sha256 TEXT NOT NULL "
+                   "REFERENCES static_adapter_designs(batch_sha256))")
+    with pytest.raises(ValueError, match="schema drift"):
+        audit_static_adapter_designs(state)
