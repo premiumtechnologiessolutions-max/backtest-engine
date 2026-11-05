@@ -81,6 +81,13 @@ def _verify_table_contract(db) -> None:
                 raise ValueError("Static design disabled-only CHECK constraint missing")
         elif ("REFERENCESSTATIC_ADAPTER_DESIGNS(BATCH_SHA256)" not in ddl):
             raise ValueError("Static design request foreign key missing")
+    # Triggers could write to executable queue tables despite valid static rows.
+    triggers = db.execute(
+        "SELECT name FROM sqlite_master WHERE type='trigger' "
+        "AND tbl_name IN ('static_adapter_designs','static_adapter_request_ids')"
+    ).fetchall()
+    if triggers:
+        raise ValueError("Static design tables must not have triggers")
     fk = db.execute("PRAGMA foreign_key_list(static_adapter_request_ids)").fetchall()
     if len(fk) != 1 or (
         fk[0]["table"], fk[0]["from"], fk[0]["to"]
