@@ -1,3 +1,20 @@
+# Unified local Quantum Lab — construction build (2026-11-05)
+
+Start the connected local lab with `START_UNIFIED_LAB.bat` on Windows or install
+this checkout (`python -m pip install -e .`) and run `norisk-lab serve`.
+Open http://127.0.0.1:8766. See [the unified lab runbook](docs/UNIFIED_LAB_2026-11-05.md).
+
+This build connects durable SQLite jobs, four existing canonical strategy
+variants, reference/fast parity, covariance-to-QUBO compilation, actual CPU
+QAOA simulation, a separate exact classical baseline, and an Arabic control UI.
+Only invented synthetic OHLC and explicitly supplied bounded binary problems
+are enabled in this control path. **Gold research remains disabled.**
+
+PennyLane is an optional real circuit adapter (`pip install -e ".[quantum]"`),
+with CPU-only device allowlisting. GPU execution, vendor engine runtimes,
+market research and complete-platform readiness are not claimed.
+Historical status and evidence below retain their original scope and dates.
+
 # No Risk FX Quant Engine
 
 ## Current verified status — 2026-11-01

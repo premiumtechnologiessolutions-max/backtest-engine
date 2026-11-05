@@ -12,12 +12,17 @@ dependencies = ["pandas>=2.2,<3", "numpy>=1.26,<3", "pyarrow>=14"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]
+quantum = ["pennylane==0.43.0"]
 
 [project.scripts]
 norisk = "norisk_quant.cli:main"
+norisk-lab = "norisk_quant.lab_cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.setuptools.package-data]
+norisk_quant = ["lab_dashboard.html"]
