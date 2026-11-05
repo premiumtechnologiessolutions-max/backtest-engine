@@ -19,7 +19,10 @@ def compare_audited_static_design_stores(
     """Fail closed if either database cannot produce an audited snapshot."""
     if not isinstance(previous, DurableResearchState) or not isinstance(current, DurableResearchState):
         raise ValueError("Expected two durable state stores")
-    # Comparing one physical SQLite file to itself is not an independent\n    # baseline/current comparison (including hard-link aliases).\n    if os.path.samefile(previous.database, current.database):\n        raise ValueError("Baseline and current must be distinct SQLite stores")\n    # Do not silently treat an unreadable previous store as an empty baseline.
+    # Same-file and hard-link aliases cannot provide independent baselines.
+    if os.path.samefile(previous.database, current.database):
+        raise ValueError("Baseline and current must be distinct SQLite stores")
+    # Do not silently treat an unreadable previous store as an empty baseline.
     before = snapshot_static_design_records(previous)
     after = snapshot_static_design_records(current)
     result = verify_static_design_continuity(before, after)
