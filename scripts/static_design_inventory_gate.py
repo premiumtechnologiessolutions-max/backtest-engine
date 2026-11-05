@@ -38,10 +38,15 @@ def compare_static_design_inventories(previous: object, current: object) -> dict
     if not changed and (old["batches"], old["requests"]) != (new["batches"], new["requests"]):
         raise ValueError("Matching inventory fingerprint with conflicting counters")
     removal_detected = new["batches"] < old["batches"] or new["requests"] < old["requests"]
+    # A digest change never proves append-only continuity, even if both
+    # counters increase: a removed design could have been replaced.
+    continuity_unverified = changed
     return {
         "schema": "NRFX_STATIC_DESIGN_INVENTORY_COMPARISON_V1",
         "changed": changed,
         "removal_detected": removal_detected,
+        "continuity_unverified": continuity_unverified,
+        "review_required": changed,
         "batch_delta": new["batches"] - old["batches"],
         "request_delta": new["requests"] - old["requests"],
         "status": ("REMOVAL_REVIEW_REQUIRED" if removal_detected else
