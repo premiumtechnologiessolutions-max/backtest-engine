@@ -140,3 +140,34 @@ def test_directory_store_path_fails_closed(tmp_path):
     new.database = tmp_path
     with pytest.raises(ValueError, match="Cannot verify both SQLite store paths"):
         compare_audited_static_design_stores(old, new)
+
+
+def test_in_place_metadata_mutation_during_snapshot_fails_closed(tmp_path, monkeypatch):
+    import os
+    import scripts.static_design_store_comparison as comparison
+
+    old = DurableResearchState(tmp_path / "old.sqlite3")
+    new = DurableResearchState(tmp_path / "new.sqlite3")
+    original_snapshot = comparison.snapshot_static_design_records
+    calls = 0
+
+    def changing_snapshot(state):
+        nonlocal calls
+        result = original_snapshot(state)
+        calls += 1
+        if calls == 1:
+            before = os.stat(old.database)
+            os.utime(old.database, ns=(before.st_atime_ns, before.st_mtime_ns + 1_000_000_000))
+        return result
+
+    monkeypatch.setattr(comparison, "snapshot_static_design_records", changing_snapshot)
+    with pytest.raises(ValueError, match="metadata changed during comparison"):
+        comparison.compare_audited_static_design_stores(old, new)
+
+
+def test_unchanged_distinct_stores_still_compare(tmp_path):
+    old = DurableResearchState(tmp_path / "old.sqlite3")
+    new = DurableResearchState(tmp_path / "new.sqlite3")
+    result = compare_audited_static_design_stores(old, new)
+    assert result["snapshots_audited"] is True
+    assert result["execution_authorized"] is False
