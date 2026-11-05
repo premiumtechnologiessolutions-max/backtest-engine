@@ -67,6 +67,10 @@ def snapshot_static_design_records(state: DurableResearchState) -> list[dict]:
         )}
         if not tables:
             return []
+        # Reject a partial schema before COUNT queries; preserve the public
+        # fail-closed ValueError contract instead of leaking sqlite errors.
+        if tables != {"static_adapter_designs", "static_adapter_request_ids"}:
+            raise ValueError("Incomplete static design inbox schema")
         # Bound rows before _audit materializes all batches and request IDs.
         # The audit itself uses fetchall(), so a post-audit guard alone cannot
         # protect against oversized or maliciously expanded inboxes.
