@@ -16,6 +16,9 @@ def main():
     serve.add_argument('--port', type=int, default=8766)
     demo = sub.add_parser('synthetic-demo')
     demo.add_argument('--seed', type=int, default=0)
+    for name in ('discovery-demo','nautilus-demo'):
+        demo_parser = sub.add_parser(name)
+        demo_parser.add_argument('--seed',type=int,default=0)
     sub.add_parser('status')
     sub.add_parser('work-once')
     submit = sub.add_parser('submit')
@@ -32,8 +35,10 @@ def main():
         finally:
             server.server_close()
         return
-    if args.command == 'synthetic-demo':
-        job = lab.submit({'kind':'synthetic_campaign', 'seed':args.seed})
+    if args.command in {'synthetic-demo','discovery-demo','nautilus-demo'}:
+        kind = {'synthetic-demo':'synthetic_campaign','discovery-demo':'synthetic_discovery',
+                'nautilus-demo':'nautilus_synthetic'}[args.command]
+        job = lab.submit({'kind':kind, 'seed':args.seed})
         # Do not unexpectedly execute an unrelated older queued job.
         if job['state'] == 'QUEUED':
             oldest = next((j for j in reversed(lab.list_jobs()) if j['state']=='QUEUED'), None)

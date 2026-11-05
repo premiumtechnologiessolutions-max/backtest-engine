@@ -24,6 +24,8 @@ jobs:
         run: |
           norisk-lab --database "$RUNNER_TEMP/lab.db" synthetic-demo > "$RUNNER_TEMP/synthetic.json"
           python -c 'import json,os; from pathlib import Path; r=json.loads((Path(os.environ["RUNNER_TEMP"])/"synthetic.json").read_text()); assert r["state"]=="SUCCEEDED"; assert all(c["parity_passed"] for c in r["result"]["candidates"])'
+          norisk-lab --database "$RUNNER_TEMP/discovery.db" discovery-demo > "$RUNNER_TEMP/discovery.json"
+          python -c 'import json,os; from pathlib import Path; r=json.loads((Path(os.environ["RUNNER_TEMP"])/"discovery.json").read_text()); assert r["state"]=="SUCCEEDED"; assert r["result"]["discovery"]["evaluated"]==16'
           python -m pip wheel --no-deps --no-build-isolation . -w "$RUNNER_TEMP/wheels"
           python -c 'import os,zipfile; from pathlib import Path; p=next((Path(os.environ["RUNNER_TEMP"])/"wheels").glob("*.whl")); assert "norisk_quant/lab_dashboard.html" in zipfile.ZipFile(p).namelist()'
   optional-pennylane:
@@ -35,7 +37,7 @@ jobs:
         with:
           python-version: '3.12'
       - run: python -m pip install -c constraints-ci.txt -e ".[dev,quantum]"
-      - run: python -m pytest -q tests/test_quantum_backends.py tests/test_quantum_selection.py
+      - run: python -m pytest -q tests/test_quantum_backends.py tests/test_quantum_selection.py tests/test_lab_discovery.py tests/test_lab_portfolio.py tests/test_lab_campaigns.py
   windows-construction:
     runs-on: windows-latest
     timeout-minutes: 15
@@ -46,4 +48,15 @@ jobs:
           python-version: '3.12'
       - run: python -m pip install -c constraints-ci.txt -e ".[dev]" setuptools wheel
       - name: Local HTTP, persistence and construction integration on Windows
-        run: python -m pytest -q tests/test_lab_jobs.py tests/test_lab_coordinator.py tests/test_lab_server.py tests/test_unified_lab_e2e.py tests/test_quantum_optimizer.py tests/test_quantum_backends.py tests/test_quantum_selection.py
+        run: python -m pytest -q tests/test_lab_jobs.py tests/test_lab_coordinator.py tests/test_lab_server.py tests/test_unified_lab_e2e.py tests/test_quantum_optimizer.py tests/test_quantum_backends.py tests/test_quantum_selection.py tests/test_lab_discovery.py tests/test_lab_portfolio.py tests/test_lab_campaigns.py
+  optional-nautilus:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -e ".[dev,nautilus]" "numpy==2.3.5" "pandas==2.2.3" "pyarrow==21.0.0"
+      - name: Real vendor engine and unified durable dispatch on invented data
+        run: python -m pytest -q tests/test_lab_nautilus.py tests/test_lab_campaigns.py

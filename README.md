@@ -1,3 +1,15 @@
+## Connected discovery and vendor-runtime increment
+
+The local UI now also offers a two-generation synthetic discovery campaign:
+8 distinct EMA/arithmetic specs evaluated across two invented instruments,
+full canonical reference/fast parity, feedback-driven child proposals,
+16-variable Quantum selection and causal shared-capacity portfolio replay.
+Use `norisk-lab discovery-demo` or select the discovery mode in the UI.
+An optional **actual NautilusTrader runtime** uses invented BID/ASK bars and
+native orders/fills: install `pip install -e ".[nautilus]"`, then use
+`norisk-lab nautilus-demo` or the explicit UI action. No original data are used.
+See [increment details](docs/UNIFIED_DISCOVERY_VENDOR_2026-11-05.md).
+
 # Unified local Quantum Lab — construction build (2026-11-05)
 
 Start the connected local lab with `START_UNIFIED_LAB.bat` on Windows or install

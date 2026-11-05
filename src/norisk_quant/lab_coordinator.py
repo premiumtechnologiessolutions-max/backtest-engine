@@ -9,7 +9,7 @@ from collections import Counter
 import hashlib
 import json
 import sys
-from importlib import metadata
+from importlib import metadata, util
 from pathlib import Path
 import threading
 import uuid
@@ -39,10 +39,11 @@ def code_identity() -> str:
 
 def runtime_identity():
     result = {'numpy': np.__version__, 'pandas': pd.__version__, 'python': sys.version}
-    try:
-        result['pennylane'] = metadata.version('pennylane')
-    except metadata.PackageNotFoundError:
-        result['pennylane'] = None
+    for package in ('pennylane', 'nautilus_trader'):
+        try:
+            result[package] = metadata.version(package)
+        except metadata.PackageNotFoundError:
+            result[package] = None
     return result
 
 
@@ -66,24 +67,35 @@ def validate_spec(spec):
     if type(spec) is not dict:
         raise ValueError('Job specification must be an object')
     kind = spec.get('kind')
-    if kind not in {'synthetic_campaign', 'quantum_optimization'}:
-        raise ValueError('Only construction synthetic campaigns and supplied binary problems are enabled')
+    supported = {'synthetic_campaign', 'synthetic_discovery', 'quantum_optimization', 'nautilus_synthetic'}
+    if kind not in supported:
+        raise ValueError('Only construction synthetic jobs and supplied binary problems are enabled')
+    if kind == 'nautilus_synthetic':
+        if set(spec) - {'kind', 'bars', 'seed'}:
+            raise ValueError('External synthetic jobs accept only bars and seed')
+        return {'kind':kind, 'bars':_bounded(spec.get('bars',240),'bars',60,1000),
+                'seed':_bounded(spec.get('seed',0),'seed',0,2**32-1)}
     common = {'kind', 'seed', 'layers', 'evaluations', 'backend'}
-    allowed = common | ({'bars', 'select_count'} if kind == 'synthetic_campaign' else {'problem'})
+    allowed = common | ({'problem'} if kind == 'quantum_optimization' else {'bars', 'select_count'})
     if set(spec) - allowed:
         raise ValueError('Unknown job fields; market paths and execution commands are not accepted')
-    normalized = dict(kind=kind, seed=_bounded(spec.get('seed', 0), 'seed', 0, 2**32 - 1),
-                      layers=_bounded(spec.get('layers', 1), 'layers', 1, 3),
-                      evaluations=_bounded(spec.get('evaluations', 32), 'evaluations', 1, 256),
-                      backend=spec.get('backend', 'numpy'))
-    if normalized['backend'] not in {'numpy', 'pennylane'}:
+    normalized = dict(kind=kind, seed=_bounded(spec.get('seed',0),'seed',0,2**32-1),
+                      layers=_bounded(spec.get('layers',1),'layers',1,3),
+                      evaluations=_bounded(spec.get('evaluations',32),'evaluations',1,256),
+                      backend=spec.get('backend','numpy'))
+    if normalized['backend'] not in {'numpy','pennylane'}:
         raise ValueError('Unsupported backend')
     if kind == 'synthetic_campaign':
-        normalized['bars'] = _bounded(spec.get('bars', 720), 'bars', 240, 3000)
-        normalized['select_count'] = _bounded(spec.get('select_count', 2), 'select_count', 1, 4)
+        normalized['bars'] = _bounded(spec.get('bars',720),'bars',240,3000)
+        normalized['select_count'] = _bounded(spec.get('select_count',2),'select_count',1,4)
+    elif kind == 'synthetic_discovery':
+        normalized['bars'] = _bounded(spec.get('bars',360),'bars',240,1440)
+        normalized['select_count'] = _bounded(spec.get('select_count',4),'select_count',1,4)
+        # Sixteen-variable simulation is substantially larger than the old demo.
+        normalized['evaluations'] = _bounded(spec.get('evaluations',8),'evaluations',1,32)
+        normalized['layers'] = _bounded(spec.get('layers',1),'layers',1,2)
     else:
         problem = BinaryProblem.from_dict(spec.get('problem'))
-        # Interactive path bounded below standalone 16-qubit research limit.
         if len(problem.labels) > 10:
             raise ValueError('Interactive jobs support at most 10 binary variables')
         normalized['problem'] = problem.payload()
@@ -172,7 +184,9 @@ class LabCoordinator:
         return {'phase': 'CONSTRUCTION_SYNTHETIC_ONLY', 'market_research_enabled': False,
                 'quantum': backend_capabilities(), 'jobs': dict(counts),
                 'code_sha256': code_identity(), 'engine_complete': False,
-                'integration': 'durable_jobs_canonical_reference_fast_quantum_local_ui'}
+                'integration': 'discovery_canonical_multiasset_portfolio_quantum_local_ui',
+                'external_engines': {'nautilus': {'installed': util.find_spec('nautilus_trader') is not None,
+                    'required_version':'1.221.0','execution_verified':False,'mode':'synthetic_only'}}}
 
     def submit(self, spec):
         payload = validate_spec(spec)
@@ -209,6 +223,13 @@ class LabCoordinator:
                     raise ValueError('Runtime changed since submission')
                 if claimed['kind'] == 'synthetic_campaign':
                     result = run_synthetic_campaign(payload, progress)
+                elif claimed['kind'] == 'synthetic_discovery':
+                    from .lab_campaigns import run_discovery_campaign
+                    result = run_discovery_campaign(payload, progress)
+                elif claimed['kind'] == 'nautilus_synthetic':
+                    progress('nautilus_synthetic')
+                    from .lab_nautilus import run_nautilus_synthetic
+                    result = run_nautilus_synthetic(bars=payload['bars'],seed=payload['seed'])
                 elif claimed['kind'] == 'quantum_optimization':
                     progress('quantum_selection')
                     result = solve_problem(BinaryProblem.from_dict(payload['problem']),
@@ -224,10 +245,12 @@ class LabCoordinator:
             except JobStateError:
                 return self.store.get(ident)
             except Exception as exc:
+                safe_error = (f'{type(exc).__name__}: install the matching optional engine extra'
+                              if type(exc).__name__ in {'NautilusUnavailable', 'BackendUnavailable'}
+                              else f'{type(exc).__name__}: local execution failed; no result accepted')
                 # Keep paths, tokens and arbitrary external messages out of UI.
                 try:
-                    return self.store.fail(ident, token, self.worker,
-                                           f'{type(exc).__name__}: local execution failed; no result accepted')
+                    return self.store.fail(ident, token, self.worker, safe_error)
                 except JobStateError:
                     return self.store.get(ident)
         finally:
