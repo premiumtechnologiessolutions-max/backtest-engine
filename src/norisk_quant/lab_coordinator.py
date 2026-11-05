@@ -30,6 +30,10 @@ _VENDORS = {
     'finrl_synthetic': 'finrl',
     'finrl_training_synthetic': 'finrl',
 }
+_AGENT_WORKFLOWS = {
+    'tradingagents_graph_synthetic': ('tradingagents', 'run_tradingagents_graph'),
+    'rdagent_factor_synthetic': ('rdagent', 'run_rdagent_probe'),
+}
 _BACKENDS = {'numpy', 'pennylane', 'opencl', 'opencl-cpu'}
 _OPENCL = {'opencl', 'opencl-cpu'}
 _LEASE_SECONDS = 120
@@ -68,7 +72,15 @@ def _job_runtime(payload):
     if vendor in {'lean', 'finrl'}:
         module = import_module(f'.lab_{vendor}', __package__)
         result[vendor] = getattr(module, f'{vendor}_status')()
+    if payload['kind'] in _AGENT_WORKFLOWS:
+        result['agent_workflow'] = _agent_workflow_status(payload['kind'], payload['mode'])
     return result
+
+
+def _agent_workflow_status(kind, mode='fixture'):
+    name, _ = _AGENT_WORKFLOWS[kind]
+    module = import_module(f'.lab_{name}', __package__)
+    return getattr(module, f'{name}_status')(mode=mode)
 
 
 def synthetic_fixture(bars=720, seed=0):
@@ -92,9 +104,21 @@ def validate_spec(spec):
         raise ValueError('Job specification must be an object')
     kind = spec.get('kind')
     supported = {'synthetic_campaign', 'synthetic_discovery', 'quantum_optimization',
-                 'synthetic_external_proposals', 'synthetic_agent_components', *_VENDORS}
+                 'synthetic_external_proposals', 'synthetic_agent_components', *_VENDORS,
+                 *_AGENT_WORKFLOWS}
     if type(kind) is not str or kind not in supported:
         raise ValueError('Only construction synthetic jobs and supplied binary problems are enabled')
+    if kind in _AGENT_WORKFLOWS:
+        allowed = {'kind', 'seed', 'mode'}
+        if kind == 'tradingagents_graph_synthetic':
+            allowed.add('bars')
+        mode = spec.get('mode', 'fixture')
+        if set(spec) - allowed or type(mode) is not str or mode not in {'fixture', 'ollama'}:
+            raise ValueError('Agent workflows accept only synthetic controls and fixture or ollama mode')
+        normalized = {'kind': kind, 'mode': mode, 'seed': _bounded(spec.get('seed', 0), 'seed', 0, 2**32-1)}
+        if 'bars' in allowed:
+            normalized['bars'] = _bounded(spec.get('bars', 360), 'bars', 240, 1440)
+        return normalized
     if kind in _VENDORS:
         if set(spec) - {'kind', 'bars', 'seed'}:
             raise ValueError('External synthetic jobs accept only bars and seed')
@@ -143,6 +167,32 @@ def validate_spec(spec):
             raise ValueError('Interactive jobs support at most 10 binary variables')
         normalized['problem'] = problem.payload()
     return normalized
+
+
+def _run_agent_workflow(kind, payload, progress):
+    name, handler = _AGENT_WORKFLOWS[kind]
+    module = import_module(f'.lab_{name}', __package__)
+    options = {key: payload[key] for key in ('seed', 'mode', 'bars') if key in payload}
+    progress(kind)
+    result = getattr(module, handler)(**options, progress=progress)
+    if (result.get('mode') != payload['mode'] or result.get('runtime_executed') is not True
+            or result.get('model_inference_executed') is not (payload['mode'] == 'ollama')
+            or result.get('market_data_accessed') is not False
+            or result.get('live_trading_enabled') is not False):
+        raise ValueError('Native agent workflow receipt failed its synthetic execution contract')
+    if kind == 'rdagent_factor_synthetic' and result.get('formula_envelope') is not None:
+        from .lab_proposals import normalize_proposal_envelope, run_proposal_campaign
+        envelope = normalize_proposal_envelope(result['formula_envelope'])
+        if envelope['generator'] != 'rd-agent':
+            raise ValueError('Native RD-Agent returned a proposal for a different generator')
+        # The allowlisted typed proposal enters the same canonical parity gate
+        # as imported formulas. It cannot supply executable code or market data.
+        evaluation = run_proposal_campaign({
+            'envelope': envelope, 'seed': payload['seed'] ^ 0x6E2563C1,
+        }, progress)
+        result['canonical_evaluation'] = evaluation
+        result['candidates'] = evaluation['candidates']
+    return result
 
 
 def _frame_digest(frame):
@@ -254,6 +304,19 @@ class LabCoordinator:
             verified = any(j['result'].get('agent_components', {}).get(provider, {}).get('runtime_executed')
                            for j in observed)
             vendors[provider] = {**info, 'execution_verified': bool(verified)}
+        for kind in _AGENT_WORKFLOWS:
+            available = _agent_workflow_status(kind)
+            completed = [j for j in observed if j['kind'] == kind and j['result'].get('runtime_executed') is True]
+            mode_status = {'fixture': available}
+            if available.get('ollama_configured') and any(j['payload'].get('mode') == 'ollama' for j in completed):
+                mode_status['ollama'] = _agent_workflow_status(kind, 'ollama')
+            receipts = [j['result'] for j in completed if j['payload'].get('mode') in mode_status
+                        and j['payload'].get('runtime') == {
+                            **runtime, 'agent_workflow': mode_status[j['payload']['mode']]}]
+            vendors[kind] = {**available, 'execution_verified': bool(receipts),
+                             'fixture_execution_verified': any(r.get('mode') == 'fixture' for r in receipts),
+                             'model_inference_verified': any(r.get('model_inference_executed') is True
+                                                             for r in receipts)}
         for job in observed:
             if job['payload'].get('backend') != 'opencl':
                 continue
@@ -331,6 +394,10 @@ class LabCoordinator:
                 if claimed['kind'] == 'lean_synthetic':
                     if result.get('runtime_image_id') != payload['runtime']['lean']['runtime_image_id']:
                         raise ValueError('LEAN image changed during execution')
+                if claimed['kind'] in _AGENT_WORKFLOWS:
+                    current = _agent_workflow_status(claimed['kind'], payload['mode'])
+                    if payload['runtime']['agent_workflow'] != current:
+                        raise ValueError('Agent runtime changed during execution')
                 if payload['code_sha256'] != code_identity():
                     raise ValueError('Code changed during execution')
                 progress('publish')
@@ -342,7 +409,8 @@ class LabCoordinator:
                 safe_error = (f'{type(exc).__name__}: check the optional runtime and configuration'
                               if type(exc).__name__ in {'NautilusUnavailable', 'BackendUnavailable',
                                                        'LeanUnavailable', 'FinRLUnavailable',
-                                                       'AgentComponentUnavailable'}
+                                                       'AgentComponentUnavailable', 'TradingAgentsUnavailable',
+                                                       'RDAgentUnavailable'}
                               else f'{type(exc).__name__}: local execution failed; no result accepted')
                 # Keep paths, tokens and arbitrary external messages out of UI.
                 try:
@@ -365,6 +433,8 @@ class LabCoordinator:
         if kind == 'synthetic_agent_components':
             from .lab_agent_runtime import run_agent_runtime
             return run_agent_runtime(payload, progress)
+        if kind in _AGENT_WORKFLOWS:
+            return _run_agent_workflow(kind, payload, progress)
         if kind in _VENDORS:
             vendor = _VENDORS[kind]
             progress(kind)

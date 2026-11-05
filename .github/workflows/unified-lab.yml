@@ -51,6 +51,25 @@ jobs:
       - run: python -m pip install -c constraints-ci.txt -e ".[dev]" setuptools wheel
       - name: Local HTTP, persistence and construction integration on Windows
         run: python -m pytest -q tests/test_lab_jobs.py tests/test_lab_coordinator.py tests/test_lab_server.py tests/test_unified_lab_e2e.py tests/test_quantum_optimizer.py tests/test_quantum_backends.py tests/test_quantum_selection.py tests/test_lab_discovery.py tests/test_lab_portfolio.py tests/test_lab_campaigns.py tests/test_lab_margin.py tests/test_lab_legacy.py tests/test_lab_proposals.py tests/test_quantum_opencl.py tests/test_lab_agent_runtime.py tests/test_lab_finrl.py
+      - name: Windows launcher writes a GPU verification receipt without falling back
+        shell: pwsh
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $false
+          cmd.exe /d /c "START_UNIFIED_LAB.bat --verify-gpu"
+          $code = $LASTEXITCODE
+          $receipt = Get-ChildItem $env:TEMP -Filter 'NoRiskFX-GPU-Verification-*.json' |
+            Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          if (-not $receipt) { throw 'The launcher did not write a receipt' }
+          $job = Get-Content $receipt.FullName -Raw | ConvertFrom-Json
+          if ($job.payload.backend -ne 'opencl') { throw 'Expected an explicit GPU request' }
+          if ($code -eq 0) {
+            if ($job.state -ne 'SUCCEEDED' -or $job.result.selection.gpu_used -ne $true) {
+              throw 'GPU success requires actual GPU execution'
+            }
+          } elseif ($code -ne 1 -or $job.state -ne 'FAILED' -or $job.result) {
+            throw 'Expected a failed job with no fallback result when GPU execution is unavailable'
+          }
+          exit 0
   optional-nautilus:
     runs-on: ubuntu-latest
     timeout-minutes: 15

@@ -1,0 +1,19 @@
+# Isolated imports for the official Qlib factor proposal stages.
+# Docker is an upstream import. The adapter never connects to its socket.
+dill==0.4.1
+docker==7.2.0
+filelock==4.2.9
+fuzzywuzzy==0.18.0
+Jinja2==3.1.6
+litellm==1.80.16
+loguru==0.7.3
+numpy==2.3.5
+pandas==2.2.3
+psutil==7.2.2
+pydantic-settings==2.16.2
+pytz==2026.6
+PyYAML==6.0.3
+regex==2026.9.29
+rich==15.0.0
+scikit-learn==1.8.0
+tqdm==4.70.1

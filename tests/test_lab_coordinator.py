@@ -28,7 +28,11 @@ class CoordinatorTests(unittest.TestCase):
         self.assertEqual(self.lab.run_one()['state'], 'IDLE')
     def test_blocks_market_jobs_and_unknown_fields(self):
         for spec in [{'kind':'gold_campaign'}, {'kind':'synthetic_campaign','path':'private.zip'},
-                     {'kind':'synthetic_campaign','bars':100000}, {'kind':'synthetic_campaign','seed':True}]:
+                     {'kind':'synthetic_campaign','bars':100000}, {'kind':'synthetic_campaign','seed':True},
+                     {'kind':'tradingagents_graph_synthetic','mode':'ollama','url':'http://localhost:11434'},
+                     {'kind':'rdagent_factor_synthetic','model':'provider/model'},
+                     {'kind':'rdagent_factor_synthetic','mode':{}},
+                     {'kind':'rdagent_factor_synthetic','bars':360}]:
             with self.assertRaises(ValueError):
                 self.lab.submit(spec)
     def test_cancel_prevents_execution(self):

@@ -36,6 +36,14 @@ and the receipt records device/driver identity and probability differences.
 The separate `opencl-cpu` backend exercises the same kernels on a CPU OpenCL
 device for verification.
 
+On the target Windows machine, `START_UNIFIED_LAB.bat --verify-gpu` installs
+the GPU extra and runs the short synthetic comparison. It prints the location
+of the JSON receipt, which records the result and, on success, the OpenCL GPU
+and CPU parity measurements. To verify a particular GPU on a multi-GPU system,
+find its selector in `norisk-lab status` and pass it to `synthetic-demo --backend
+opencl --device 0:0`, replacing `0:0` with that selector. These commands do not
+submit historical jobs.
+
 ## Optional vendor runs
 
 | Engine | Setup | Command |
@@ -73,5 +81,47 @@ pinned RD-Agent bandit to select a proposal family and the pinned
 TradingAgents rating parser to reconcile synthetic labels from canonical
 results. `norisk-lab agent-components-demo` runs the component path on its own.
 The vendored components carry their original licenses and verified source
-digests. Full provider-backed agent workflows, GPU verification on the target
-laptop, and original-source/OOS studies have separate acceptance requirements.
+digests.
+
+## Native agent workflows
+
+The dashboard and CLI offer explicit jobs for the pinned upstream workflows.
+They use separate Python environments from the lab. Both default to fixed
+structured replies so the official orchestration can be checked without
+credentials or inference.
+
+| Job | Runtime configuration | Command |
+| --- | --- | --- |
+| TradingAgents | `NRFX_TRADINGAGENTS_PYTHON` points to a separate interpreter with the pinned TradingAgents revision installed | `norisk-lab tradingagents-demo` |
+| RD-Agent | `NRFX_RDAGENT_PYTHON` points to the isolated interpreter and `NRFX_RDAGENT_CHECKOUT` to the clean pinned checkout | `norisk-lab rdagent-demo` |
+
+For TradingAgents, install the exact revision in the separate environment:
+
+```console
+python -m pip install "tradingagents @ git+https://github.com/TauricResearch/TradingAgents.git@9fa1196fffbcfd9de5146d2dd2869df84ab99838"
+```
+
+For RD-Agent, install the proposal dependencies in its separate environment
+and keep the source checkout at the pinned commit:
+
+```console
+python -m pip install -r scripts/rdagent_synthetic/requirements.txt
+git clone https://github.com/microsoft/RD-Agent.git rdagent-upstream
+git -C rdagent-upstream checkout 484776c211e4fbbeef03e0ec00d6bbee7362a4f4
+```
+
+The selected native graph runs the market analyst with invented bars and
+isolated fixture tools, followed by the bull/bear, research, trader, risk and
+portfolio nodes. RD-Agent runs the native Qlib factor hypothesis generator
+and experiment conversion from `microsoft/RD-Agent` revision
+`484776c211e4fbbeef03e0ec00d6bbee7362a4f4`. Its allowlisted formula proposals
+flow into the lab's reference/fast parity checks. Its experiment record
+contains proposed tasks. The lab executes no agent-generated code or Qlib backtest.
+
+For model inference, explicitly choose `--mode ollama` and configure a local
+model through `NRFX_TRADINGAGENTS_OLLAMA_MODEL` or `NRFX_RDAGENT_OLLAMA_MODEL`.
+Both clients use the fixed loopback service at `127.0.0.1:11434`. TradingAgents
+requires a local GGUF model with tool calling. For RD-Agent, set
+`NRFX_RDAGENT_OLLAMA_DIGEST` to the model's full digest returned by the local
+`/api/tags` endpoint. The saved receipt distinguishes an upstream workflow run
+with fixed replies from one with actual model inference.

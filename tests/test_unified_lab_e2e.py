@@ -55,6 +55,11 @@ class UnifiedLabHTTPTests(unittest.TestCase):
         status, html = self.request('GET', '/')
         self.assertEqual(status, 200)
         self.assertIn(b'X-Lab-Token', html)
+        for kind in ('tradingagents_graph_synthetic', 'rdagent_factor_synthetic'):
+            self.assertIn(kind, initial['external_engines'])
+            self.assertFalse(initial['external_engines'][kind]['execution_verified'])
+            self.assertFalse(initial['external_engines'][kind]['model_inference_verified'])
+            self.assertIn(kind.encode(), html)
 
         spec = {'kind': 'synthetic_campaign', 'bars': 240, 'evaluations': 8, 'seed': 17}
         status, queued = self.request('POST', '/api/jobs', spec)

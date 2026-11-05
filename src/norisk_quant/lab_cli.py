@@ -16,6 +16,8 @@ _DEMOS = {
     'finrl-demo': 'finrl_synthetic',
     'finrl-train-demo': 'finrl_training_synthetic',
     'agent-components-demo': 'synthetic_agent_components',
+    'tradingagents-demo': 'tradingagents_graph_synthetic',
+    'rdagent-demo': 'rdagent_factor_synthetic',
 }
 
 
@@ -48,6 +50,8 @@ def main():
     for name in _DEMOS:
         demo_parser = sub.add_parser(name)
         demo_parser.add_argument('--seed', type=int, default=0)
+        if name in {'tradingagents-demo', 'rdagent-demo'}:
+            demo_parser.add_argument('--mode', choices=('fixture', 'ollama'), default='fixture')
         if name in {'synthetic-demo', 'discovery-demo'}:
             demo_parser.add_argument('--backend', choices=('numpy', 'pennylane', 'opencl', 'opencl-cpu'),
                                      default='numpy')
@@ -86,6 +90,8 @@ def main():
     if args.command in _DEMOS:
         kind = _DEMOS[args.command]
         spec = {'kind': kind, 'seed': args.seed}
+        if hasattr(args, 'mode'):
+            spec['mode'] = args.mode
         if hasattr(args, 'backend'):
             spec['backend'] = args.backend
             if args.device is not None:

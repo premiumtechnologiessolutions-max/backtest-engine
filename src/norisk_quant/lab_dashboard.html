@@ -15,6 +15,9 @@
 <button id="finrl" class="secondary" type="button">تجربة FinRL</button>
 <button id="finrl-train" class="secondary" type="button">تدريب FinRL المصطنع</button>
 <button id="agents" class="secondary" type="button">تجربة مكوّنات الوكلاء</button>
+<label for="agent-mode">مصدر ردود الوكلاء</label><select id="agent-mode"><option value="fixture">ردود اختبار ثابتة</option><option value="ollama">نموذج Ollama محلي مُعدّ مسبقًا</option></select>
+<button id="tradingagents-graph" class="secondary" type="button">تشغيل مسار TradingAgents</button>
+<button id="rdagent-factor" class="secondary" type="button">اقتراح عامل عبر RD-Agent</button>
 <label for="proposal-file">ملف فرضيات خارجي</label><input type="file" id="proposal-file" accept="application/json,.json">
 <button id="proposals" class="secondary" type="button">اختبار الفرضيات المصطنع</button></div></section>
 <div id="message" role="status" aria-live="polite"></div>
@@ -45,6 +48,9 @@ function identifier(job){return job.job_id||job.id||job.fingerprint||''}
 function statusName(job){return job.status||job.state||'UNKNOWN'}
 const translations={QUEUED:'بالانتظار',RUNNING:'قيد التنفيذ',SUCCEEDED:'مكتملة',FAILED:'فشلت',CANCELLED:'ملغاة',HELD:'معلّقة'};
 const kindNames={synthetic_campaign:'مقارنة مرشّحين',synthetic_discovery:'اكتشاف وتطوير',nautilus_synthetic:'Nautilus · تجربة مصطنعة',lean_synthetic:'LEAN · تجربة مصطنعة',finrl_synthetic:'FinRL · تجربة مصطنعة',finrl_training_synthetic:'FinRL · تدريب PPO',synthetic_agent_components:'مكوّنات الوكلاء',historical_research:'بحث تاريخي محفوظ',synthetic_external_proposals:'فرضيات خارجية',quantum_optimization:'اختيار كمي'};
+const agentWorkflows={'tradingagents-graph':'tradingagents_graph_synthetic','rdagent-factor':'rdagent_factor_synthetic'};
+kindNames.tradingagents_graph_synthetic='TradingAgents · مسار الوكلاء';
+kindNames.rdagent_factor_synthetic='RD-Agent · اقتراح عامل';
 function stageLabel(stage){const names={synthetic_data:'إنشاء البيانات المصطنعة',selection_compilation:'تجهيز مسألة الاختيار',quantum_selection:'تشغيل الاختيار الكمي',publish:'حفظ النتيجة',complete:'اكتملت الدورة',submitted:'إضافة المهمة',claimed:'بدء المحاولة',completed:'حفظ النتيجة',cancelled:'إلغاء المهمة',failed:'فشل التنفيذ',lease_expired:'انتهاء مهلة المحاولة',discovery:'تطوير الأجيال',failure_analysis:'تحليل الفشل',shared_portfolio:'محاكاة المحفظة المشتركة',nautilus_synthetic:'تشغيل Nautilus على بيانات مصطنعة'};if(stage.startsWith('canonical_'))return 'مقارنة المحركين · '+stage.slice(10);return names[stage]||stage}
 function number(value){return typeof value==='number'?value.toLocaleString('en-US',{maximumFractionDigits:4}):'—'}
 function shortValue(value){if(value===null||value===undefined)return '—';if(typeof value==='object')return JSON.stringify(value);return String(value)}
@@ -111,12 +117,25 @@ async function show(id){
       capabilityView(container,result.agent_components);
       detail.append(section);
     }
+    if(Object.values(agentWorkflows).includes(job.kind)){
+      const pairs=[['مصدر الردود',result.model_inference_executed?'Ollama محلي':'ردود اختبار ثابتة'],
+                   ['تنفيذ مسار المكتبة',result.runtime_executed?'تمّ':'—']];
+      if(job.kind===agentWorkflows['rdagent-factor']){
+        pairs.push(['مهام العوامل المقترحة',number(result.native_task_count)],
+                   ['صيغ تم تقييمها بالمحركين',number(result.canonical_evaluation?.formula_count||0)]);
+      }else if(result.final_rating){
+        pairs.push(['تقييم المحفظة المصطنعة',shortValue(result.final_rating)]);
+      }
+      detail.append(metricsSection(kindNames[job.kind],pairs));
+      const steps=result.executed_nodes||result.stages;
+      if(Array.isArray(steps))detail.append(observations('مراحل المسار الأصلي',steps));
+    }
     if(job.kind==='synthetic_external_proposals')detail.append(metricsSection('مصدر الفرضيات المصرّح عنه',[['المولّد',shortValue(result.generator)],['النسخة',shortValue(result.upstream_commit_asserted)]]));
   }
   const details=element('details'),summary=element('summary','عرض السجل الكامل');details.append(summary,element('pre',JSON.stringify(job,null,2),'mono'));detail.append(details);
 }
 function chosenSeed(){const text=$('seed').value.trim(),seed=Number(text);if(!text||!Number.isInteger(seed)||seed<0||seed>4294967295)throw Error('اختر بذرة صحيحة بين 0 و4294967295');return seed}
-const runControls=['demo','tick','seed','campaign-mode','quantum-backend','nautilus','lean','finrl','finrl-train','agents','proposals','proposal-file'];
+const runControls=['demo','tick','seed','campaign-mode','quantum-backend','nautilus','lean','finrl','finrl-train','agents','proposals','proposal-file','agent-mode',...Object.keys(agentWorkflows)];
 async function action(fn,success){
   if(busy)return;
   busy=true;
@@ -151,6 +170,11 @@ $('finrl-train').onclick=()=>action(async()=>{
 $('agents').onclick=()=>action(async()=>{
   await submitAndRun({kind:'synthetic_agent_components',bars:360,seed:chosenSeed()});
 },'راجع نتيجة مكوّنات الوكلاء.');
+for(const [id,kind] of Object.entries(agentWorkflows)){
+  $(id).onclick=()=>action(async()=>{
+    await submitAndRun({kind,mode:$('agent-mode').value,seed:chosenSeed()});
+  },'راجع سجل تشغيل مسار الوكلاء.');
+}
 $('proposals').onclick=()=>action(async()=>{
   const file=$('proposal-file').files[0];
   if(!file||file.size>60000)throw Error('اختر ملف JSON للفرضيات بحجم أقل من 60 KB.');
