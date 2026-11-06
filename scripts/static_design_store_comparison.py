@@ -31,22 +31,23 @@ def compare_audited_static_design_stores(
         raise ValueError("Cannot verify both SQLite store paths") from exc
     if (before_ids[0].st_dev, before_ids[0].st_ino) == (before_ids[1].st_dev, before_ids[1].st_ino):
         raise ValueError("Baseline and current must be distinct SQLite stores")
-    # Track WAL sidecars as well as main database files: committed writes may
-    # touch only the WAL while the database inode and metadata remain stable.
-    def wal_identity(store):
-        path = os.fspath(store.database) + "-wal"
+    # Track both SQLite sidecars: WAL commits can bypass main-file metadata,
+    # and shared-memory index replacement makes the audit environment unstable.
+    def sidecar_identity(store, suffix):
+        path = os.fspath(store.database) + suffix
         try:
             info = os.lstat(path)
         except FileNotFoundError:
             return None
         if not stat.S_ISREG(info.st_mode):
-            raise ValueError("SQLite WAL sidecar must be a regular file")
+            raise ValueError("SQLite sidecar must be a regular file")
         return (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
 
     try:
-        before_wal = tuple(wal_identity(store) for store in (previous, current))
+        before_sidecars = tuple(tuple(sidecar_identity(store, suffix) for suffix in ("-wal", "-shm"))
+                                for store in (previous, current))
     except (OSError, TypeError) as exc:
-        raise ValueError("Cannot verify SQLite WAL sidecars") from exc
+        raise ValueError("Cannot verify SQLite sidecars") from exc
     # Do not silently treat an unreadable previous store as an empty baseline.
     before = snapshot_static_design_records(previous)
     after = snapshot_static_design_records(current)
@@ -64,10 +65,11 @@ def compare_audited_static_design_stores(
            for a, b in zip(before_ids, after_ids)):
         raise ValueError("SQLite store metadata changed during comparison")
     try:
-        after_wal = tuple(wal_identity(store) for store in (previous, current))
+        after_sidecars = tuple(tuple(sidecar_identity(store, suffix) for suffix in ("-wal", "-shm"))
+                               for store in (previous, current))
     except (OSError, TypeError) as exc:
-        raise ValueError("Cannot verify SQLite WAL sidecars") from exc
-    if before_wal != after_wal:
-        raise ValueError("SQLite WAL sidecar changed during comparison")
+        raise ValueError("Cannot verify SQLite sidecars") from exc
+    if before_sidecars != after_sidecars:
+        raise ValueError("SQLite sidecar changed during comparison")
     result = verify_static_design_continuity(before, after)
     return {**result, "snapshots_audited": True, "provenance_verified": False}
