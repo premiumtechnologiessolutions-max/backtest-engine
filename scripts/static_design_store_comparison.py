@@ -37,7 +37,13 @@ def compare_audited_static_design_stores(
 
     # A regular SQLite file beneath a symlinked directory is still an alias.
     # Check lexical path components without resolving symlinks, before any read.
-    # Pin the store locator itself: a mutable state object must not redirect\n    # a later snapshot or verification to a different path mid-comparison.\n    try:\n        before_paths = tuple(os.fspath(store.database) for store in (previous, current))\n    except TypeError as exc:\n        raise ValueError("Cannot verify SQLite store paths") from exc\n    before_parents = assert_safe_parents()
+    # Pin the store locator itself: a mutable state object must not redirect
+    # a later snapshot or verification to a different path mid-comparison.
+    try:
+        before_paths = tuple(os.fspath(store.database) for store in (previous, current))
+    except TypeError as exc:
+        raise ValueError("Cannot verify SQLite store paths") from exc
+    before_parents = assert_safe_parents()
     # Reject symlink aliases, including links to an otherwise valid SQLite file.
     # Pin both physical file identities before reading. Recheck after both
     # snapshots: path replacement during an audit invalidates its evidence.
@@ -82,7 +88,9 @@ def compare_audited_static_design_stores(
     after = snapshot_static_design_records(current)
     # Keep mutation detection active through continuity verification itself.
     result = verify_static_design_continuity(before, after)
-    if tuple(os.fspath(store.database) for store in (previous, current)) != before_paths:\n        raise ValueError("SQLite store locator changed during comparison")\n    if assert_safe_parents() != before_parents:
+    if tuple(os.fspath(store.database) for store in (previous, current)) != before_paths:
+        raise ValueError("SQLite store locator changed during comparison")
+    if assert_safe_parents() != before_parents:
         raise ValueError("SQLite store parent directory changed during comparison")
     try:
         after_ids = tuple(os.lstat(store.database) for store in (previous, current))
