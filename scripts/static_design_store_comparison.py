@@ -21,15 +21,19 @@ def compare_audited_static_design_stores(
     """Fail closed if either database cannot produce an audited snapshot."""
     if not isinstance(previous, DurableResearchState) or not isinstance(current, DurableResearchState):
         raise ValueError("Expected two durable state stores")
+    def assert_safe_parents():
+        """Revalidate lexical ancestors; a directory can be swapped mid-audit."""
+        for store in (previous, current):
+            try:
+                path = Path(os.path.abspath(os.fspath(store.database)))
+                if any(stat.S_ISLNK(os.lstat(parent).st_mode) for parent in path.parents):
+                    raise ValueError("SQLite store path contains a symlinked parent")
+            except (OSError, TypeError) as exc:
+                raise ValueError("Cannot verify SQLite store parent directories") from exc
+
     # A regular SQLite file beneath a symlinked directory is still an alias.
     # Check lexical path components without resolving symlinks, before any read.
-    for store in (previous, current):
-        try:
-            path = Path(os.path.abspath(os.fspath(store.database)))
-            if any(stat.S_ISLNK(os.lstat(parent).st_mode) for parent in path.parents):
-                raise ValueError("SQLite store path contains a symlinked parent")
-        except (OSError, TypeError) as exc:
-            raise ValueError("Cannot verify SQLite store parent directories") from exc
+    assert_safe_parents()
     # Reject symlink aliases, including links to an otherwise valid SQLite file.
     # Pin both physical file identities before reading. Recheck after both
     # snapshots: path replacement during an audit invalidates its evidence.
@@ -74,6 +78,7 @@ def compare_audited_static_design_stores(
     after = snapshot_static_design_records(current)
     # Keep mutation detection active through continuity verification itself.
     result = verify_static_design_continuity(before, after)
+    assert_safe_parents()
     try:
         after_ids = tuple(os.lstat(store.database) for store in (previous, current))
     except (OSError, TypeError, ValueError) as exc:
