@@ -109,7 +109,7 @@ def test_invalid_store_path_type_fails_closed(tmp_path):
     old = DurableResearchState(tmp_path / "old.sqlite3")
     new = DurableResearchState(tmp_path / "new.sqlite3")
     new.database = None
-    with pytest.raises(ValueError, match="Cannot verify both SQLite store paths"):
+    with pytest.raises(ValueError, match="Cannot verify SQLite store parent directories"):
         compare_audited_static_design_stores(old, new)
 
 
