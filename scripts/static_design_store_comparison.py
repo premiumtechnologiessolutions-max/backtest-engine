@@ -40,7 +40,7 @@ def compare_audited_static_design_stores(
         except FileNotFoundError:
             return None
         if not stat.S_ISREG(info.st_mode):
-            raise ValueError("SQLite sidecar must be a regular file")
+            raise ValueError(f"SQLite {suffix[1:].upper()} sidecar must be a regular file")
         return (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
 
     try:
@@ -70,6 +70,7 @@ def compare_audited_static_design_stores(
     except (OSError, TypeError) as exc:
         raise ValueError("Cannot verify SQLite sidecars") from exc
     if before_sidecars != after_sidecars:
-        raise ValueError("SQLite sidecar changed during comparison")
+        changed = "-wal" if any(a[0] != b[0] for a, b in zip(before_sidecars, after_sidecars)) else "-shm"
+        raise ValueError(f"SQLite {changed[1:].upper()} sidecar changed during comparison")
     result = verify_static_design_continuity(before, after)
     return {**result, "snapshots_audited": True, "provenance_verified": False}
