@@ -349,3 +349,25 @@ def test_main_store_mode_change_during_snapshot_fails_closed(tmp_path, monkeypat
     monkeypatch.setattr(comparison, "snapshot_static_design_records", changing_snapshot)
     with pytest.raises(ValueError, match="metadata changed during comparison"):
         comparison.compare_audited_static_design_stores(old, new)
+
+
+@pytest.mark.parametrize("side", ["baseline", "current"])
+def test_mutation_during_continuity_verification_fails_closed(tmp_path, monkeypatch, side):
+    """Metadata checks must run after the potentially long verification step."""
+    import os
+    import scripts.static_design_store_comparison as comparison
+
+    old = DurableResearchState(tmp_path / "old.sqlite3")
+    new = DurableResearchState(tmp_path / "new.sqlite3")
+    target = old if side == "baseline" else new
+    original = comparison.verify_static_design_continuity
+
+    def mutate_during_verification(before, after):
+        result = original(before, after)
+        info = os.stat(target.database)
+        os.utime(target.database, ns=(info.st_atime_ns, info.st_mtime_ns + 1_000_000_000))
+        return result
+
+    monkeypatch.setattr(comparison, "verify_static_design_continuity", mutate_during_verification)
+    with pytest.raises(ValueError, match="metadata changed during comparison"):
+        comparison.compare_audited_static_design_stores(old, new)
