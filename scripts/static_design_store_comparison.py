@@ -29,6 +29,8 @@ def compare_audited_static_design_stores(
             raise ValueError("SQLite store must be a regular file")
     except (OSError, TypeError, ValueError) as exc:
         raise ValueError("Cannot verify both SQLite store paths") from exc
+    if any(item.st_nlink != 1 for item in before_ids):
+        raise ValueError("SQLite store has external hardlink aliases")
     if (before_ids[0].st_dev, before_ids[0].st_ino) == (before_ids[1].st_dev, before_ids[1].st_ino):
         raise ValueError("Baseline and current must be distinct SQLite stores")
     # Track both SQLite sidecars: WAL commits can bypass main-file metadata,
@@ -41,6 +43,8 @@ def compare_audited_static_design_stores(
             return None
         if not stat.S_ISREG(info.st_mode):
             raise ValueError(f"SQLite {suffix[1:].upper()} sidecar must be a regular file")
+        if info.st_nlink != 1:
+            raise ValueError(f"SQLite {suffix[1:].upper()} sidecar has external hardlink aliases")
         return (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns, info.st_mode)
 
     try:
@@ -64,6 +68,8 @@ def compare_audited_static_design_stores(
         after_ids = tuple(os.lstat(store.database) for store in (previous, current))
     except (OSError, TypeError, ValueError) as exc:
         raise ValueError("SQLite store path changed during comparison") from exc
+    if any(b.st_nlink != 1 for b in after_ids):
+        raise ValueError("SQLite store acquired external hardlink aliases during comparison")
     if any((a.st_dev, a.st_ino) != (b.st_dev, b.st_ino) for a, b in zip(before_ids, after_ids)):
         raise ValueError("SQLite store path changed during comparison")
     # A stable inode does not imply stable contents: reject observable
