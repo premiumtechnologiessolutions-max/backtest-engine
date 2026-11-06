@@ -40,7 +40,10 @@ def test_existing_rollback_journal_removed_during_audit_rejected(tmp_path, monke
 
     def remove(before, after):
         result = original(before, after)
-        os.unlink(journal)
+        # SQLite may itself remove a synthetic rollback journal while opening
+        # the read-only snapshot. Either disappearance must fail the audit.
+        if os.path.lexists(journal):
+            os.unlink(journal)
         return result
 
     monkeypatch.setattr(comparison, "verify_static_design_continuity", remove)
