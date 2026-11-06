@@ -206,15 +206,18 @@ def test_wal_sidecar_directory_fails_closed(tmp_path):
         compare_audited_static_design_stores(old, new)
 
 
-def test_real_sqlite_wal_commit_during_snapshot_fails_closed(tmp_path, monkeypatch):
+@pytest.mark.parametrize("mutated_side", ["baseline", "current"])
+def test_real_sqlite_wal_commit_during_snapshot_fails_closed(tmp_path, monkeypatch, mutated_side):
     """Synthetic SQLite transaction, no research or trading engine involved."""
     import sqlite3
     import scripts.static_design_store_comparison as comparison
 
     old = DurableResearchState(tmp_path / "old.sqlite3")
     new = DurableResearchState(tmp_path / "new.sqlite3")
+    # Exercise both independently opened stores: either side can mutate.
+    target = old if mutated_side == "baseline" else new
     # Keep a connection open so SQLite retains the WAL sidecar across reads.
-    writer = sqlite3.connect(old.database)
+    writer = sqlite3.connect(target.database)
     try:
         assert writer.execute("PRAGMA journal_mode=WAL").fetchone()[0].lower() == "wal"
         writer.execute("PRAGMA user_version=1")
@@ -226,7 +229,7 @@ def test_real_sqlite_wal_commit_during_snapshot_fails_closed(tmp_path, monkeypat
             nonlocal calls
             snapshot = original(state)
             calls += 1
-            if calls == 1:
+            if (mutated_side == "baseline" and calls == 1) or (mutated_side == "current" and calls == 2):
                 writer.execute("PRAGMA user_version=2")
                 writer.commit()
             return snapshot
