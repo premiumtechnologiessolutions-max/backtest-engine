@@ -311,7 +311,10 @@ def test_shm_change_between_snapshots_fails_closed(tmp_path, monkeypatch, side):
         nonlocal calls
         result = original(state)
         calls += 1
-        if calls == 1:
+        # Mutate the selected store only after its own snapshot completes.
+        # Opening the current SQLite store can remove an unowned synthetic
+        # SHM sidecar, so mutating it before that read is not a stable test.
+        if (side == "baseline" and calls == 1) or (side == "current" and calls == 2):
             with open(os.fspath(target.database) + "-shm", "ab") as sidecar:
                 sidecar.write(b"synthetic-shm-change")
         return result
