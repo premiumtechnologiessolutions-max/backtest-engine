@@ -239,3 +239,17 @@ def test_real_sqlite_wal_commit_during_snapshot_fails_closed(tmp_path, monkeypat
             comparison.compare_audited_static_design_stores(old, new)
     finally:
         writer.close()
+
+
+@pytest.mark.parametrize("side", ["baseline", "current"])
+def test_wal_symlink_is_rejected_before_snapshot(tmp_path, side):
+    """A WAL symlink must not be trusted as an ordinary SQLite sidecar."""
+    old = DurableResearchState(tmp_path / "old.sqlite3")
+    new = DurableResearchState(tmp_path / "new.sqlite3")
+    target = old if side == "baseline" else new
+    foreign = tmp_path / "unrelated-wal"
+    foreign.write_bytes(b"synthetic-only")
+    import os
+    os.symlink(foreign, os.fspath(target.database) + "-wal")
+    with pytest.raises(ValueError, match="WAL sidecar must be a regular file"):
+        compare_audited_static_design_stores(old, new)

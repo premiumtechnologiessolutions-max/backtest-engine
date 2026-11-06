@@ -35,7 +35,7 @@ def compare_audited_static_design_stores(
     def wal_identity(store):
         path = os.fspath(store.database) + "-wal"
         try:
-            info = os.stat(path)
+            info = os.lstat(path)
         except FileNotFoundError:
             return None
         if not stat.S_ISREG(info.st_mode):
