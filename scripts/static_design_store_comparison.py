@@ -30,7 +30,7 @@ def compare_audited_static_design_stores(
                 parents = tuple(os.lstat(parent) for parent in path.parents)
                 if any(not stat.S_ISDIR(item.st_mode) for item in parents):
                     raise ValueError("SQLite store path contains a non-directory parent")
-                identities.append(tuple((item.st_dev, item.st_ino) for item in parents))
+                identities.append(tuple((item.st_dev, item.st_ino, item.st_mode) for item in parents))
             except (OSError, TypeError) as exc:
                 raise ValueError("Cannot verify SQLite store parent directories") from exc
         return tuple(identities)
