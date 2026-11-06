@@ -456,7 +456,7 @@ def test_symlinked_parent_directory_rejected_before_snapshot(tmp_path, monkeypat
     target.database = alias / target.database.name
     monkeypatch.setattr(comparison, "snapshot_static_design_records",
                         lambda _: pytest.fail("must reject parent alias before reading"))
-    with pytest.raises(ValueError, match="symlinked parent"):
+    with pytest.raises(ValueError, match="non-directory parent"):
         comparison.compare_audited_static_design_stores(old, new)
 
 
@@ -486,4 +486,37 @@ def test_parent_directory_swapped_to_symlink_during_verification_fails_closed(
 
     monkeypatch.setattr(comparison, "verify_static_design_continuity", swap_parent)
     with pytest.raises(ValueError, match="symlinked parent"):
+        comparison.compare_audited_static_design_stores(old, new)
+
+
+@pytest.mark.parametrize("side", ["baseline", "current"])
+def test_parent_directory_replaced_by_real_directory_during_verification_fails_closed(
+    tmp_path, monkeypatch, side
+):
+    """A replaced real directory is not a trustworthy audit path either."""
+    import os
+    import shutil
+    import scripts.static_design_store_comparison as comparison
+
+    baseline_dir = tmp_path / "baseline"
+    current_dir = tmp_path / "current"
+    baseline_dir.mkdir()
+    current_dir.mkdir()
+    old = DurableResearchState(baseline_dir / "old.sqlite3")
+    new = DurableResearchState(current_dir / "new.sqlite3")
+    target_dir = baseline_dir if side == "baseline" else current_dir
+    relocated = tmp_path / (side + "-relocated")
+    original_verify = comparison.verify_static_design_continuity
+
+    def swap_parent(before, after):
+        result = original_verify(before, after)
+        os.rename(target_dir, relocated)
+        target_dir.mkdir()
+        for source in relocated.iterdir():
+            if source.is_file():
+                shutil.copy2(source, target_dir / source.name)
+        return result
+
+    monkeypatch.setattr(comparison, "verify_static_design_continuity", swap_parent)
+    with pytest.raises(ValueError, match="parent directory changed during comparison"):
         comparison.compare_audited_static_design_stores(old, new)
