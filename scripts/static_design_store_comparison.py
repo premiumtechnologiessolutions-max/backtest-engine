@@ -20,10 +20,11 @@ def compare_audited_static_design_stores(
     """Fail closed if either database cannot produce an audited snapshot."""
     if not isinstance(previous, DurableResearchState) or not isinstance(current, DurableResearchState):
         raise ValueError("Expected two durable state stores")
+    # Reject symlink aliases, including links to an otherwise valid SQLite file.
     # Pin both physical file identities before reading. Recheck after both
     # snapshots: path replacement during an audit invalidates its evidence.
     try:
-        before_ids = tuple(os.stat(store.database) for store in (previous, current))
+        before_ids = tuple(os.lstat(store.database) for store in (previous, current))
         if not all(stat.S_ISREG(item.st_mode) for item in before_ids):
             raise ValueError("SQLite store must be a regular file")
     except (OSError, TypeError, ValueError) as exc:
@@ -50,7 +51,7 @@ def compare_audited_static_design_stores(
     before = snapshot_static_design_records(previous)
     after = snapshot_static_design_records(current)
     try:
-        after_ids = tuple(os.stat(store.database) for store in (previous, current))
+        after_ids = tuple(os.lstat(store.database) for store in (previous, current))
     except (OSError, TypeError, ValueError) as exc:
         raise ValueError("SQLite store path changed during comparison") from exc
     if any((a.st_dev, a.st_ino) != (b.st_dev, b.st_ino) for a, b in zip(before_ids, after_ids)):
