@@ -253,3 +253,25 @@ def test_wal_symlink_is_rejected_before_snapshot(tmp_path, side):
     os.symlink(foreign, os.fspath(target.database) + "-wal")
     with pytest.raises(ValueError, match="WAL sidecar must be a regular file"):
         compare_audited_static_design_stores(old, new)
+
+
+@pytest.mark.parametrize("side", ["baseline", "current"])
+def test_main_database_symlink_rejected_before_snapshot(tmp_path, monkeypatch, side):
+    """An aliased database path is not independent audit evidence."""
+    import os
+    import scripts.static_design_store_comparison as comparison
+
+    old = DurableResearchState(tmp_path / "old.sqlite3")
+    new = DurableResearchState(tmp_path / "new.sqlite3")
+    target = old if side == "baseline" else new
+    original = target.database
+    alias = tmp_path / (side + "-alias.sqlite3")
+    os.symlink(original, alias)
+    target.database = alias
+
+    def forbidden_snapshot(_state):
+        pytest.fail("audit must reject symlink before reading records")
+
+    monkeypatch.setattr(comparison, "snapshot_static_design_records", forbidden_snapshot)
+    with pytest.raises(ValueError, match="Cannot verify both SQLite store paths"):
+        comparison.compare_audited_static_design_stores(old, new)
