@@ -394,3 +394,45 @@ def test_hardlinked_sqlite_sidecar_alias_fails_before_snapshot(
                         lambda _: pytest.fail("must reject aliases before reading"))
     with pytest.raises(ValueError, match="distinct physical files"):
         comparison.compare_audited_static_design_stores(old, new)
+
+
+@pytest.mark.parametrize("side", ["baseline", "current"])
+@pytest.mark.parametrize("suffix", ["", "-wal", "-shm"])
+def test_external_hardlink_alias_rejected_before_snapshot(tmp_path, monkeypatch, side, suffix):
+    """An alias outside the compared stores must not evade inode-pair checks."""
+    import os
+    import scripts.static_design_store_comparison as comparison
+
+    old = DurableResearchState(tmp_path / "old.sqlite3")
+    new = DurableResearchState(tmp_path / "new.sqlite3")
+    target = old if side == "baseline" else new
+    path = os.fspath(target.database) + suffix
+    if suffix:
+        with open(path, "wb") as handle:
+            handle.write(b"synthetic-sidecar")
+    os.link(path, tmp_path / ("external-alias-" + side + suffix.lstrip("-")))
+    monkeypatch.setattr(comparison, "snapshot_static_design_records",
+                        lambda _: pytest.fail("must reject hardlinks before snapshot"))
+    with pytest.raises(ValueError, match="external hardlink aliases"):
+        comparison.compare_audited_static_design_stores(old, new)
+
+
+@pytest.mark.parametrize("side", ["baseline", "current"])
+def test_main_database_hardlink_added_during_verification_rejected(tmp_path, monkeypatch, side):
+    """New external aliases invalidate the snapshot even without file writes."""
+    import os
+    import scripts.static_design_store_comparison as comparison
+
+    old = DurableResearchState(tmp_path / "old.sqlite3")
+    new = DurableResearchState(tmp_path / "new.sqlite3")
+    target = old if side == "baseline" else new
+    original = comparison.verify_static_design_continuity
+
+    def add_alias(before, after):
+        result = original(before, after)
+        os.link(target.database, tmp_path / ("late-alias-" + side))
+        return result
+
+    monkeypatch.setattr(comparison, "verify_static_design_continuity", add_alias)
+    with pytest.raises(ValueError, match="acquired external hardlink aliases"):
+        comparison.compare_audited_static_design_stores(old, new)
