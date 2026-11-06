@@ -51,8 +51,8 @@ def compare_audited_static_design_stores(
         raise ValueError("SQLite store has external hardlink aliases")
     if (before_ids[0].st_dev, before_ids[0].st_ino) == (before_ids[1].st_dev, before_ids[1].st_ino):
         raise ValueError("Baseline and current must be distinct SQLite stores")
-    # Track both SQLite sidecars: WAL commits can bypass main-file metadata,
-    # and shared-memory index replacement makes the audit environment unstable.
+    # Track SQLite sidecars and rollback journals: WAL commits can bypass main-file metadata,
+    # and journal or shared-memory replacement makes the audit environment unstable.
     def sidecar_identity(store, suffix):
         path = os.fspath(store.database) + suffix
         try:
@@ -66,7 +66,7 @@ def compare_audited_static_design_stores(
         return (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns, info.st_mode)
 
     try:
-        before_sidecars = tuple(tuple(sidecar_identity(store, suffix) for suffix in ("-wal", "-shm"))
+        before_sidecars = tuple(tuple(sidecar_identity(store, suffix) for suffix in ("-wal", "-shm", "-journal"))
                                 for store in (previous, current))
     except (OSError, TypeError) as exc:
         raise ValueError("Cannot verify SQLite sidecars") from exc
@@ -100,11 +100,12 @@ def compare_audited_static_design_stores(
            for a, b in zip(before_ids, after_ids)):
         raise ValueError("SQLite store metadata changed during comparison")
     try:
-        after_sidecars = tuple(tuple(sidecar_identity(store, suffix) for suffix in ("-wal", "-shm"))
+        after_sidecars = tuple(tuple(sidecar_identity(store, suffix) for suffix in ("-wal", "-shm", "-journal"))
                                for store in (previous, current))
     except (OSError, TypeError) as exc:
         raise ValueError("Cannot verify SQLite sidecars") from exc
     if before_sidecars != after_sidecars:
-        changed = "-wal" if any(a[0] != b[0] for a, b in zip(before_sidecars, after_sidecars)) else "-shm"
+        changed = next(suffix for index, suffix in enumerate(("-wal", "-shm", "-journal"))
+                       if any(a[index] != b[index] for a, b in zip(before_sidecars, after_sidecars)))
         raise ValueError(f"SQLite {changed[1:].upper()} sidecar changed during comparison")
     return {**result, "snapshots_audited": True, "provenance_verified": False}
