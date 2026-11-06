@@ -50,8 +50,8 @@ def test_does_not_mutate_inputs():
 
 
 @pytest.mark.parametrize("invalid", [
-    " leading", "trailing ", "line\\nbreak", "nul\\x00byte",
-    "tab\\tvalue", "e\\u0301", "zero\\u200bwidth",
+    " leading", "trailing ", "line\nbreak", "nul\x00byte",
+    "tab\tvalue", "e\u0301", "zero\u200bwidth",
 ])
 @pytest.mark.parametrize("field", ["batch_id", "request_id"])
 def test_rejects_ambiguous_or_noncanonical_identities(invalid, field):
