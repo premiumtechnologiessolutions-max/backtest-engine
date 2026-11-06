@@ -322,3 +322,30 @@ def test_shm_change_between_snapshots_fails_closed(tmp_path, monkeypatch, side):
     monkeypatch.setattr(comparison, "snapshot_static_design_records", mutate_after_snapshot)
     with pytest.raises(ValueError, match="SHM sidecar changed during comparison"):
         comparison.compare_audited_static_design_stores(old, new)
+
+
+@pytest.mark.parametrize("side", ["baseline", "current"])
+def test_main_store_mode_change_during_snapshot_fails_closed(tmp_path, monkeypatch, side):
+    """A chmod during a synthetic audit invalidates the filesystem evidence."""
+    import os
+    import stat
+    import scripts.static_design_store_comparison as comparison
+
+    old = DurableResearchState(tmp_path / "old.sqlite3")
+    new = DurableResearchState(tmp_path / "new.sqlite3")
+    target = old if side == "baseline" else new
+    original = comparison.snapshot_static_design_records
+    calls = 0
+
+    def changing_snapshot(state):
+        nonlocal calls
+        result = original(state)
+        calls += 1
+        if (side == "baseline" and calls == 1) or (side == "current" and calls == 2):
+            mode = stat.S_IMODE(os.lstat(target.database).st_mode)
+            os.chmod(target.database, mode ^ stat.S_IXUSR)
+        return result
+
+    monkeypatch.setattr(comparison, "snapshot_static_design_records", changing_snapshot)
+    with pytest.raises(ValueError, match="metadata changed during comparison"):
+        comparison.compare_audited_static_design_stores(old, new)

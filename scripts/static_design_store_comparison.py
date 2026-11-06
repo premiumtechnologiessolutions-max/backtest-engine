@@ -41,7 +41,7 @@ def compare_audited_static_design_stores(
             return None
         if not stat.S_ISREG(info.st_mode):
             raise ValueError(f"SQLite {suffix[1:].upper()} sidecar must be a regular file")
-        return (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+        return (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns, info.st_mode)
 
     try:
         before_sidecars = tuple(tuple(sidecar_identity(store, suffix) for suffix in ("-wal", "-shm"))
@@ -60,8 +60,8 @@ def compare_audited_static_design_stores(
     # A stable inode does not imply stable contents: reject observable
     # in-place writes as well. WAL-only changes are NOT covered by this
     # metadata check alone; this remains non-atomic across stores.
-    if any((a.st_size, a.st_mtime_ns, a.st_ctime_ns) !=
-           (b.st_size, b.st_mtime_ns, b.st_ctime_ns)
+    if any((a.st_size, a.st_mtime_ns, a.st_ctime_ns, a.st_mode) !=
+           (b.st_size, b.st_mtime_ns, b.st_ctime_ns, b.st_mode)
            for a, b in zip(before_ids, after_ids)):
         raise ValueError("SQLite store metadata changed during comparison")
     try:
