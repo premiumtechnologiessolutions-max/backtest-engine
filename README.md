@@ -1,3 +1,17 @@
+# Unified local Quantum Lab
+
+Run `START_UNIFIED_LAB.bat` on Windows, or install with
+`python -m pip install -e .` and run `norisk-lab serve`.
+Open http://127.0.0.1:8766 for the Arabic dashboard.
+
+The lab connects durable jobs, reference/fast parity, feedback-driven strategy
+discovery, QAOA selection, an exact classical baseline and shared M1 equity
+and margin replay. The construction routes use invented fixtures. Historical
+queue records can be imported into the same inventory in the held state.
+
+See [the local workflow and optional runtime setup](docs/UNIFIED_RUNTIME_SETUP.md).
+Historical engine evidence below retains its original scope and dates.
+
 # No Risk FX Quant Engine
 
 ## Current verified status — 2026-11-01
