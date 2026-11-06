@@ -275,3 +275,47 @@ def test_main_database_symlink_rejected_before_snapshot(tmp_path, monkeypatch, s
     monkeypatch.setattr(comparison, "snapshot_static_design_records", forbidden_snapshot)
     with pytest.raises(ValueError, match="Cannot verify both SQLite store paths"):
         comparison.compare_audited_static_design_stores(old, new)
+
+
+@pytest.mark.parametrize("side", ["baseline", "current"])
+def test_shm_symlink_rejected_before_snapshot(tmp_path, monkeypatch, side):
+    """Synthetic shared-memory sidecar aliases must fail before any audit read."""
+    import os
+    import scripts.static_design_store_comparison as comparison
+
+    old = DurableResearchState(tmp_path / "old.sqlite3")
+    new = DurableResearchState(tmp_path / "new.sqlite3")
+    target = old if side == "baseline" else new
+    foreign = tmp_path / "foreign-shm"
+    foreign.write_bytes(b"synthetic")
+    os.symlink(foreign, os.fspath(target.database) + "-shm")
+    monkeypatch.setattr(comparison, "snapshot_static_design_records",
+                        lambda _: pytest.fail("snapshot should not execute"))
+    with pytest.raises(ValueError, match="SHM sidecar must be a regular file"):
+        comparison.compare_audited_static_design_stores(old, new)
+
+
+@pytest.mark.parametrize("side", ["baseline", "current"])
+def test_shm_change_between_snapshots_fails_closed(tmp_path, monkeypatch, side):
+    """A synthetic shared-memory sidecar change invalidates audit evidence."""
+    import os
+    import scripts.static_design_store_comparison as comparison
+
+    old = DurableResearchState(tmp_path / "old.sqlite3")
+    new = DurableResearchState(tmp_path / "new.sqlite3")
+    target = old if side == "baseline" else new
+    original = comparison.snapshot_static_design_records
+    calls = 0
+
+    def mutate_after_snapshot(state):
+        nonlocal calls
+        result = original(state)
+        calls += 1
+        if calls == 1:
+            with open(os.fspath(target.database) + "-shm", "ab") as sidecar:
+                sidecar.write(b"synthetic-shm-change")
+        return result
+
+    monkeypatch.setattr(comparison, "snapshot_static_design_records", mutate_after_snapshot)
+    with pytest.raises(ValueError, match="SHM sidecar changed during comparison"):
+        comparison.compare_audited_static_design_stores(old, new)
