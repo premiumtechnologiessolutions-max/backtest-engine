@@ -7,9 +7,18 @@ It never reads a database, starts a worker, or authorizes execution.
 from __future__ import annotations
 
 import re
+import unicodedata
 
 _HEX = re.compile(r"[0-9a-f]{64}\Z")
 _MAX_RECORDS = 10000
+
+
+def _valid_identity(value: object) -> bool:
+    """Reject visually ambiguous/noncanonical record identities."""
+    return (type(value) is str and 1 <= len(value) <= 128
+            and value == value.strip()
+            and unicodedata.normalize("NFC", value) == value
+            and all(unicodedata.category(char)[0] != "C" for char in value))
 
 
 def _records(value: object) -> dict[tuple[str, str], str]:
@@ -20,8 +29,8 @@ def _records(value: object) -> dict[tuple[str, str], str]:
         if type(row) is not dict or set(row) != {"batch_id", "request_id", "payload_sha256"}:
             raise ValueError("Invalid manifest row")
         batch, request, digest = (row[k] for k in ("batch_id", "request_id", "payload_sha256"))
-        if (type(batch) is not str or not 1 <= len(batch) <= 128 or
-                type(request) is not str or not 1 <= len(request) <= 128 or
+        if (not _valid_identity(batch) or
+                not _valid_identity(request) or
                 type(digest) is not str or not _HEX.fullmatch(digest)):
             raise ValueError("Invalid manifest identity or digest")
         key = (batch, request)

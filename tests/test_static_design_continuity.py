@@ -20,8 +20,7 @@ def test_continuity_classifies_record_changes(before, after, expected):
     result = verify_static_design_continuity(before, after)
     assert (result["continuity_preserved"], result["removed"],
             result["modified"], result["added"]) == expected
-    assert result["review_required"] is (before != after if len(before) != len(after) else
-                                          expected[2] > 0 or expected[1] > 0)
+    assert result["review_required"] is any(expected[1:])
     assert result["execution_authorized"] is False
     assert result["results_verified"] is False
     assert result["jobs_created"] == 0
@@ -48,3 +47,22 @@ def test_does_not_mutate_inputs():
     old, new = [row()], [row(request="r2")]
     verify_static_design_continuity(old, new)
     assert old == [row()] and new == [row(request="r2")]
+
+
+@pytest.mark.parametrize("invalid", [
+    " leading", "trailing ", "line\\nbreak", "nul\\x00byte",
+    "tab\\tvalue", "e\\u0301", "zero\\u200bwidth",
+])
+@pytest.mark.parametrize("field", ["batch_id", "request_id"])
+def test_rejects_ambiguous_or_noncanonical_identities(invalid, field):
+    bad = row()
+    bad[field] = invalid
+    with pytest.raises(ValueError, match="Invalid manifest identity"):
+        verify_static_design_continuity([row()], [bad])
+
+
+def test_reordering_does_not_trigger_review():
+    first, second = row(request="a"), row(request="b")
+    result = verify_static_design_continuity([first, second], [second, first])
+    assert result["continuity_preserved"] is True
+    assert result["review_required"] is False
