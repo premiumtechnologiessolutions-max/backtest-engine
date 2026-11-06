@@ -520,3 +520,32 @@ def test_parent_directory_replaced_by_real_directory_during_verification_fails_c
     monkeypatch.setattr(comparison, "verify_static_design_continuity", swap_parent)
     with pytest.raises(ValueError, match="parent directory changed during comparison"):
         comparison.compare_audited_static_design_stores(old, new)
+
+
+@pytest.mark.parametrize("side", ["baseline", "current"])
+def test_parent_directory_mode_changed_during_verification_fails_closed(
+    tmp_path, monkeypatch, side
+):
+    """Changing ancestor permissions invalidates audited snapshot stability."""
+    import os
+    import stat
+    import scripts.static_design_store_comparison as comparison
+
+    baseline_dir = tmp_path / "baseline"
+    current_dir = tmp_path / "current"
+    baseline_dir.mkdir()
+    current_dir.mkdir()
+    old = DurableResearchState(baseline_dir / "old.sqlite3")
+    new = DurableResearchState(current_dir / "new.sqlite3")
+    target_dir = baseline_dir if side == "baseline" else current_dir
+    original_verify = comparison.verify_static_design_continuity
+
+    def change_parent_mode(before, after):
+        result = original_verify(before, after)
+        mode = stat.S_IMODE(os.lstat(target_dir).st_mode)
+        os.chmod(target_dir, mode ^ stat.S_IXOTH)
+        return result
+
+    monkeypatch.setattr(comparison, "verify_static_design_continuity", change_parent_mode)
+    with pytest.raises(ValueError, match="parent directory changed during comparison"):
+        comparison.compare_audited_static_design_stores(old, new)
