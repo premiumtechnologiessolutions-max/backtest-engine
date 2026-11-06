@@ -89,7 +89,9 @@ def test_same_physical_store_cannot_claim_independent_continuity(tmp_path, alias
         # compare the existing store with an alias object instead.
         current = object.__new__(DurableResearchState)
         current.database = linked
-    with pytest.raises(ValueError, match="distinct SQLite stores"):
+    # External hardlinks are rejected before the distinct-store identity check.
+    expected_error = "external hardlink aliases" if alias == "hardlink" else "distinct SQLite stores"
+    with pytest.raises(ValueError, match=expected_error):
         compare_audited_static_design_stores(old, current)
 
 
