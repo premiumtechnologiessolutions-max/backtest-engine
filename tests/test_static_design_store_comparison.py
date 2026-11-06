@@ -392,7 +392,7 @@ def test_hardlinked_sqlite_sidecar_alias_fails_before_snapshot(
     os.link(target, os.fspath(new.database) + suffix)
     monkeypatch.setattr(comparison, "snapshot_static_design_records",
                         lambda _: pytest.fail("must reject aliases before reading"))
-    with pytest.raises(ValueError, match="distinct physical files"):
+    with pytest.raises(ValueError, match="external hardlink aliases|distinct physical files"):
         comparison.compare_audited_static_design_stores(old, new)
 
 
