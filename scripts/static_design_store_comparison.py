@@ -51,6 +51,8 @@ def compare_audited_static_design_stores(
     # Do not silently treat an unreadable previous store as an empty baseline.
     before = snapshot_static_design_records(previous)
     after = snapshot_static_design_records(current)
+    # Keep mutation detection active through continuity verification itself.
+    result = verify_static_design_continuity(before, after)
     try:
         after_ids = tuple(os.lstat(store.database) for store in (previous, current))
     except (OSError, TypeError, ValueError) as exc:
@@ -72,5 +74,4 @@ def compare_audited_static_design_stores(
     if before_sidecars != after_sidecars:
         changed = "-wal" if any(a[0] != b[0] for a, b in zip(before_sidecars, after_sidecars)) else "-shm"
         raise ValueError(f"SQLite {changed[1:].upper()} sidecar changed during comparison")
-    result = verify_static_design_continuity(before, after)
     return {**result, "snapshots_audited": True, "provenance_verified": False}
