@@ -371,3 +371,26 @@ def test_mutation_during_continuity_verification_fails_closed(tmp_path, monkeypa
     monkeypatch.setattr(comparison, "verify_static_design_continuity", mutate_during_verification)
     with pytest.raises(ValueError, match="metadata changed during comparison"):
         comparison.compare_audited_static_design_stores(old, new)
+
+
+@pytest.mark.parametrize("suffix", ["-wal", "-shm"])
+@pytest.mark.parametrize("alias_target", ["other_sidecar", "main_database"])
+def test_hardlinked_sqlite_sidecar_alias_fails_before_snapshot(
+    tmp_path, monkeypatch, suffix, alias_target
+):
+    """Hardlinks cannot establish independent SQLite audit evidence."""
+    import os
+    import scripts.static_design_store_comparison as comparison
+
+    old = DurableResearchState(tmp_path / "old.sqlite3")
+    new = DurableResearchState(tmp_path / "new.sqlite3")
+    target = (os.fspath(old.database) + "-wal" if alias_target == "other_sidecar"
+              else os.fspath(old.database))
+    if alias_target == "other_sidecar":
+        with open(target, "wb") as handle:
+            handle.write(b"synthetic-only")
+    os.link(target, os.fspath(new.database) + suffix)
+    monkeypatch.setattr(comparison, "snapshot_static_design_records",
+                        lambda _: pytest.fail("must reject aliases before reading"))
+    with pytest.raises(ValueError, match="distinct physical files"):
+        comparison.compare_audited_static_design_stores(old, new)
