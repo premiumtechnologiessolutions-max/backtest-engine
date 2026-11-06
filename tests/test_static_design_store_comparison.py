@@ -438,3 +438,23 @@ def test_main_database_hardlink_added_during_verification_rejected(tmp_path, mon
     monkeypatch.setattr(comparison, "verify_static_design_continuity", add_alias)
     with pytest.raises(ValueError, match="acquired external hardlink aliases"):
         comparison.compare_audited_static_design_stores(old, new)
+
+
+@pytest.mark.parametrize("side", ["baseline", "current"])
+def test_symlinked_parent_directory_rejected_before_snapshot(tmp_path, monkeypatch, side):
+    """A regular database reached through an aliased parent is not trusted."""
+    import os
+    import scripts.static_design_store_comparison as comparison
+
+    real = tmp_path / "real"
+    real.mkdir()
+    old = DurableResearchState(real / "old.sqlite3")
+    new = DurableResearchState(real / "new.sqlite3")
+    alias = tmp_path / "linked-parent"
+    os.symlink(real, alias, target_is_directory=True)
+    target = old if side == "baseline" else new
+    target.database = alias / target.database.name
+    monkeypatch.setattr(comparison, "snapshot_static_design_records",
+                        lambda _: pytest.fail("must reject parent alias before reading"))
+    with pytest.raises(ValueError, match="symlinked parent"):
+        comparison.compare_audited_static_design_stores(old, new)
