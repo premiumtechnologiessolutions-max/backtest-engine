@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 import stat
+from pathlib import Path
 
 from scripts.durable_research_state import DurableResearchState
 from scripts.static_design_inventory import snapshot_static_design_records
@@ -20,6 +21,15 @@ def compare_audited_static_design_stores(
     """Fail closed if either database cannot produce an audited snapshot."""
     if not isinstance(previous, DurableResearchState) or not isinstance(current, DurableResearchState):
         raise ValueError("Expected two durable state stores")
+    # A regular SQLite file beneath a symlinked directory is still an alias.
+    # Check lexical path components without resolving symlinks, before any read.
+    for store in (previous, current):
+        try:
+            path = Path(os.path.abspath(os.fspath(store.database)))
+            if any(stat.S_ISLNK(os.lstat(parent).st_mode) for parent in path.parents):
+                raise ValueError("SQLite store path contains a symlinked parent")
+        except (OSError, TypeError) as exc:
+            raise ValueError("Cannot verify SQLite store parent directories") from exc
     # Reject symlink aliases, including links to an otherwise valid SQLite file.
     # Pin both physical file identities before reading. Recheck after both
     # snapshots: path replacement during an audit invalidates its evidence.
