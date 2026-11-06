@@ -48,6 +48,13 @@ def compare_audited_static_design_stores(
                                 for store in (previous, current))
     except (OSError, TypeError) as exc:
         raise ValueError("Cannot verify SQLite sidecars") from exc
+    # Sidecars must not alias either database or one another via hard links.
+    # An inode shared across logical files undermines independent audit inputs.
+    physical_ids = [(item.st_dev, item.st_ino) for item in before_ids]
+    physical_ids.extend((sidecar[0], sidecar[1]) for pair in before_sidecars
+                        for sidecar in pair if sidecar is not None)
+    if len(physical_ids) != len(set(physical_ids)):
+        raise ValueError("SQLite database and sidecars must have distinct physical files")
     # Do not silently treat an unreadable previous store as an empty baseline.
     before = snapshot_static_design_records(previous)
     after = snapshot_static_design_records(current)
