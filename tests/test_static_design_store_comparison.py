@@ -485,7 +485,7 @@ def test_parent_directory_swapped_to_symlink_during_verification_fails_closed(
         return result
 
     monkeypatch.setattr(comparison, "verify_static_design_continuity", swap_parent)
-    with pytest.raises(ValueError, match="symlinked parent"):
+    with pytest.raises(ValueError, match="non-directory parent"):
         comparison.compare_audited_static_design_stores(old, new)
 
 
