@@ -105,12 +105,18 @@ def test_missing_store_path_fails_closed_with_validation_error(tmp_path, missing
         compare_audited_static_design_stores(old, new)
 
 
-def test_invalid_store_path_type_fails_closed(tmp_path):
+@pytest.mark.parametrize("side", ["baseline", "current"])
+@pytest.mark.parametrize("invalid_path", [None, 42, object()])
+def test_invalid_store_path_type_fails_closed(tmp_path, side, invalid_path):
+    """Invalid locators fail before snapshots, regardless of which store owns them."""
+    import scripts.static_design_store_comparison as comparison
+
     old = DurableResearchState(tmp_path / "old.sqlite3")
     new = DurableResearchState(tmp_path / "new.sqlite3")
-    new.database = None
-    with pytest.raises(ValueError, match="Cannot verify SQLite store parent directories"):
-        compare_audited_static_design_stores(old, new)
+    target = old if side == "baseline" else new
+    target.database = invalid_path
+    with pytest.raises(ValueError, match="Cannot verify SQLite store paths"):
+        comparison.compare_audited_static_design_stores(old, new)
 
 
 def test_path_replacement_during_snapshot_fails_closed(tmp_path, monkeypatch):
