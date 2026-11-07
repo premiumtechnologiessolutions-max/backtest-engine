@@ -1,0 +1,13 @@
+# Periodic host-side watchdog independent of ChatGPT sessions.
+[Unit]
+Description=Audit No Risk FX unattended research every two minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitInactiveSec=2min
+AccuracySec=15s
+Persistent=true
+Unit=norisk-quant-healthcheck.service
+
+[Install]
+WantedBy=timers.target

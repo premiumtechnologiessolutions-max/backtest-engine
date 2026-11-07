@@ -1,0 +1,21 @@
+{
+  "research_id": "NRF-FAC-014",
+  "source_commit": "5bf6cacb559a4915c25b02e94cd5a715dc54965e",
+  "source_ci_run": 40426165331,
+  "source_ci_tests": 752,
+  "original_private_zip_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
+  "official_run_fast_annual_parity_samples": 9,
+  "official_run_fast_sampled_filled_trades": 202,
+  "official_run_fast_independent_slow_observed_m1_marks": 3173485,
+  "max_per_mark_equity_delta": 0,
+  "max_monthly_net_delta": 3.552713678800501e-15,
+  "max_total_net_delta": 1.4210854715202004e-14,
+  "max_total_fee_delta": 1.7763568394002505e-14,
+  "max_annual_floating_dd_delta": 7.105427357601002e-15,
+  "official_execution_run_vs_run_fast_full_year_samples": 2,
+  "official_execution_run_vs_run_fast_trade_ledger_fields": 15,
+  "official_execution_run_vs_run_fast_trades": 116,
+  "official_execution_run_vs_run_fast_observed_m1_marks": 705292,
+  "max_reference_trade_field_or_m1_equity_delta": 0,
+  "limits": "Full-checkout original M1 engine parity only, not broker tick execution, not independent OOS, not a profitable strategy. Full individual quote and trade ledgers retained only in local private workspace."
+}

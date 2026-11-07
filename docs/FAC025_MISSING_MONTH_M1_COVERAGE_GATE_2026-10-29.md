@@ -1,0 +1,9 @@
+# FAC025 — observed UTC month coverage gate (2026-10-29)
+
+FAC025's synthetic BID-reference bridge previously generated every UTC calendar month between the first and last observed M1, silently booking **$0** for an entirely absent interior month. Such a value is **not a measured monthly return** and can distort positive-month counts, worst-month rankings, and apparent sample size.
+
+`scripts/research_fac025_canonical_replay.py` now rejects any missing **whole** interior UTC calendar month *before* execution, with the missing month identified. It requires a sorted, unique, timezone-aware, minute-aligned nonempty M1 index, converts timestamps to UTC, and records the **observed M1 bar count for each reported month**. A five-minute/weekend/holiday gap inside an observed month is never interpolated; missing whole months are never represented as zero-P/L evidence. The new `month_coverage` flag explicitly states that one or more observed bars **do not certify a complete trading month**.
+
+Synthetic regressions in `tests/test_research_fac025_canonical_replay.py` cover absent February between January/March, adjacent observed months with sparse bars, duplicate/unsorted/subminute timestamps, and naive timezone rejection. No frozen strategy parameter, fee, BID/ASK fill assumption, or risk rule was changed.
+
+**Evidence boundary:** This is an accounting/coverage correctness gate, **not a new strategy backtest**. New original-Gold-ZIP monthly returns **N/A**; source-verified floating drawdown **N/A**; 0 approved strategies; no clean OOS. FAC025 still uses a BID-only synthetic execution proxy and requires authenticated paired BID/ASK execution, full-month session-coverage analysis, SHA-pinned original-source replay, and prospective validation. Keep PR #1 Draft/unmerged. Do not upload raw gold quotes.

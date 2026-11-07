@@ -1,0 +1,18 @@
+# NRF-FAC-006 — FROZEN exploratory three-signal shared-capacity portfolio
+
+**Freeze:** 2026-10-26, before executing this *joint portfolio* on original 2012–2013 gold. **In-sample engineering stress only.** The two FAC005B components were chosen AFTER examining their own historical results; their selection is heavily biased and is NOT independent OOS. Do not claim monthly consistency from this portfolio.
+
+### Exact immutable signals and deterministic priority
+1. `A_RANGE_SLOW`: FAC005B completed M15 EMA fast8/slow72 crossover gated by latest fully closed H1 realized-range / previous-24 complete-H1 median >=1.00, SL $6.50/oz, TP $1.00/oz. **Historically selected** 21/24 monthly-positive, net-positive in both independent years, but small sample and fee-fragile.
+2. `B_RANGE_FAST`: same FAC005B family, M15 fast16/slow26, H1 range gate >=0.80, SL $8.00, TP $10.00. **Historically selected** for >200 trades in each year; higher floating drawdown.
+3. `C_RSI_BASE`: FAC004 Wilder RSI M15 period14 threshold30 oversold upward/overbought downward recross, SL $4.00, TP $4.00. Fixed neutral comparator, NOT selected as a proven profitable strategy.
+
+Signals exist only at complete M15 `close_at`, H1 is fully closed and no older than 60m, and each M15 EMA must warm up after a missing candle. Use exact source modules `scripts.batch_h1_range_ema_grid` and `scripts.batch_rsi_recross_grid`, do not invent quotes.
+
+### Frozen shared execution and controls
+- **Primary portfolio:** one shared position slot, maximum **1.00 ounce TOTAL**, each strategy 1.00 ounce; at most one position per strategy. Opening Market signals compete by `confirmed_at`, then lexicographic strategy name (A then B then C) on same confirmation. If position is already open, other entries are rejected; **no same-minute slot recycling** after exit. Entry only at next observed M1 open within 60s of confirmation. Stop-first intraminute, adverse gap-through, no synthetic ticks, $0.40/oz **ALL-IN** fee per filled roundtrip, end-of-year close and separate capital reset.
+- **Unconstrained engineering control:** same exact signals but 3 shared slots, 3.00 ounces total. Compare its monthly exit-booked net, filled count, fees and full equity to the sum of **three independently run canonical `run_fast`** single-strategy references (each 1 ounce), within numerical tolerance. This control is NOT a tradable single-1oz portfolio; it exists to catch implementation discrepancies.
+- **Original private years:** 2012 and 2013, each source `Gold data.zip` SHA256 `1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121`. Never upload raw BID/ASK market bars to public GitHub.
+- **Acceptance:** run GitHub CI first, then exact CI-tested source artifact against original private archive. For both modes, `validate_portfolio` must pass fees, chronology, capacity, per-strategy overlap and realized/floating equity reconciliation. Persist trades, M1 equity, monthly, weekly, strategy-monthly, and accounting JSON; record rejected-capacity and duplicate counts. **Never add independent strategy P/L as if all could have executed in the one-slot portfolio**.
+- **Outcome criterion:** report number of positive months, worst month, annual net, maximum observed M1 floating drawdown and capacity rejects for **each** year, then combined 24 monthly slots without fabricating a continuous two-year capital account. A negative result is acceptable. Any mismatch in three-slot reference parity blocks success.
+- 2012–2013 are exposed design years; a profitable result here is NOT a guarantee or a clean OOS claim. No live trading or automatic orders.

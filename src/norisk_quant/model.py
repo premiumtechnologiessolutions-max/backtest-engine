@@ -1,0 +1,91 @@
+from __future__ import annotations
+
+from dataclasses import asdict, dataclass
+import pandas as pd
+import math
+from typing import Literal
+from numbers import Integral
+
+Side = Literal[1, -1]
+
+
+@dataclass(frozen=True)
+class Settings:
+    ounces: float = 1.0
+    roundtrip_cost_per_ounce: float = 0.40
+    max_entry_delay_minutes: int = 1
+    close_at_end: bool = True
+    # Elapsed UTC minutes from entry; execute at first observed open at/after
+    # the deadline. None preserves the existing unlimited holding contract.
+    max_holding_minutes: int | None = None
+    # Constructor compatibility for the concurrently introduced spelling.
+    # Execution uses max_holding_minutes; keep all earlier positional fields.
+    max_hold_minutes: int | None = None
+
+    def __post_init__(self) -> None:
+        if self.max_hold_minutes is not None:
+            if (isinstance(self.max_hold_minutes, bool)
+                    or not isinstance(self.max_hold_minutes, int)
+                    or self.max_hold_minutes <= 0):
+                raise ValueError("max hold minutes alias must be a positive integer or None")
+            if (self.max_holding_minutes is not None
+                    and self.max_holding_minutes != self.max_hold_minutes):
+                raise ValueError("max hold minutes alias conflicts with max holding minutes")
+            if self.max_holding_minutes is None:
+                object.__setattr__(self, "max_holding_minutes", self.max_hold_minutes)
+        if not math.isfinite(self.ounces) or self.ounces <= 0:
+            raise ValueError("ounces must be finite positive")
+        if not math.isfinite(self.roundtrip_cost_per_ounce) or self.roundtrip_cost_per_ounce < 0:
+            raise ValueError("roundtrip cost must be finite nonnegative")
+        # NaN, Infinity, fractions and bool must not silently bypass stale
+        # signal expiry in reference or fast execution.
+        if (isinstance(self.max_entry_delay_minutes, bool)
+                or not isinstance(self.max_entry_delay_minutes, Integral)
+                or self.max_entry_delay_minutes < 0):
+            raise ValueError("max entry delay must be a nonnegative integer")
+        if self.max_holding_minutes is not None and (
+            isinstance(self.max_holding_minutes, bool)
+            or not isinstance(self.max_holding_minutes, int)
+            or self.max_holding_minutes <= 0
+        ):
+            raise ValueError("max holding minutes must be a positive integer or None")
+
+
+@dataclass(frozen=True)
+class Signal:
+    # Signal exists only AFTER the candle ending at confirmed_at closes.
+    confirmed_at: object
+    side: Side
+    stop_distance: float
+    target_distance: float
+    strategy: str = "unspecified"
+
+    def __post_init__(self) -> None:
+        at = pd.Timestamp(self.confirmed_at)
+        if pd.isna(at) or at.tzinfo is None:
+            raise ValueError("Signal confirmation requires an explicit timezone")
+        # bool compares equal to 1 in Python, but it is not a trade side.
+        if (isinstance(self.side, bool) or not isinstance(self.side, Integral)
+                or self.side not in (1, -1)):
+            raise ValueError("side must be integer +1 or -1")
+        if (
+            not math.isfinite(self.stop_distance) or self.stop_distance <= 0
+            or not math.isfinite(self.target_distance) or self.target_distance <= 0
+        ):
+            raise ValueError("stop and target distances must be finite positive")
+
+
+@dataclass
+class Position:
+    entry_at: object
+    signal_at: object
+    side: Side
+    entry_price: float
+    stop: float
+    target: float
+    strategy: str
+    gap_minutes: int = 0
+
+
+def serialize_settings(settings: Settings) -> dict:
+    return asdict(settings)

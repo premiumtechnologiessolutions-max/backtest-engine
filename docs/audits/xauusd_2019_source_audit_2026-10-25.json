@@ -1,0 +1,43 @@
+{
+  "report_version": 1,
+  "instrument": "XAUUSD",
+  "year": 2019,
+  "audit_date": "2026-10-25",
+  "source_archive": "Gold data.zip",
+  "source_archive_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
+  "source_member": "2019.json",
+  "source_member_format": "M1 Bid/Ask OHLC JSON",
+  "rows": 353320,
+  "first_utc": "2019-01-01T23:00:00Z",
+  "last_utc": "2019-12-31T21:59:00Z",
+  "duplicate_timestamps": 0,
+  "off_minute_timestamps": 0,
+  "intervals_exactly_60s": 352363,
+  "non_60s_intervals": 956,
+  "gaps_over_10min": 258,
+  "unobserved_minutes_including_market_closures": 170780,
+  "bid_ohlc_anomalies": 0,
+  "ask_ohlc_anomalies": 0,
+  "ask_below_bid_open": 0,
+  "ask_below_bid_close": 0,
+  "ask_below_bid_high": 0,
+  "ask_below_bid_low": 0,
+  "nonpositive_bid_rows": 0,
+  "method": "Independent pandas audit directly from original 2019.json ZIP member, not generated backtest trades",
+  "limitations": [
+    "A missing minute can be a legitimate market closure; missing_minutes is not proof of corrupt feed.",
+    "Only 2019 was inspected in this report; other 16 years are not certified.",
+    "No Parquet partition or strategy backtest was executed during this audit.",
+    "A local environment lacked pyarrow, so no claim of successful package installation or GitHub CI."
+  ],
+  "gap_duration_counts_interval_minutes": {
+    "61": 139,
+    "62": 57,
+    "2941": 27,
+    "2942": 20
+  },
+  "gaps_10_to_120min": 199,
+  "gaps_120_to_1000min": 6,
+  "gaps_over_1000min": 53,
+  "gap_interpretation": "Daily ~61-62 minute intervals and weekend ~2941-2942 minute intervals dominate. These are consistent with normal market closures, but no official broker schedule has been independently verified."
+}

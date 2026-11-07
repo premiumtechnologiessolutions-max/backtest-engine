@@ -1,0 +1,39 @@
+{
+  "research_id": "NRF-FAC-016",
+  "official_source_commit": "0320aaa7af34cd5f1c04a45a426d23a713eabed8",
+  "official_source_artifact_id": 12702503558,
+  "official_source_artifact_workflow_run": 40433338540,
+  "official_runner_blob_sha": "1521af1629c6c10fada5a9728201dfae5b5f168b",
+  "original_private_zip_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
+  "years": {
+    "2012": {
+      "annual_replays": 18000,
+      "monthly_values": 216000,
+      "active_annual_replays": 17000,
+      "zero_trade_annual_replays": 1000,
+      "canonical_parity_samples": 4,
+      "loaded_m1_sha256": "21dbb5fda18680523a478eba20a4824c1566d7a267345464ca15e5ab8ca79398",
+      "max_numeric_delta_vs_prior_local_run": 0
+    },
+    "2013": {
+      "annual_replays": 18000,
+      "monthly_values": 216000,
+      "active_annual_replays": 14300,
+      "zero_trade_annual_replays": 3700,
+      "canonical_parity_samples": 4,
+      "loaded_m1_sha256": "5c465ea65c86e297f0a28603fcde57e6e1e3c478b646ec0402de2bb850be629e",
+      "max_numeric_delta_vs_prior_local_run": 0
+    }
+  },
+  "total_official_replayed_annual": 36000,
+  "total_official_replayed_monthly": 432000,
+  "max_numeric_delta": 0,
+  "independent_slow_full_years": 2,
+  "independent_slow_verified_trades": 185,
+  "independent_slow_verified_m1_equity_marks": 705292,
+  "ci_verified_results_registry_commit": "87fa2cb154da36e810d462e20b862a2f96159514",
+  "ci_verified_run": 40437957678,
+  "ci_pytest_passed": 795,
+  "source_quotes_uploaded": false,
+  "disclaimer": "Exposed historical design, not OOS, tick data, broker fills or independent hypotheses"
+}

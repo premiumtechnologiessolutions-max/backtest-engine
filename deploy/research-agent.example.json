@@ -1,0 +1,21 @@
+{
+  "schema": "NRFX_UNATTENDED_RESEARCH_CONFIG_V1",
+  "gold_zip": "/srv/noriskfx-private/Gold data.zip",
+  "out": "/srv/noriskfx-private/research-output",
+  "years": [
+    2012,
+    2013
+  ],
+  "seed": 20261102,
+  "target_generations": 200,
+  "step_generations": 5,
+  "proposal_count": 12,
+  "shard_size": 8,
+  "min_free_gb": 2,
+  "max_batch_wall_seconds": 7200,
+  "max_total_wall_seconds": 86400,
+  "max_resume_attempts": 100,
+  "poll_seconds": 30,
+  "retry_seconds": 900,
+  "max_pause_retries": 1000
+}

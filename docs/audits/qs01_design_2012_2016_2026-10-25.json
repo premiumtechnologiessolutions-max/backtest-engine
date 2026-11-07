@@ -1,0 +1,164 @@
+{
+  "hypothesis": "QS01",
+  "evaluation": "DESIGN_2012_2016_ONLY",
+  "status": "REJECTED_ON_DESIGN",
+  "later_periods_loaded": false,
+  "parameters_tuned": false,
+  "design_gate": {
+    "at_least_200_trades": false,
+    "net_positive": false,
+    "profit_factor_above_1_10": false,
+    "at_least_31_of_60_positive_realized_months": false
+  },
+  "signal_count": 363,
+  "expired_signals": 190,
+  "pending_at_end": 1,
+  "m1_rows": 1765104,
+  "source_fingerprints": {
+    "original_zip_sha256_in_preregistration": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
+    "original_zip_identity_verified": false,
+    "identity_limitation": "Original ZIP unavailable. Per-file and normalized quote hashes identify this local extracted dataset; they do not authenticate identity to the frozen ZIP.",
+    "annual_sources": [
+      {
+        "year": 2012,
+        "file_sha256": "4c45052f00b544abfc0638f1723670925c9f6984450ba0b2a085cc38407f954e",
+        "loaded_m1_sha256": "21dbb5fda18680523a478eba20a4824c1566d7a267345464ca15e5ab8ca79398",
+        "quality": {
+          "rows": 352975,
+          "start_utc": "2012-01-02T23:00:00+00:00",
+          "end_utc": "2012-12-31T21:59:00+00:00",
+          "duplicate_timestamps": 0,
+          "non_60s_intervals": 708,
+          "gaps_over_10min": 263,
+          "missing_observed_minutes": 171125,
+          "bid_ohlc_anomalies": 0,
+          "ask_ohlc_anomalies": 0,
+          "ask_below_bid_open": 0,
+          "ask_below_bid_close": 0,
+          "note": "Gaps include legitimate market closures; this is NOT proof of corrupt data."
+        }
+      },
+      {
+        "year": 2013,
+        "file_sha256": "31abd30d790ae081810c474a00a4793184dfc98a4f3af3429f681e87ff81c57b",
+        "loaded_m1_sha256": "5c465ea65c86e297f0a28603fcde57e6e1e3c478b646ec0402de2bb850be629e",
+        "quality": {
+          "rows": 352317,
+          "start_utc": "2013-01-01T23:00:00+00:00",
+          "end_utc": "2013-12-31T21:59:00+00:00",
+          "duplicate_timestamps": 0,
+          "non_60s_intervals": 893,
+          "gaps_over_10min": 283,
+          "missing_observed_minutes": 171783,
+          "bid_ohlc_anomalies": 0,
+          "ask_ohlc_anomalies": 0,
+          "ask_below_bid_open": 0,
+          "ask_below_bid_close": 0,
+          "note": "Gaps include legitimate market closures; this is NOT proof of corrupt data."
+        }
+      },
+      {
+        "year": 2014,
+        "file_sha256": "2ceead26efa87780b4b615e1e5dd05b42938631e95712505bd29e214e39900e1",
+        "loaded_m1_sha256": "1f23add9ee41a8dedbcd233ded12dfa29ff785e9c4465e985a37b56283a6c873",
+        "quality": {
+          "rows": 351794,
+          "start_utc": "2014-01-01T23:00:00+00:00",
+          "end_utc": "2014-12-31T21:59:00+00:00",
+          "duplicate_timestamps": 0,
+          "non_60s_intervals": 533,
+          "gaps_over_10min": 261,
+          "missing_observed_minutes": 172306,
+          "bid_ohlc_anomalies": 0,
+          "ask_ohlc_anomalies": 0,
+          "ask_below_bid_open": 0,
+          "ask_below_bid_close": 0,
+          "note": "Gaps include legitimate market closures; this is NOT proof of corrupt data."
+        }
+      },
+      {
+        "year": 2015,
+        "file_sha256": "ba621a95edf66080eebf95521ef5f67062a98a6675b7217227ae1b8af449a91f",
+        "loaded_m1_sha256": "f07c4a5e7f7c273bed0e59bb76b1232087cd44d852d3139098052d8690198131",
+        "quality": {
+          "rows": 353772,
+          "start_utc": "2015-01-01T23:00:00+00:00",
+          "end_utc": "2015-12-31T21:59:00+00:00",
+          "duplicate_timestamps": 0,
+          "non_60s_intervals": 300,
+          "gaps_over_10min": 258,
+          "missing_observed_minutes": 170328,
+          "bid_ohlc_anomalies": 0,
+          "ask_ohlc_anomalies": 0,
+          "ask_below_bid_open": 0,
+          "ask_below_bid_close": 0,
+          "note": "Gaps include legitimate market closures; this is NOT proof of corrupt data."
+        }
+      },
+      {
+        "year": 2016,
+        "file_sha256": "fd1977525e2a5cd0d655a84840077fc175789441cdb1e8d6bea19cc575ed8b1a",
+        "loaded_m1_sha256": "50c1ea2460f954b5ea5d098324c85b25e08313d1b826b96a8f677d441d2e821c",
+        "quality": {
+          "rows": 354246,
+          "start_utc": "2016-01-03T23:00:00+00:00",
+          "end_utc": "2016-12-30T21:59:00+00:00",
+          "duplicate_timestamps": 0,
+          "non_60s_intervals": 289,
+          "gaps_over_10min": 258,
+          "missing_observed_minutes": 166974,
+          "bid_ohlc_anomalies": 0,
+          "ask_ohlc_anomalies": 0,
+          "ask_below_bid_open": 0,
+          "ask_below_bid_close": 0,
+          "note": "Gaps include legitimate market closures; this is NOT proof of corrupt data."
+        }
+      }
+    ],
+    "continuous_design_loaded_m1_sha256": "131ee2e0aae4b4838a9eed4d01f062d57a62b78ee3a5c14676ce0c7b5810142b",
+    "code_sha256": {
+      "src/norisk_quant/quote_stress.py": "aa18bd307c679a628d8b8e1cadb0f2e39e5d1666ff965bafeca68af67b9b8cca",
+      "src/norisk_quant/model.py": "38c3394f02875ffcf917ade68c96854593174f0b58d7b520c177427fd3580334",
+      "src/norisk_quant/execution.py": "5899a2ab0f6ee73857f26ec5bcc766c12540073987875eeac491010294f681b7",
+      "src/norisk_quant/fast_engine.py": "cb2b19a757aaac80a159b67c4c393d8d14b07384813c602adcbc6e5d2fcbd6ee",
+      "src/norisk_quant/accounting.py": "870bfde273754fd711015efb17bb1edd288f5bb0f8414d5090a40923379b8008",
+      "src/norisk_quant/data.py": "45adba779469d20567d019e77162700de91aba010dd9cf65ed4c50a78b912cf1",
+      "src/norisk_quant/report.py": "5af8496c2f69447b56490f14384e401f197f7c5ba45ab01184b889816372e141",
+      "src/norisk_quant/gaps.py": "f23f951d64a8a71687ade901eb576ff32fa062e9137dc707119cb104f861f1ce",
+      "scripts/research_qs01_design.py": "895fd5c5bddcf2a374b2c68ddad8b610890408f5ab7fc4d5332235d3c150943f",
+      "docs/PRE_REGISTERED_QS01_QUOTE_STRESS_2026-10-25.md": "81d93dcad9e4db90e6962076a38129339e321e6a5159cdd35a4e37c11fe403c0"
+    },
+    "head_before_run": "c816881b74d0fd457b6f203af12e1a2d8baa49a0",
+    "working_tree_dirty": true,
+    "python": "3.12.14",
+    "numpy": "2.3.5",
+    "pandas": "2.2.3"
+  },
+  "trades": 172,
+  "net_pnl": -70.5908273813896,
+  "total_fees": 68.79999999999998,
+  "profit_factor": 0.3997893287992514,
+  "positive_months": 10,
+  "months": 60,
+  "worst_month": -9.70214320893806,
+  "observed_floating_equity_drawdown": 76.46701899408866,
+  "realized_equity_drawdown": 76.46701899408866,
+  "month_end_equity_drawdown": 71.62383525808072,
+  "exit_reason_counts": {
+    "target": 63,
+    "stop": 60,
+    "open_target": 19,
+    "ambiguous_stop_first": 17,
+    "time_exit": 9,
+    "gap_stop": 3,
+    "open_stop": 1
+  },
+  "ambiguous_m1_stop_first_count": 17,
+  "gap_through_stop_count": 3,
+  "trades_with_missing_minute_exposure": 31,
+  "total_trade_missing_minutes": 51076,
+  "total_elapsed_position_minutes": 51200.0,
+  "max_elapsed_position_minutes": 3145.0,
+  "accounting_checks": "PASSED",
+  "evidence_limit": "Synthetic same-BID M1 execution and observed marks; no actual tick paths, broker-fill or future-profit evidence. Design data only; no validation/OOS claim."
+}

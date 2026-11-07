@@ -1,0 +1,28 @@
+# NRF-FAC-014 — FROZEN prior-UTC-day breakout / delayed M15 reclaim (2026-10-27)
+
+**Status: PREREGISTERED BEFORE EXAMINING FAC014 RESULTS.** Do not change this design after observing results. All 2012/2013 prices are historically exposed; neither year is independent OOS. A negative result is retained. This is a distinct **two-stage previous-day boundary breach then delayed return** hypothesis, not FAC013's same-M15 local-N-bar wick sweep or the opening-range breakout experiments.
+
+## Causal source, reference boundary and trigger
+
+Use the locally SHA256-verified private original `Gold data.zip` (`1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121`). M1 BID OHLC is the research reference, 1 oz. Construct only complete, UTC-anchored M15/H1 candles with 15/60 actually observed original M1 candles. No imputation. For each UTC day D, take the latest *earlier* UTC day P whose original M1 observations include >=1,200 distinct minute opens and no intra-P gap >180 minutes; require P's UTC midnight-to-midnight interval to have ended before D begins and D-P <=4 calendar days. The prior-day high and low are extrema of P's observed M1 BID highs/lows. Skip days without an eligible P. No daily values from D or later may influence its reference levels.
+
+For each completed M15 candle j on D, calculate R as the median high-low range of the preceding 20 **contiguous, complete** M15 candles (excluding j); reject if missing or nonpositive. A *breach* is first M15 close above prior-day high + k*R, or below prior-day low - k*R, with k in the frozen grid. Reject a candle breaching both sides. Start one pending state per side per UTC day on the first such breach; do not re-arm that side. A *reclaim* is the first of the next W **contiguous completed M15 candles on the same UTC day** whose close returns strictly between prior-day low and high. Any missing M15 bar, day rollover, or expiry cancels the pending state. At the reclaim candle close, signal FADE (short after upper breach, long after lower) or FOLLOW (opposite); never at breach time. If both sides reclaim simultaneously, reject. Use R from the reclaim candle's prior-20 window to size fixed stop and target.
+
+At reclaim confirmation, join the last **completed** H1 candle at or before confirmation (age 0..60min); H1 trend is EMA8 versus EMA24 of observed completed H1 closes, with at least 26 observed H1 bars in the prior 168h and no interval between the most recent 26 completed H1 bars >168h. H1 range ratio is latest completed H1 high-low / median of its previous 24 observed completed H1 ranges (exclude current), valid finite positive. Require QUIET ratio<=1 or HOT ratio>1; H1 mode ALIGNED (signal side=trend), CONTRA (opposite), IGNORE (valid H1 context but direction ignored). Time-of-day is confirmation close, using IANA `Europe/London` and `America/New_York` DST: ALL, LONDON_LOCAL_08_12, NY_LOCAL_0930_1330. Do not peek at later H1 or M15 bars.
+
+## Immutable grid, actual-execution accounting
+
+- Breach buffers k: [0, 0.25, 0.50]; reclaim windows W: [1, 2, 4, 8] complete M15 bars.
+- Direction: [FADE, FOLLOW]; H1 modes [ALIGNED, CONTRA, IGNORE]; H1 regime [QUIET, HOT]; sessions [ALL, LONDON_LOCAL_08_12, NY_LOCAL_0930_1330].
+- Stop and target multipliers each: [0.50, 0.75, 1.00, 1.25, 1.50, 1.75, 2.00, 2.50] times R from signal. **27,648** correlated parameter specifications/year (3×4×2×3×2×3×8×8); maximum **55,296** annual M1 replays on 2012/2013, 663,552 month values. A parameter specification is NOT an independent hypothesis.
+- Frozen order is k, W, direction, H1 mode, H1 regime, session, stop, target; IDs and all zero-trade results retained. Count only actually completed replays as executed, zero-trade separately. Report unique causal entry streams, fees, trade count, each UTC exit-booked month, worst month, annual net, M1 floating drawdown, and expired signals.
+
+## Fixed execution and acceptance
+
+Entry: next eligible *observed* M1 open within 60 seconds after confirmed M15 close; otherwise expire. One open position, no same-minute reentry after exit, stop-first intrabar ambiguity, adverse gap-through stop at observed open, no fabricated M1 fills, no forced session closure, close any remaining position at last observed M1 close of annual run. Fixed **exactly $0.40/oz ALL-IN roundtrip** (no second spread/slippage/commission); mark floating equity at every observed M1 close including the entire fee. Annual research resets, no portfolio sum of separately replayed variants.
+
+Joint preregistered gate for SAME ID across BOTH years: >=75 filled trades in each year, >=18/24 strictly positive UTC months, positive net in both years, worst month >= -$15/oz, and max observed annual M1 floating drawdown <=$100/oz in both years. Reject every ID failing any gate. Even a pass is design-only and requires a separately preregistered single-account shared-capacity test and genuinely future embargoed prospective observations before any external claim.
+
+## Verification and privacy
+
+Check original ZIP SHA256 locally. Compare deterministic first/middle/last and highest-monthly candidates per year to canonical `run_fast` on original M1; where unavailable, explicitly mark canonical parity PENDING, and do not claim full acceptance. Independently verify at least one year using slow `execution.run` if runtime permits. Publish only source, tests, aggregate summaries and **non-identifying** metrics to public GitHub; keep raw quotes and full trade timestamps/ledgers local. CI must be green on the final code commit before claiming verified. PR stays Draft/unmerged. No live trading or billing/privacy changes.

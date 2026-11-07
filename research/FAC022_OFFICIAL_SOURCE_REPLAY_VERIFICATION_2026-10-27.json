@@ -1,0 +1,27 @@
+{
+  "source_commit": "f6d625cdef6dcccfdce379fd72b2d1865e41068a",
+  "source_ci_run": 40531528349,
+  "source_ci_pytest_passed": 1138,
+  "source_artifact_id": 12746092395,
+  "artifact_zip_sha256": "3d472b522dc4d257a189ef6837dfa442b74e86847275056cd58dbed9eea3960f",
+  "source_zip_sha256": "1163474d1419212f1ebd199fb77f8dd6b3029040488f0b7180218fd339159121",
+  "years": {
+    "2012": {
+      "annual_rows": 2304,
+      "monthly_cells": 27648,
+      "max_numeric_delta": 0,
+      "all_ids_exact": true
+    },
+    "2013": {
+      "annual_rows": 2304,
+      "monthly_cells": 27648,
+      "max_numeric_delta": 0,
+      "all_ids_exact": true
+    }
+  },
+  "max_numeric_delta": 0,
+  "exact_ids": true,
+  "annual_rows_reproduced": 4608,
+  "monthly_cells_reproduced": 55296,
+  "audit_boundary": "Official CI source artifact replayed locally against original private SHA-verified ZIP. No raw BID/ASK or M1 uploaded. Exact annual rows, IDs and numeric fields. Historical exposed, no prospective OOS, no tick proof."
+}

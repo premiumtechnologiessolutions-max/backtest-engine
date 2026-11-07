@@ -1,0 +1,18 @@
+# CI dependency constraints, based on the previously verified local Windows
+# Python 3.12.14 environment (docs/audits/local-package-verification-2026-10-25.json).
+# This is a reproducibility INPUT, not evidence the CURRENT commit passed pytest.
+# Versions constrain installed packages; this is not a hash-locked wheel archive.
+numpy==2.3.5
+pandas==2.2.3
+pyarrow==18.1.0
+pytest==8.4.2
+iniconfig==2.3.1
+packaging==26.3
+pluggy==1.7.0
+Pygments==2.21.0
+python-dateutil==2.9.0.post0
+pytz==2025.2
+six==1.17.0
+tzdata==2025.2
+setuptools==80.9.0
+wheel==0.45.1

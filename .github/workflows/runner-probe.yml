@@ -1,0 +1,20 @@
+name: Runner availability probe
+
+# Diagnostic workflow only: disabled on pushes and PRs to avoid spending
+# duplicate Actions minutes and emitting repeated failure emails.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  infrastructure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Runner diagnostics (no checkout or dependencies)
+        run: |
+          echo "RUNNER_OS=$RUNNER_OS"
+          echo "GITHUB_SHA=$GITHUB_SHA"
+          python3 --version

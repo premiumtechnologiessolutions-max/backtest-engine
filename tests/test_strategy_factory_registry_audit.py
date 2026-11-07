@@ -1,0 +1,131 @@
+"""Synthetic accounting regressions; no original market quotes required."""
+from copy import deepcopy
+import json
+from pathlib import Path
+
+import pytest
+
+from scripts.audit_strategy_factory_registry import (
+    REGISTRY, RegistryAuditError, audit_registry,
+)
+
+
+def _registry():
+    return json.loads(Path(REGISTRY).read_text(encoding="utf-8"))
+
+
+def test_real_registry_reconciles_without_touching_private_quotes():
+    data = _registry()
+    result = audit_registry(data)
+    # Avoid pinning exact factory totals: a verified new frozen batch is
+    # expected to increase them without requiring a test-code edit.
+    for key in ("distinct_parameter_specs", "independent_hypothesis_families",
+                "zero_trade_parameter_specs_excluded", "yearly_backtests",
+                "exit_booked_monthly_points",
+                "total_yearly_parameter_executions_including_zero_trade_negative_control",
+                "zero_trade_yearly_parameter_executions_excluded",
+                "strictly_positive_every_month_in_both_years"):
+        assert result[key] == data["totals"][key]
+    assert result["yearly_backtests"] >= 590380
+    assert result["exit_booked_monthly_points"] == 12 * result["yearly_backtests"]
+    assert result["zero_trade_yearly_parameter_executions_excluded"] == (
+        result["total_yearly_parameter_executions_including_zero_trade_negative_control"]
+        - result["yearly_backtests"]
+    )
+    assert result["strictly_positive_every_month_in_both_years"] == 0
+
+
+@pytest.mark.parametrize("change,match", [
+    (lambda d: d["totals"].__setitem__("yearly_backtests", 999999), "yearly_backtests"),
+    (lambda d: d["totals"].__setitem__("exit_booked_monthly_points", 999999), "exit_booked_monthly_points"),
+    (lambda d: d["totals"].__setitem__("distinct_parameter_specs", 999999), "distinct_parameter_specs"),
+    (lambda d: d["completed_batches"].append(deepcopy(d["completed_batches"][0])), "duplicate batch"),
+    (lambda d: d["completed_batches"][1].__setitem__("file", d["completed_batches"][0]["file"]), "duplicate runner"),
+    (lambda d: d["completed_batches"][0].__setitem__("completed_annual_replays", 40001), "annual executions"),
+    (lambda d: next(b for b in d["completed_batches"] if b["id"] == "NRF-FAC-018").__setitem__(
+        "active_annual_replays", 2561), "zero-trade reconciliation"),
+    (lambda d: d["completed_batches"][-1].__setitem__("active_monthly_values", 432000), "active monthly"),
+    (lambda d: d["completed_batches"][-1].__setitem__("configs_24_of_24", 1), "impossible 24/24"),
+    (lambda d: d["completed_batches"][0].__setitem__("years", [2013, 2012]), "design years"),
+    (lambda d: d["feasibility_negative_controls"][0].__setitem__("active_annual_replays", 1), "negative control"),
+    (lambda d: d.__setitem__("fixed_roundtrip_all_in_fee_usd_per_oz", 0.5), "roundtrip fee"),
+    (lambda d: d.__setitem__("research_status", "CLEAN_OOS"), "relabeled OOS"),
+    (lambda d: d.__setitem__("original_private_zip_sha256", "0"*64), "SHA256"),
+])
+def test_corrupted_registry_fails_closed(change, match):
+    data = _registry()
+    change(data)
+    with pytest.raises(RegistryAuditError, match=match):
+        audit_registry(data)
+
+
+@pytest.mark.parametrize("bad", [True, 1.5, -1, None])
+def test_invalid_counter_types_fail_closed(bad):
+    data = _registry()
+    data["totals"]["yearly_backtests"] = bad
+    with pytest.raises(RegistryAuditError, match="nonnegative integer"):
+        audit_registry(data)
+
+
+def test_distinct_active_and_excluded_specs_form_exact_partition():
+    data = _registry()
+    audited = audit_registry(data)
+    all_specs = sum(b["unique_parameter_specs"] for b in data["completed_batches"])
+    # One-year feasibility controls represent unique excluded trials.
+    all_specs += sum(c["actual_parameter_year_executions"] for c in data["feasibility_negative_controls"])
+    assert (audited["distinct_parameter_specs"]
+            + audited["zero_trade_parameter_specs_excluded"]) == all_specs
+    def active_annual(batch):
+        if "active_annual_replays" in batch:
+            return batch["active_annual_replays"]
+        if "annual_replays_with_filled_trades" in batch:
+            return batch["annual_replays_with_filled_trades"]
+        return batch.get("completed_annual_replays", batch.get("completed_annual_parameter_executions", 0))
+
+    expected_active_specs = sum(
+        batch["unique_parameter_specs"] - batch.get("zero_trade_specs_both_years", 0)
+        for batch in data["completed_batches"] if active_annual(batch) > 0
+    )
+    assert audited["distinct_parameter_specs"] == expected_active_specs
+
+
+@pytest.mark.parametrize("batch_id,zero_both,match", [
+    ("NRF-FAC-014", 27649, "both-year zero specs exceed parameter specs"),
+    ("NRF-FAC-014", 9000, "both-year zero specs exceed zero-trade annual executions"),
+    ("NRF-FAC-005", 1, "all-zero family must not double-count"),
+])
+def test_both_year_zero_trade_spec_corruption_fails_closed(batch_id, zero_both, match):
+    data = _registry()
+    batch = next(b for b in data["completed_batches"] if b["id"] == batch_id)
+    batch["zero_trade_specs_both_years"] = zero_both
+    with pytest.raises(RegistryAuditError, match=match):
+        audit_registry(data)
+
+
+@pytest.mark.parametrize("change,match", [
+    (lambda d: next(b for b in d["completed_batches"] if b["id"] == "NRF-FAC-017")
+     .__setitem__("completed_monthly_values_including_zero", 442380), "all monthly values"),
+    (lambda d: d["completed_batches"][0].__setitem__(
+        "maximum_positive_months_out_of_24", 25), "invalid maximum positive months"),
+    (lambda d: d["completed_batches"][0].__setitem__(
+        "maximum_positive_months_out_of_24", 24), "impossible 24/24"),
+    (lambda d: d["completed_batches"][0].__setitem__(
+        "configs_annual_net_positive_both_years", 20001), "impossible annual-positive"),
+    (lambda d: next(b for b in d["completed_batches"] if b["id"] == "NRF-FAC-018")
+     .__setitem__("configs_annual_net_positive_both_years", 1281),
+     "impossible annual-positive"),
+    (lambda d: d["completed_batches"][0].update({
+        "maximum_positive_months_out_of_24": 24, "configs_24_of_24": 104,
+    }), "impossible 24/24"),
+    (lambda d: d["completed_batches"][0].__setitem__(
+        "completed_annual_parameter_executions", 40000)
+     or d["completed_batches"][0].__setitem__("completed_annual_replays", 39999),
+     "completed_annual_replays reconciliation"),
+    (lambda d: next(b for b in d["completed_batches"] if b["id"] == "NRF-FAC-005B")
+     .__setitem__("active_annual_replays", 51199), "annual_replays_with_filled_trades"),
+])
+def test_impossible_research_claims_and_duplicate_count_aliases_fail_closed(change, match):
+    data = _registry()
+    change(data)
+    with pytest.raises(RegistryAuditError, match=match):
+        audit_registry(data)
